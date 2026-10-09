@@ -2638,6 +2638,30 @@ class BleEngine {
   Future<bool> _doConnect(BluetoothDevice device, {String? generationHint}) async {
     state.address = device.remoteId.str;
     _setPhase(BleConnState.connecting);
+
+    // ASK temporarily power-cycles the iOS adapter while its sheet dismisses.
+    // A device.connect issued in that gap reaches CoreBluetooth before
+    // CBCentralManager is powered on and is rejected as API misuse. Wait for
+    // the first real adapter state and abstain unless it is ready; the normal
+    // reconnect path will try again when the native state stream advances.
+    try {
+      final adapter = await FlutterBluePlus.adapterState
+          .firstWhere((s) => s != BluetoothAdapterState.unknown)
+          .timeout(_blockerProbe);
+      if (adapter != BluetoothAdapterState.on) {
+        final blocker = classifyBleBlocker(adapterState: adapter.name) ??
+            BleBlocker.adapterOff;
+        _noteBlocker(blocker);
+        _log('connect deferred: adapter is ${adapter.name}.');
+        await _failConnect();
+        return false;
+      }
+    } catch (e) {
+      _log('connect deferred: adapter state did not become ready: $e');
+      await _failConnect();
+      return false;
+    }
+
     final session = _Session(device);
     _session = session;
     _liveReady = false;

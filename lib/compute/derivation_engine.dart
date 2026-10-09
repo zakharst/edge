@@ -1780,7 +1780,14 @@ import 'vendor_sleep.dart';
 // 106 → 107: analytics main @ c0effea, #86 rmssd gate refuses noise windows, so the stored rmssd/hrv can go null or move.
 // 107 → 108: a ring's own hypnogram stages the main sleep (`vendor_staged`, above auto, below the user's override) when it passes the plausibility gate. Edge-only.
 // 108 → 109: analytics main @ 27b0ba4, #87: at low resting hr a breathing line that stays steady in Hz across the night lets rmssd publish (floor confidence) where the jitter gate refused it.
-const int kAlgoVersion = 109;
+// 109 → 110: strain callers explicitly mark the population quiet-HRR fallback
+// as unsettled for the analytics confidence/note contract; scalar values stay
+// unchanged, but persisted metric metadata changes and must be re-derived.
+// 110 → 111: the local analytics research model replaces the disclosed
+// readiness weights with the server ML-derived ordering: HRV 0.607, RHR 0.265,
+// respiratory rate 0.073, and temperature 0.055. Readiness output changes, so
+// every stored day must be re-derived under a distinct immutable version.
+const int kAlgoVersion = 111;
 /// The sibling SHAs this version was derived against, asserted against
 /// pubspec.yaml in test/db_serve_version_and_reads_test.dart.
 ///
@@ -1961,7 +1968,7 @@ const int kAlgoVersion = 109;
 // SleepSegmentation.bandOffsetTrimSec), on OpenStrap/analytics main, for v100
 // above.
 // REPIN @ c0effea: analytics main, #79 + #86 (rmssd gate), for v105.
-const String kAnalyticsPin = '27b0ba486234900084ed791cfb95e71738645d98';
+const String kAnalyticsPin = '92fe9ceffcec99bfe564bc2e5d4f7e02c886f56d';
 // Repinned to analytics main's tip, which carries BOTH PR #72 (hrv_freq
 // Welch gap guard) and PR #73 (overreachingConjunction rhr quantum guard) —
 // the two independent kAlgoVersion bumps above (93 and 94). Verified both
@@ -7252,6 +7259,7 @@ class DerivationEngine {
             // Reference level, not this user's — see onehz_pipeline's
             // `strainMetric` for why, and edge#226 for the fix.
             quietHrr: ana.quietWakingHrr,
+            quietSettled: false,
             female: _workoutSex(sex) == 'female',
           );
           if (score.present) strain = score.value;

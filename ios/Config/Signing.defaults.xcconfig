@@ -1,7 +1,9 @@
 // Public defaults. Keep personal Apple signing values in Signing.xcconfig.
-APP_BUNDLE_IDENTIFIER = com.example.openstrapEdge
+APP_BUNDLE_IDENTIFIER = com.zakhar.openstrapEdge
 APP_WIDGET_BUNDLE_IDENTIFIER = $(APP_BUNDLE_IDENTIFIER).OpenStrapWidget
-APP_GROUP_IDENTIFIER = group.com.example.openstrap
+APP_GROUP_IDENTIFIER = group.com.zakhar.openstrapEdge
 APPLE_DEVELOPMENT_TEAM =
+APP_WIDGET_CODE_SIGN_ENTITLEMENTS = OpenStrapWidgetExtension.entitlements
+APP_WATCH_CODE_SIGN_ENTITLEMENTS = OpenStrapWatch Watch App/OpenStrapWatch Watch App.entitlements
 
 #include? "Signing.xcconfig"

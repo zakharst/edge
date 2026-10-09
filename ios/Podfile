@@ -4,6 +4,19 @@ platform :ios, '15.0'
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
+# Xcode 27 may write objectVersion 70, which xcodeproj 1.27.0 can parse but
+# accidentally omits from its compatibility-version lookup table.
+require 'xcodeproj'
+unless Xcodeproj::Constants::COMPATIBILITY_VERSION_BY_OBJECT_VERSION.key?(70)
+  compatibility_versions = Xcodeproj::Constants::COMPATIBILITY_VERSION_BY_OBJECT_VERSION.dup
+  compatibility_versions[70] = 'Xcode 16.0'
+  Xcodeproj::Constants.send(:remove_const, :COMPATIBILITY_VERSION_BY_OBJECT_VERSION)
+  Xcodeproj::Constants.const_set(
+    :COMPATIBILITY_VERSION_BY_OBJECT_VERSION,
+    compatibility_versions.freeze,
+  )
+end
+
 project 'Runner', {
   'Debug' => :debug,
   'Profile' => :release,
@@ -45,6 +58,10 @@ post_install do |installer|
       if current < 15.0
         config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
       end
+
+      # Xcode 27's isolated module verifier cannot resolve Flutter headers for
+      # older Objective-C Flutter pods (for example device_info_plus 10.x).
+      config.build_settings['ENABLE_MODULE_VERIFIER'] = 'NO'
     end
   end
 end

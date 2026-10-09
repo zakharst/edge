@@ -277,6 +277,7 @@ double? strainFromPerMinuteHr(
     // Reference level, not this user's — see onehz_pipeline's
     // `strainMetric` for why, and edge#226 for the fix.
     quietHrr: ana.quietWakingHrr,
+    quietSettled: false,
     female: workoutSex(sex) == 'female',
   );
   return score.present ? score.value : null;

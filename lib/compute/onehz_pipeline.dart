@@ -968,6 +968,7 @@ Map<String, dynamic> deriveDayBundle(Map<String, dynamic> inputJson) {
     // ponytail: population constant, swap for the rolling personal median when
     // edge#226 lands — see the same comment at the other four call sites.
     quietHrr: quietWakingHrr,
+    quietSettled: false,
     female: workoutSex(sex) == 'female',
   );
 

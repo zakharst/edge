@@ -262,10 +262,7 @@ dependencies:
       ref: ecb512b710fbfa5fffce999f939a64aa7c486ee0
   openstrap_analytics:
     git:
-      url: https://github.com/OpenStrap/analytics.git
-      # analytics main @ #34 merge. Two hops in one: #32 (the HR-onset bypass
-      # for low-limb-swing cardio) had already merged and this pin was still
-      # sitting on its PR-branch head, and #34 lands the sleep-stager rewrite.
+      url: https://github.com/zakharst/analytics.git
       #
       # #34 replaces the deep/REM boolean conjunctions with weighted robust-z
       # scores. Measured against 99 PSG-labelled wrist nights (DREAMT), the old
@@ -500,7 +497,9 @@ dependencies:
       #      grep -n 'varTot == 0\|diffN == 0'`
       # analytics main @ 4fc2b12: adds #80 (band-state night end) plus #81-#85.
       # analytics main @ c0effea: adds #79 (catalog) and #86 (rmssd gate).
-      ref: 27b0ba486234900084ed791cfb95e71738645d98
+      # Edge MOD readiness research weights, pushed on
+      # `edge-mod-readiness-v111`; this exact SHA is immutable.
+      ref: 92fe9ceffcec99bfe564bc2e5d4f7e02c886f56d
 
   # BLE — flutter_blue_plus is the maintained cross-platform GATT client.
   flutter_blue_plus: ^1.36.8

@@ -936,11 +936,9 @@ packages:
   openstrap_analytics:
     dependency: "direct main"
     description:
-      path: "."
-      ref: "92fe9ceffcec99bfe564bc2e5d4f7e02c886f56d"
-      resolved-ref: "92fe9ceffcec99bfe564bc2e5d4f7e02c886f56d"
-      url: "https://github.com/zakharst/analytics.git"
-    source: git
+      path: "../analytics"
+      relative: true
+    source: path
     version: "1.0.0"
   openstrap_protocol:
     dependency: "direct main"

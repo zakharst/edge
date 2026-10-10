@@ -28,6 +28,7 @@ import '../../l10n/date_text.dart';
 // only three of them and they are read together.
 
 import 'dart:async';
+import 'next_gen_mvp.dart';
 
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -1750,6 +1751,8 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
         ],
         const SizedBox(height: S.x3),
         const DetectedActivitiesCard(),
+        const SizedBox(height: S.x3),
+        const NextGenMvpCard(), // MVP Injection
         if (_loading)
           const Center(child: CircularProgressIndicator())
         else if (_failed)
@@ -1984,6 +1987,8 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
           const SizedBox(height: S.x3),
         ],
         const DetectedActivitiesCard(),
+        const SizedBox(height: S.x3),
+        const NextGenMvpCard(), // MVP Injection
         const CommunityNudge(),
 
         // ── the rollup was withheld, not absent ──

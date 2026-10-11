@@ -1979,12 +1979,10 @@ const int kAlgoVersion = 112;
 // SleepSegmentation.bandOffsetTrimSec), on OpenStrap/analytics main, for v100
 // above.
 // REPIN @ c0effea: analytics main, #79 + #86 (rmssd gate), for v105.
-// REPIN: feat/multidevice-analytics head (ring settle band), WHOOP output
-// unchanged; re-point at the analytics main merge commit.
-// REPIN @ 77fe373: analytics main, #95 merge (readiness autonomic
-// merge + spread calibration + capped re-centring + robust lnRMSSD
-// centre), for v112.
-const String kAnalyticsPin = '77fe373eb819fda235f80610e898a4bc20a7a249';
+// REPIN @ 62a596f: readiness weights already covered by v111 plus additive
+// Next-Gen MVP APIs and their calculator hardening. No existing persisted
+// output changes on this hop.
+const String kAnalyticsPin = '62a596f7d6493cca0fa859913ab960334bfdcf94';
 // Repinned to analytics main's tip, which carries BOTH PR #72 (hrv_freq
 // Welch gap guard) and PR #73 (overreachingConjunction rhr quantum guard) —
 // the two independent kAlgoVersion bumps above (93 and 94). Verified both

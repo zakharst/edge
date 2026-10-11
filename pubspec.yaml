@@ -497,9 +497,11 @@ dependencies:
       #      grep -n 'varTot == 0\|diffN == 0'`
       # analytics main @ 4fc2b12: adds #80 (band-state night end) plus #81-#85.
       # analytics main @ c0effea: adds #79 (catalog) and #86 (rmssd gate).
-      # Edge MOD readiness research weights, pushed on
-      # `edge-mod-readiness-v111`; this exact SHA is immutable.
-      ref: 92fe9ceffcec99bfe564bc2e5d4f7e02c886f56d
+      # Edge MOD analytics @ 62a596f: readiness research weights plus the
+      # additive stress, biological-age, sleep-need, journal and rep-counter
+      # APIs used by the MVP cards. The additions do not alter an existing
+      # persisted output, so this repin does not bump kAlgoVersion.
+      ref: 62a596f7d6493cca0fa859913ab960334bfdcf94
 
   # BLE — flutter_blue_plus is the maintained cross-platform GATT client.
   flutter_blue_plus: ^1.36.8

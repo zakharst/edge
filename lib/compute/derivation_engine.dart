@@ -1968,7 +1968,10 @@ const int kAlgoVersion = 111;
 // SleepSegmentation.bandOffsetTrimSec), on OpenStrap/analytics main, for v100
 // above.
 // REPIN @ c0effea: analytics main, #79 + #86 (rmssd gate), for v105.
-const String kAnalyticsPin = '92fe9ceffcec99bfe564bc2e5d4f7e02c886f56d';
+// REPIN @ 62a596f: readiness weights already covered by v111 plus additive
+// Next-Gen MVP APIs and their calculator hardening. No existing persisted
+// output changes on this hop.
+const String kAnalyticsPin = '62a596f7d6493cca0fa859913ab960334bfdcf94';
 // Repinned to analytics main's tip, which carries BOTH PR #72 (hrv_freq
 // Welch gap guard) and PR #73 (overreachingConjunction rhr quantum guard) —
 // the two independent kAlgoVersion bumps above (93 and 94). Verified both

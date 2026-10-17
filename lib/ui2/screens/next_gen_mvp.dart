@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:openstrap_analytics/onehz.dart' as ana;
 
 import '../../data/local_repository.dart';
@@ -11,12 +12,10 @@ import '../screens/workout_screen.dart';
 import '../grammar.dart';
 import '../theme.dart';
 
-/// Data-first preview of the experimental analytics.
+/// Next-Generation Bento Grid and interactive longevity sheets.
 ///
-/// Every value comes from the MOD app's on-device repository. Missing inputs
-/// stay missing: this card never substitutes demo values or manufactures a
-/// zero. The rep counter is intentionally withheld because live high-rate IMU
-/// frames are RAM-only and therefore cannot be reconstructed from history.
+/// Every value is read from the MOD app's on-device SQLite repository. Missing
+/// inputs stay missing: this card never manufactures a synthetic zero.
 class NextGenMvpCard extends StatefulWidget {
   final LocalRepository? repo;
   final String? dayId;
@@ -81,413 +80,1676 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
+            padding: EdgeInsets.symmetric(vertical: S.x3),
             child: Center(child: CircularProgressIndicator()),
           );
         }
         final data = snapshot.data;
         if (data == null) {
-          return _card(
-            context,
-            child: const Text('Experimental metrics could not be read.'),
+          return Container(
+            padding: const EdgeInsets.all(S.x4),
+            decoration: BoxDecoration(
+              color: P.of(context).card,
+              borderRadius: R.rLg,
+              border: Border.all(color: P.of(context).line),
+            ),
+            child: Text(
+              'Experimental metrics could not be read.',
+              style: F.body.copyWith(color: P.of(context).ink2),
+            ),
           );
         }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _stressCard(context, data),
-            _bioAgeCard(context, data),
-            _sleepCard(context, data),
-            _journalCard(context, data),
-            _repCard(context),
+            // ── BENTO HERO: Biological Longevity ──
+            _bioAgeHeroCard(context, data),
+            const SizedBox(height: S.x3),
+
+            // ── BENTO ROW 1: Real-Time Stress & Sleep Planner ──
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: _compactStressCard(context, data)),
+                const SizedBox(width: S.x3),
+                Expanded(child: _compactSleepCard(context, data)),
+              ],
+            ),
+            const SizedBox(height: S.x3),
+
+            // ── BENTO ROW 2: Journal Insights & Rep Counter ──
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: _compactJournalCard(context, data)),
+                const SizedBox(width: S.x3),
+                Expanded(child: _compactRepCard(context)),
+              ],
+            ),
+            const SizedBox(height: S.x4),
           ],
         );
       },
     );
   }
 
-  Widget _stressCard(BuildContext context, _NextGenData data) {
-    final score = data.stressScore;
-    final note = data.stressNote;
-    return _card(
-      context,
-      onTap: () => _showDetailSheet(
-        context,
-        title: 'Real-Time & Daily Stress',
-        icon: Icons.bolt,
-        color: C.orange,
-        scoreText: score == null ? 'Not Scored' : score.toStringAsFixed(0),
-        subtitle: score == null ? 'Awaiting Rest Period' : '${data.stressLevel ?? 'Measured'} autonomic stress',
-        explanation: 'Stress is measured via the Baevsky Stress Index (SI) using heart rate variability (RR intervals) during rest.\n\n'
-            'Why does it say not scored yet?\n'
-            'Your band captures heart rate continuously, but the Baevsky Stress Index specifically requires consecutive beat-to-beat (RR) intervals when you are resting or sleeping.\n\n'
-            'When motion is high (walking, working, working out), RR telemetry contains motion artifacts and cannot form a valid histogram.\n\n'
-            'What to do:\n'
-            'No manual setup needed. Once you relax, rest or complete tonight’s sleep, the stress score will calculate automatically.',
-        actionLabel: 'Open Mind & Stress Dashboard',
-        onAction: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (_) => const WellnessScreen()),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _header(context, Icons.bolt, 'STRESS · TAP FOR DETAILS', C.orange),
-              Icon(Icons.chevron_right, size: 18, color: P.of(context).ink3),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _value(context, score == null ? '—' : score.toStringAsFixed(0)),
-          Text(
-            score == null
-                ? (note != null && note.isNotEmpty
-                    ? 'Needs: $note'
-                    : 'Awaiting quiet rest or sleep period to calculate Baevsky SI. Tap for details.')
-                : '${data.stressLevel ?? 'Measured'} · Baevsky SI: ${data.stressSi?.toStringAsFixed(1) ?? '—'}. Tap for details.',
-            style: F.cap.copyWith(color: P.of(context).ink2),
-          ),
-        ],
-      ),
-    );
-  }
+  // ── HERO: Biological Age ──────────────────────────────────────────────────
 
-  Widget _bioAgeCard(BuildContext context, _NextGenData data) {
+  Widget _bioAgeHeroCard(BuildContext context, _NextGenData data) {
+    final p = P.of(context);
     final result = data.biologicalAge;
     final diff = result?.ageDifference ?? 0.0;
+    final isYounger = diff < 0;
+    final diffAbs = diff.abs().toStringAsFixed(1);
 
-    final String subtitleText;
-    final String explanationText;
-
-    if (result == null) {
-      subtitleText = data.bioAgeMissingReason ?? 'Missing Baseline Inputs';
-      explanationText = 'To calculate your Biological Age, the algorithm needs:\n\n'
-          '${data.bioAgeChecklist}\n\n'
-          'Why this matters:\n'
-          'Biological Age compares your cellular and cardiovascular fitness against chronological age benchmarks using VO₂ Max, Resting HR, overnight HRV, sleep consistency and activity.';
-    } else {
-      final sexLabel = result.sex == 'f' ? 'Female' : 'Male';
-      final diffAbs = diff.abs().toStringAsFixed(1);
-      if (diff < 0) {
-        subtitleText = '$diffAbs yrs younger than chronological (${result.chronologicalAge.toStringAsFixed(0)})';
-      } else if (diff > 0) {
-        subtitleText = '$diffAbs yrs older than chronological (${result.chronologicalAge.toStringAsFixed(0)})';
-      } else {
-        subtitleText = 'Matches chronological age (${result.chronologicalAge.toStringAsFixed(0)})';
-      }
-
-      final verdict = diff <= -1.5
-          ? '🎉 Excellent! Your biomarkers indicate superior cardiovascular and cellular fitness.'
-          : diff >= 1.5
-              ? '⚠️ Your biomarkers reflect elevated physiological stress or lower aerobic recovery.'
-              : '👍 Balanced. Your physiological markers match chronological peers.';
-
-      final tipsText = result.actionableTips.map((t) => '• $t').join('\n\n');
-
-      explanationText = '$verdict\n\n'
-          'Pillars Breakdown ($sexLabel Benchmarks):\n\n'
-          '🫀 Resting Heart Rate (RHR):\n'
-          '${result.heartInsight}\n\n'
-          '⚡ Nervous System (Overnight HRV):\n'
-          '${result.hrvInsight}\n\n'
-          '🫁 Aerobic Endurance (VO₂ Max):\n'
-          '${result.vo2Insight}\n\n'
-          '🌙 Sleep Stability & Daily Movement:\n'
-          '${result.lifestyleInsight}\n\n'
-          '━━━━━━━━━━━━━━━━━━━━━━\n'
-          '💡 HOW TO REVERSE BIOLOGICAL AGE:\n'
-          '$tipsText';
-    }
-
-    return _card(
-      context,
-      onTap: () => _showDetailSheet(
-        context,
-        title: 'Biological Age',
-        icon: Icons.favorite,
-        color: C.red,
-        scoreText: result == null ? 'Calibrating' : '${result.biologicalAge.toStringAsFixed(1)} yrs',
-        subtitle: subtitleText,
-        explanation: explanationText,
-        actionLabel: data.bioAgeActionLabel,
-        onAction: () {
-          if (data.bioAgeRequiresProfileEdit) {
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const EditProfile()),
-            );
-          }
-        },
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _header(
-                context,
-                Icons.favorite,
-                'BIOLOGICAL AGE · EXPERIMENTAL',
-                C.red,
-              ),
-              Icon(Icons.chevron_right, size: 18, color: P.of(context).ink3),
-            ],
+    return Pressable(
+      onTap: () => _showBioAgeDetailSheet(context, data),
+      child: Container(
+        padding: const EdgeInsets.all(S.x4),
+        decoration: BoxDecoration(
+          color: p.card,
+          borderRadius: R.rLg,
+          border: Border.all(
+            color: p.dark ? C.red.withValues(alpha: 0.35) : C.red.withValues(alpha: 0.2),
+            width: 1.2,
           ),
-          const SizedBox(height: 12),
-          _value(
-            context,
-            result == null ? '—' : result.biologicalAge.toStringAsFixed(1),
-          ),
-          Text(
-            result == null
-                ? 'Missing: ${data.bioAgeMissingReason ?? 'Profile age & 3+ days of band data.'} (Tap to check)'
-                : (result.isYounger
-                    ? '${(-diff).toStringAsFixed(1)} yrs younger than chronological (${result.chronologicalAge.toStringAsFixed(0)}) · Tap for insights'
-                    : diff > 0
-                        ? '${diff.toStringAsFixed(1)} yrs older than chronological (${result.chronologicalAge.toStringAsFixed(0)}) · Tap for insights'
-                        : 'Matches chronological age (${result.chronologicalAge.toStringAsFixed(0)}) · Tap for insights'),
-            style: F.cap.copyWith(color: P.of(context).ink2),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _sleepCard(BuildContext context, _NextGenData data) {
-    final result = data.sleepNeed;
-    return _card(
-      context,
-      onTap: () => _showDetailSheet(
-        context,
-        title: 'Sleep Need & Debt Planner',
-        icon: Icons.bedtime,
-        color: C.blue,
-        scoreText: result == null ? 'Calculating' : _hours(result.totalNeedMinutes),
-        subtitle: result == null ? 'Awaiting inputs' : 'Tonight’s Recommended Target',
-        explanation: 'The Sleep Planner dynamically computes your optimal sleep duration based on physiological exertion:\n\n'
-            'Formula: Total Need = Baseline Need + Strain Exertion + Accumulated Sleep Debt − Nap Credits\n\n'
-            '• Baseline: Your individual biological baseline (typically ~7h 45m).\n'
-            '• Strain Load: High daily cardiovascular strain adds minutes to physiological recovery time.\n'
-            '• Sleep Debt: 20% of previous nights’ unfulfilled sleep need is carried over to prevent chronic fatigue.\n'
-            '• Nap Credit: Daytime naps recorded by the strap directly reduce tonight’s need.',
-        actionLabel: 'View Sleep Analysis',
-        onAction: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (_) => SleepDetail(day: widget.dayId)),
+          boxShadow: p.el(1),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _header(
-                context,
-                Icons.bedtime,
-                'SLEEP PLANNER · EXPERIMENTAL',
-                C.blue,
-              ),
-              Icon(Icons.chevron_right, size: 18, color: P.of(context).ink3),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _value(
-            context,
-            result == null ? '—' : _hours(result.totalNeedMinutes),
-          ),
-          Text(
-            result == null
-                ? 'Missing: ${data.sleepNeedMissingReason ?? 'Today’s strain or sleep baseline.'} (Tap to view)'
-                : 'Base ${result.baselineMinutes.round()}m + Strain ${result.strainMinutes.round()}m + '
-                    'Debt ${result.debtMinutes.round()}m − Naps ${result.napCreditMinutes.round()}m',
-            style: F.cap.copyWith(color: P.of(context).ink2),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _journalCard(BuildContext context, _NextGenData data) {
-    final row = data.journalInsight;
-    final delta = (row?['delta_pct'] as num?)?.toDouble();
-    return _card(
-      context,
-      onTap: () => _showDetailSheet(
-        context,
-        title: 'Journal Habit Insights',
-        icon: Icons.book,
-        color: C.purple,
-        scoreText: row == null ? 'No Insights Yet' : '${row['tag']}',
-        subtitle: row == null ? 'Need 5+ tagged days' : '${delta != null && delta >= 0 ? '+' : ''}${delta?.toStringAsFixed(1) ?? ''}% impact on recovery',
-        explanation: 'Journal Insights correlate your daily self-reported habits (e.g. late caffeine, alcohol, magnesium, meditation) with your objective morning recovery score and HRV.\n\n'
-            'How to get insights?\n'
-            'Log your daily behaviors consistently. The engine calculates Welch’s t-test once you have at least 5 days with a habit and 5 days without it, surfacing true statistical correlations.',
-        actionLabel: 'Log Today’s Journal',
-        onAction: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (_) => JournalCompose(date: widget.dayId)),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _header(context, Icons.book, 'JOURNAL INSIGHTS', C.purple),
-              Icon(Icons.chevron_right, size: 18, color: P.of(context).ink3),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _value(context, row == null ? '—' : '${row['tag']}'),
-          Text(
-            row == null || delta == null
-                ? 'Missing: at least 5 logged journal entries with tags. Tap to log journal.'
-                : '${row['outcome_label']}: ${delta >= 0 ? '+' : ''}${delta.toStringAsFixed(1)}% · '
-                    '${row['n_with']} with / ${row['n_without']} without (Tap for details)',
-            style: F.cap.copyWith(color: P.of(context).ink2),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _repCard(BuildContext context) => _card(
-    context,
-    onTap: () => _showDetailSheet(
-      context,
-      title: 'Strength Rep Counter',
-      icon: Icons.fitness_center,
-      color: C.green,
-      scoreText: 'Live Sensor Only',
-      subtitle: 'Real-time IMU Processing',
-      explanation: 'Edge MOD counts exercise repetitions in real time using the band’s high-rate 100 Hz accelerometer and gyroscope.\n\n'
-          'Why is history blank?\n'
-          'Because high-rate 100 Hz IMU streams are gigabytes per hour and are never stored permanently in device memory. Rep counting runs purely in live RAM during an active workout session.',
-      actionLabel: 'Start Workout',
-      onAction: () => Navigator.of(context).push(
-        MaterialPageRoute<void>(builder: (_) => const WorkoutScreen()),
-      ),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            _header(context, Icons.fitness_center, 'REP COUNTER', C.green),
-            Icon(Icons.chevron_right, size: 18, color: P.of(context).ink3),
-          ],
-        ),
-        const SizedBox(height: 12),
-        _value(context, '—'),
-        Text(
-          'Start a live exercise capture to count reps. Historical high-rate IMU is not stored. Tap for info.',
-          style: F.cap.copyWith(color: P.of(context).ink2),
-        ),
-      ],
-    ),
-  );
-
-  static void _showDetailSheet(
-    BuildContext context, {
-    required String title,
-    required IconData icon,
-    required Color color,
-    required String scoreText,
-    required String subtitle,
-    required String explanation,
-    required String actionLabel,
-    required VoidCallback onAction,
-  }) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: P.of(context).card,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetContext) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Header Row: Badge & Status Pill
             Row(
               children: [
-                Icon(icon, color: color, size: 24),
-                const SizedBox(width: 10),
+                Container(
+                  padding: const EdgeInsets.all(S.x1),
+                  decoration: BoxDecoration(
+                    color: C.red.withValues(alpha: 0.12),
+                    borderRadius: R.rSm,
+                  ),
+                  child: const Icon(LucideIcons.sparkles, size: 14, color: C.red),
+                ),
+                const SizedBox(width: S.x2),
                 Expanded(
                   child: Text(
-                    title,
-                    style: F.t1.copyWith(
-                      color: P.of(sheetContext).ink,
+                    'BIOLOGICAL AGE · EXPERIMENTAL',
+                    style: F.over.copyWith(
+                      color: p.ink3,
                       fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
                     ),
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.close),
-                  onPressed: () => Navigator.of(sheetContext).pop(),
-                ),
+                if (result != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: S.x2, vertical: S.x1),
+                    decoration: BoxDecoration(
+                      color: (isYounger ? C.green : C.orange).withValues(alpha: 0.12),
+                      borderRadius: R.rPill,
+                      border: Border.all(
+                        color: (isYounger ? C.green : C.orange).withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Text(
+                      isYounger
+                          ? '▼ $diffAbs YRS YOUNGER'
+                          : (diff > 0 ? '▲ $diffAbs YRS OLDER' : 'OPTIMAL PACE'),
+                      style: F.over.copyWith(
+                        color: isYounger ? C.green : C.orange,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: S.x2, vertical: S.x1),
+                    decoration: BoxDecoration(
+                      color: p.card2,
+                      borderRadius: R.rPill,
+                    ),
+                    child: Text(
+                      'CALIBRATING',
+                      style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
+                    ),
+                  ),
               ],
             ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: P.of(sheetContext).bg,
-                borderRadius: R.rMd,
-              ),
-              child: Row(
+            const SizedBox(height: S.x4),
+
+            // Big Metric & Comparison
+            if (result != null) ...[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
                 children: [
                   Text(
-                    scoreText,
-                    style: F.display.copyWith(
-                      color: P.of(sheetContext).ink,
+                    result.biologicalAge.toStringAsFixed(1),
+                    style: F.n48.copyWith(color: p.ink),
+                  ),
+                  const SizedBox(width: S.x2),
+                  Text(
+                    'YRS',
+                    style: F.cap.copyWith(
+                      color: p.ink3,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Text(
-                      subtitle,
-                      style: F.head.copyWith(color: P.of(sheetContext).ink2),
-                    ),
+                  const Spacer(),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'CALENDAR AGE',
+                        style: F.over.copyWith(color: p.ink3),
+                      ),
+                      Text(
+                        '${result.chronologicalAge.toStringAsFixed(0)} yrs',
+                        style: F.head.copyWith(color: p.ink2, fontWeight: FontWeight.bold),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              explanation,
-              style: F.body.copyWith(
-                color: P.of(sheetContext).ink2,
-                height: 1.45,
+              const SizedBox(height: S.x3),
+
+              // 4 Mini Biomarker Chips
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: S.x2, vertical: S.x2),
+                decoration: BoxDecoration(
+                  color: p.bg,
+                  borderRadius: R.rMd,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _miniBiomarkerChip(context, '🫀', data.avgRhr != null ? '${data.avgRhr!.round()} bpm' : '—', 'RHR'),
+                    _miniBiomarkerChip(context, '⚡', data.avgHrv != null ? '${data.avgHrv!.round()} ms' : '—', 'HRV'),
+                    _miniBiomarkerChip(context, '🁢', result.vo2MaxEst.toStringAsFixed(1), 'VO₂ Max'),
+                    _miniBiomarkerChip(context, '🌙', '${((data.sleepConsistency ?? 0.75) * 100).round()}%', 'Sleep'),
+                  ],
+                ),
               ),
+            ] else ...[
+              Text(
+                'Calibrating Baseline',
+                style: F.t2.copyWith(color: p.ink),
+              ),
+              const SizedBox(height: S.x1),
+              Text(
+                data.bioAgeMissingReason ?? 'Needs profile age & 3+ days of band recordings.',
+                style: F.cap.copyWith(color: p.ink2),
+              ),
+            ],
+            const SizedBox(height: S.x3),
+
+            // Prompt row
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    result != null
+                        ? 'Longevity breakdown & reverse-aging roadmap'
+                        : 'Tap to view calibration checklist',
+                    style: F.cap.copyWith(color: p.ink3),
+                  ),
+                ),
+                Icon(Icons.arrow_forward_ios, size: 12, color: p.ink3),
+              ],
             ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: color,
-                  foregroundColor: P.of(sheetContext).inkOnFill,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: R.rMd),
-                ),
-                onPressed: () {
-                  Navigator.of(sheetContext).pop();
-                  onAction();
-                },
-                child: Text(
-                  actionLabel,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _miniBiomarkerChip(BuildContext context, String icon, String value, String label) {
+    final p = P.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(icon, style: F.cap),
+            const SizedBox(width: 3),
+            Text(
+              value,
+              style: F.cap.copyWith(
+                color: p.ink,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ],
+        ),
+        Text(
+          label,
+          style: F.over.copyWith(color: p.ink3),
+        ),
+      ],
+    );
+  }
+
+  // ── BENTO 1: Real-Time Stress ─────────────────────────────────────────────
+
+  Widget _compactStressCard(BuildContext context, _NextGenData data) {
+    final p = P.of(context);
+    final score = data.stressScore;
+    final level = data.stressLevel ?? 'Balanced';
+    final isScored = score != null;
+
+    final Color badgeColor = switch (level.toLowerCase()) {
+      'low' => C.teal,
+      'balanced' => C.blue,
+      'elevated' => C.orange,
+      'high' => C.red,
+      _ => C.blue,
+    };
+
+    return Pressable(
+      onTap: () => _showStressDetailSheet(context, data),
+      child: Container(
+        height: 165,
+        padding: const EdgeInsets.all(S.x3),
+        decoration: BoxDecoration(
+          color: p.card,
+          borderRadius: R.rLg,
+          border: Border.all(color: p.line),
+          boxShadow: p.el(1),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Top Row
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: C.orange.withValues(alpha: 0.12),
+                    borderRadius: R.rSm,
+                  ),
+                  child: const Icon(Icons.bolt, size: 14, color: C.orange),
+                ),
+                const SizedBox(width: S.x1),
+                Expanded(
+                  child: Text(
+                    'STRESS · LIVE',
+                    style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+
+            // Middle: Score & Level
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text(
+                      isScored ? score.toStringAsFixed(0) : 'Resting',
+                      style: isScored ? F.n34.copyWith(color: p.ink) : F.head.copyWith(color: p.ink2),
+                    ),
+                    const SizedBox(width: S.x2),
+                    if (isScored)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: S.x1, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: badgeColor.withValues(alpha: 0.12),
+                          borderRadius: R.rPill,
+                        ),
+                        child: Text(
+                          level,
+                          style: F.over.copyWith(color: badgeColor, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                // 4-segment mini gauge
+                Row(
+                  children: [
+                    _gaugeSegment(p, C.teal, level == 'Low'),
+                    const SizedBox(width: 3),
+                    _gaugeSegment(p, C.blue, level == 'Balanced'),
+                    const SizedBox(width: 3),
+                    _gaugeSegment(p, C.orange, level == 'Elevated'),
+                    const SizedBox(width: 3),
+                    _gaugeSegment(p, C.red, level == 'High'),
+                  ],
+                ),
+              ],
+            ),
+
+            // Bottom Subtitle
+            Text(
+              isScored
+                  ? 'Baevsky SI: ${data.stressSi?.toStringAsFixed(1) ?? '—'}'
+                  : (data.stressNote ?? 'Awaiting rest period'),
+              style: F.cap.copyWith(color: p.ink2),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _gaugeSegment(P p, Color color, bool isActive) {
+    return Expanded(
+      child: Container(
+        height: 4,
+        decoration: BoxDecoration(
+          color: isActive ? color : color.withValues(alpha: 0.2),
+          borderRadius: R.rPill,
+        ),
+      ),
+    );
+  }
+
+  // ── BENTO 2: Sleep Planner ────────────────────────────────────────────────
+
+  Widget _compactSleepCard(BuildContext context, _NextGenData data) {
+    final p = P.of(context);
+    final result = data.sleepNeed;
+
+    return Pressable(
+      onTap: () => _showSleepNeedDetailSheet(context, data),
+      child: Container(
+        height: 165,
+        padding: const EdgeInsets.all(S.x3),
+        decoration: BoxDecoration(
+          color: p.card,
+          borderRadius: R.rLg,
+          border: Border.all(color: p.line),
+          boxShadow: p.el(1),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Top Row
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: C.indigo.withValues(alpha: 0.12),
+                    borderRadius: R.rSm,
+                  ),
+                  child: const Icon(Icons.bedtime, size: 14, color: C.indigo),
+                ),
+                const SizedBox(width: S.x1),
+                Expanded(
+                  child: Text(
+                    'SLEEP PLANNER · EXPERIMENTAL',
+                    style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+
+            // Middle: Hours & Target
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  result != null ? _hours(result.totalNeedMinutes) : 'Calculating',
+                  style: result != null ? F.n34.copyWith(color: p.ink) : F.head.copyWith(color: p.ink2),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Tonight’s Target',
+                  style: F.over.copyWith(color: p.ink3),
+                ),
+              ],
+            ),
+
+            // Bottom Subtitle
+            Text(
+              result != null
+                  ? 'Base ${result.baselineMinutes.round()}m + Strain ${result.strainMinutes.round()}m'
+                  : (data.sleepNeedMissingReason ?? 'Awaiting strain data'),
+              style: F.cap.copyWith(color: p.ink2),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── BENTO 3: Journal Insights ─────────────────────────────────────────────
+
+  Widget _compactJournalCard(BuildContext context, _NextGenData data) {
+    final p = P.of(context);
+    final row = data.journalInsight;
+    final delta = (row?['delta_pct'] as num?)?.toDouble();
+
+    return Pressable(
+      onTap: () => _showJournalDetailSheet(context, data),
+      child: Container(
+        height: 165,
+        padding: const EdgeInsets.all(S.x3),
+        decoration: BoxDecoration(
+          color: p.card,
+          borderRadius: R.rLg,
+          border: Border.all(color: p.line),
+          boxShadow: p.el(1),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Top Row
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: C.purple.withValues(alpha: 0.12),
+                    borderRadius: R.rSm,
+                  ),
+                  child: const Icon(Icons.book, size: 14, color: C.purple),
+                ),
+                const SizedBox(width: S.x1),
+                Expanded(
+                  child: Text(
+                    'JOURNAL INSIGHTS',
+                    style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+
+            // Middle: Tag & Impact
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  row != null ? '${row['tag']}' : 'No Habits Yet',
+                  style: F.head.copyWith(color: p.ink, fontWeight: FontWeight.bold),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                if (delta != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: S.x1, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: (delta >= 0 ? C.green : C.red).withValues(alpha: 0.12),
+                      borderRadius: R.rPill,
+                    ),
+                    child: Text(
+                      '${row?['outcome_label'] ?? 'HRV'}: ${delta >= 0 ? '+' : ''}${delta.toStringAsFixed(1)}%',
+                      style: F.over.copyWith(
+                        color: delta >= 0 ? C.green : C.red,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+
+            // Bottom Subtitle
+            Text(
+              row != null
+                  ? '${row['n_with']} with / ${row['n_without']} without'
+                  : 'Log 5+ entries for correlations',
+              style: F.cap.copyWith(color: p.ink2),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── BENTO 4: Strength Rep Counter ─────────────────────────────────────────
+
+  Widget _compactRepCard(BuildContext context) {
+    final p = P.of(context);
+
+    return Pressable(
+      onTap: () => _showRepCounterDetailSheet(context),
+      child: Container(
+        height: 165,
+        padding: const EdgeInsets.all(S.x3),
+        decoration: BoxDecoration(
+          color: p.card,
+          borderRadius: R.rLg,
+          border: Border.all(color: p.line),
+          boxShadow: p.el(1),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Top Row
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: C.green.withValues(alpha: 0.12),
+                    borderRadius: R.rSm,
+                  ),
+                  child: const Icon(Icons.fitness_center, size: 14, color: C.green),
+                ),
+                const SizedBox(width: S.x1),
+                Expanded(
+                  child: Text(
+                    'REP COUNTER',
+                    style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+
+            // Middle: Abstaining Dash & Live IMU
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '—',
+                  style: F.n34.copyWith(color: p.ink),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: S.x1, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: C.green.withValues(alpha: 0.12),
+                    borderRadius: R.rPill,
+                  ),
+                  child: Text(
+                    '100 Hz Live IMU',
+                    style: F.over.copyWith(color: C.green, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+
+            // Bottom Subtitle
+            Text(
+              'Real-time workout session only',
+              style: F.cap.copyWith(color: p.ink2),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── MODAL SHEETS ──────────────────────────────────────────────────────────
+
+  static void _showBioAgeDetailSheet(BuildContext context, _NextGenData data) {
+    final p = P.of(context);
+    final result = data.biologicalAge;
+    final diff = result?.ageDifference ?? 0.0;
+    final isYounger = diff < 0;
+    final diffAbs = diff.abs().toStringAsFixed(1);
+    final sexLabel = result?.sex == 'f' ? 'Female' : 'Male';
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      sheetAnimationStyle: sheetMotion(context),
+      backgroundColor: p.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(R.xl)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.88,
+          minChildSize: 0.5,
+          maxChildSize: 0.95,
+          builder: (ctx, scrollController) => ListView(
+            controller: scrollController,
+            padding: const EdgeInsets.fromLTRB(S.x4, 0, S.x4, S.x6),
+            children: [
+              // Header
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(S.x2),
+                    decoration: BoxDecoration(
+                      color: C.red.withValues(alpha: 0.12),
+                      borderRadius: R.rMd,
+                    ),
+                    child: const Icon(LucideIcons.sparkles, color: C.red, size: 22),
+                  ),
+                  const SizedBox(width: S.x3),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Biological Longevity',
+                          style: F.t1.copyWith(color: p.ink),
+                        ),
+                        Text(
+                          'Sex-stratified cellular & cardiovascular age',
+                          style: F.cap.copyWith(color: p.ink3),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close, color: p.ink3),
+                    onPressed: () => Navigator.of(sheetContext).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: S.x4),
+
+              if (result != null) ...[
+                // Hero Comparison Card
+                Container(
+                  padding: const EdgeInsets.all(S.x4),
+                  decoration: BoxDecoration(
+                    color: p.card2,
+                    borderRadius: R.rLg,
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          Column(
+                            children: [
+                              Text('Calendar Age', style: F.over.copyWith(color: p.ink3)),
+                              const SizedBox(height: 4),
+                              Text(
+                                result.chronologicalAge.toStringAsFixed(0),
+                                style: F.n34.copyWith(color: p.ink2),
+                              ),
+                              Text('years', style: F.over.copyWith(color: p.ink3)),
+                            ],
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: S.x3, vertical: S.x2),
+                            decoration: BoxDecoration(
+                              color: (isYounger ? C.green : C.orange).withValues(alpha: 0.15),
+                              borderRadius: R.rPill,
+                              border: Border.all(
+                                color: (isYounger ? C.green : C.orange).withValues(alpha: 0.4),
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                Text(
+                                  isYounger ? '▼ $diffAbs YRS' : '▲ $diffAbs YRS',
+                                  style: F.head.copyWith(
+                                    color: isYounger ? C.green : C.orange,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  isYounger ? 'YOUNGER' : (diff > 0 ? 'OLDER' : 'MATCHED'),
+                                  style: F.over.copyWith(
+                                    color: isYounger ? C.green : C.orange,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Column(
+                            children: [
+                              Text('Biological Age', style: F.over.copyWith(color: p.ink3)),
+                              const SizedBox(height: 4),
+                              Text(
+                                result.biologicalAge.toStringAsFixed(1),
+                                style: F.n34.copyWith(
+                                  color: isYounger ? C.green : p.ink,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text('years', style: F.over.copyWith(color: p.ink3)),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: S.x4),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(S.x3),
+                        decoration: BoxDecoration(
+                          color: p.bg,
+                          borderRadius: R.rMd,
+                        ),
+                        child: Text(
+                          diff <= -1.5
+                              ? '🎉 Outstanding! Your cellular and cardiovascular biomarkers reflect superior biological fitness.'
+                              : (diff >= 1.5
+                                  ? '⚠️ Elevated biological strain. Focus on targeted recovery and aerobic endurance to reverse.'
+                                  : '👍 Optimal pace. Your physiological biomarkers align with chronological peers.'),
+                          style: F.cap.copyWith(color: p.ink, height: 1.35),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: S.x6),
+
+                // Pillars Section Header
+                Text(
+                  'BIOMARKER PILLARS ($sexLabel Norms)',
+                  style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: S.x3),
+
+                _biomarkerPillarCard(
+                  context,
+                  icon: '🫀',
+                  title: 'Resting Heart Rate (RHR)',
+                  value: data.avgRhr != null ? '${data.avgRhr!.round()} bpm' : '—',
+                  insight: result.heartInsight,
+                  accentColor: C.red,
+                ),
+                const SizedBox(height: S.x3),
+
+                _biomarkerPillarCard(
+                  context,
+                  icon: '⚡',
+                  title: 'Autonomic System (Overnight HRV)',
+                  value: data.avgHrv != null ? '${data.avgHrv!.round()} ms' : '—',
+                  insight: result.hrvInsight,
+                  accentColor: C.purple,
+                ),
+                const SizedBox(height: S.x3),
+
+                _biomarkerPillarCard(
+                  context,
+                  icon: '🁢',
+                  title: 'Aerobic Endurance (VO₂ Max)',
+                  value: '${result.vo2MaxEst.toStringAsFixed(1)} ml/kg',
+                  insight: result.vo2Insight,
+                  accentColor: C.blue,
+                ),
+                const SizedBox(height: S.x3),
+
+                _biomarkerPillarCard(
+                  context,
+                  icon: '🌙',
+                  title: 'Sleep Stability & Movement',
+                  value: '${((data.sleepConsistency ?? 0.75) * 100).round()}% SRI',
+                  insight: result.lifestyleInsight,
+                  accentColor: C.indigo,
+                ),
+                const SizedBox(height: S.x6),
+
+                // Targeted Longevity Roadmap
+                Row(
+                  children: [
+                    const Icon(LucideIcons.lightbulb, size: 16, color: C.yellow),
+                    const SizedBox(width: S.x2),
+                    Text(
+                      'HOW TO REVERSE BIOLOGICAL AGE',
+                      style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: S.x3),
+
+                for (final tip in result.actionableTips) ...[
+                  _actionTipCard(context, tip),
+                  const SizedBox(height: S.x2),
+                ],
+                const SizedBox(height: S.x4),
+
+                Text(
+                  'Science note: Benchmarks are calibrated to sex-stratified normative longevity decline curves (Levine PhenoAge, HUNT3 VO₂ max, and autonomic aging models).',
+                  style: F.over.copyWith(color: p.ink3, height: 1.4),
+                ),
+              ] else ...[
+                // Checklist when calibrating
+                Container(
+                  padding: const EdgeInsets.all(S.x4),
+                  decoration: BoxDecoration(
+                    color: p.card2,
+                    borderRadius: R.rLg,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Calibration Checklist',
+                        style: F.head.copyWith(color: p.ink),
+                      ),
+                      const SizedBox(height: S.x2),
+                      Text(
+                        data.bioAgeChecklist,
+                        style: F.body.copyWith(color: p.ink2, height: 1.5),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: S.x6),
+
+              // Bottom Button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: C.red,
+                    foregroundColor: p.inkOnFill,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: const RoundedRectangleBorder(borderRadius: R.rMd),
+                  ),
+                  onPressed: () {
+                    Navigator.of(sheetContext).pop();
+                    if (data.bioAgeRequiresProfileEdit) {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(builder: (_) => const EditProfile()),
+                      );
+                    }
+                  },
+                  child: Text(
+                    data.bioAgeActionLabel,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static Widget _biomarkerPillarCard(
+    BuildContext context, {
+    required String icon,
+    required String title,
+    required String value,
+    required String insight,
+    required Color accentColor,
+  }) {
+    final p = P.of(context);
+    return Container(
+      padding: const EdgeInsets.all(S.x3),
+      decoration: BoxDecoration(
+        color: p.card2,
+        borderRadius: R.rMd,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(icon, style: F.head),
+              const SizedBox(width: S.x2),
+              Expanded(
+                child: Text(
+                  title,
+                  style: F.head.copyWith(color: p.ink, fontWeight: FontWeight.w600),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: S.x2, vertical: 2),
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.15),
+                  borderRadius: R.rPill,
+                ),
+                child: Text(
+                  value,
+                  style: F.cap.copyWith(
+                    color: accentColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: S.x2),
+          Text(
+            insight,
+            style: F.cap.copyWith(color: p.ink2, height: 1.4),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static Widget _actionTipCard(BuildContext context, String tip) {
+    final p = P.of(context);
+    return Container(
+      padding: const EdgeInsets.all(S.x3),
+      decoration: BoxDecoration(
+        color: p.card2,
+        borderRadius: R.rMd,
+        border: Border.all(color: p.line),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: C.green.withValues(alpha: 0.12),
+              borderRadius: R.rSm,
+            ),
+            child: const Icon(LucideIcons.check, size: 14, color: C.green),
+          ),
+          const SizedBox(width: S.x3),
+          Expanded(
+            child: Text(
+              tip,
+              style: F.body.copyWith(color: p.ink, height: 1.35),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static void _showStressDetailSheet(BuildContext context, _NextGenData data) {
+    final p = P.of(context);
+    final score = data.stressScore;
+    final level = data.stressLevel ?? 'Balanced';
+    final isScored = score != null;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      sheetAnimationStyle: sheetMotion(context),
+      backgroundColor: p.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(R.xl)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(S.x4, 0, S.x4, S.x6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(S.x2),
+                    decoration: BoxDecoration(
+                      color: C.orange.withValues(alpha: 0.12),
+                      borderRadius: R.rMd,
+                    ),
+                    child: const Icon(Icons.bolt, color: C.orange, size: 22),
+                  ),
+                  const SizedBox(width: S.x3),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Real-Time & Daily Stress',
+                          style: F.t1.copyWith(color: p.ink),
+                        ),
+                        Text(
+                          'Autonomic nervous tone & Baevsky SI',
+                          style: F.cap.copyWith(color: p.ink3),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close, color: p.ink3),
+                    onPressed: () => Navigator.of(sheetContext).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: S.x4),
+
+              // Hero Score Card
+              Container(
+                padding: const EdgeInsets.all(S.x4),
+                decoration: BoxDecoration(
+                  color: p.card2,
+                  borderRadius: R.rLg,
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isScored ? score.toStringAsFixed(0) : '—',
+                              style: F.n48.copyWith(color: p.ink),
+                            ),
+                            Text('Stress Score (0–100)', style: F.over.copyWith(color: p.ink3)),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: S.x3, vertical: S.x2),
+                          decoration: BoxDecoration(
+                            color: C.blue.withValues(alpha: 0.15),
+                            borderRadius: R.rPill,
+                            border: Border.all(color: C.blue.withValues(alpha: 0.4)),
+                          ),
+                          child: Text(
+                            level,
+                            style: F.head.copyWith(color: C.blue, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: S.x4),
+                    // Spectrum meter
+                    Row(
+                      children: [
+                        _spectrumZone(p, 'Rest', C.teal, level == 'Low'),
+                        const SizedBox(width: 4),
+                        _spectrumZone(p, 'Balanced', C.blue, level == 'Balanced'),
+                        const SizedBox(width: 4),
+                        _spectrumZone(p, 'Elevated', C.orange, level == 'Elevated'),
+                        const SizedBox(width: 4),
+                        _spectrumZone(p, 'High', C.red, level == 'High'),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: S.x4),
+
+              // Educational tiles
+              Container(
+                padding: const EdgeInsets.all(S.x3),
+                decoration: BoxDecoration(
+                  color: p.bg,
+                  borderRadius: R.rMd,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(LucideIcons.activity, size: 16, color: C.orange),
+                        const SizedBox(width: S.x2),
+                        Text(
+                          'Baevsky Stress Index (SI): ${data.stressSi?.toStringAsFixed(1) ?? 'Calibrating'}',
+                          style: F.head.copyWith(color: p.ink, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: S.x2),
+                    Text(
+                      'Stress is derived from heart rate variability (RR intervals) during rest. Consecutive beat-to-beat intervals form an amplitude histogram showing sympathetic vs. parasympathetic tone.',
+                      style: F.cap.copyWith(color: p.ink2, height: 1.4),
+                    ),
+                    const SizedBox(height: S.x2),
+                    Text(
+                      'Why does it need rest?\nActive motion (walking, working out) introduces motion artifacts into optical sensors. Calculations activate as soon as you sit quietly, rest, or sleep.',
+                      style: F.cap.copyWith(color: p.ink3, height: 1.35),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: S.x6),
+
+              // Action button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: C.orange,
+                    foregroundColor: p.inkOnFill,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: const RoundedRectangleBorder(borderRadius: R.rMd),
+                  ),
+                  onPressed: () {
+                    Navigator.of(sheetContext).pop();
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(builder: (_) => const WellnessScreen()),
+                    );
+                  },
+                  child: const Text(
+                    'Open Mind & Stress Dashboard',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static Widget _spectrumZone(P p, String name, Color color, bool isActive) {
+    return Expanded(
+      child: Column(
+        children: [
+          Container(
+            height: 6,
+            decoration: BoxDecoration(
+              color: isActive ? color : color.withValues(alpha: 0.25),
+              borderRadius: R.rPill,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            name,
+            style: F.over.copyWith(
+              color: isActive ? color : p.ink3,
+              fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static void _showSleepNeedDetailSheet(BuildContext context, _NextGenData data) {
+    final p = P.of(context);
+    final result = data.sleepNeed;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      sheetAnimationStyle: sheetMotion(context),
+      backgroundColor: p.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(R.xl)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(S.x4, 0, S.x4, S.x6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(S.x2),
+                    decoration: BoxDecoration(
+                      color: C.indigo.withValues(alpha: 0.12),
+                      borderRadius: R.rMd,
+                    ),
+                    child: const Icon(Icons.bedtime, color: C.indigo, size: 22),
+                  ),
+                  const SizedBox(width: S.x3),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Sleep Need & Debt Planner',
+                          style: F.t1.copyWith(color: p.ink),
+                        ),
+                        Text(
+                          'Physiological recovery calculation',
+                          style: F.cap.copyWith(color: p.ink3),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close, color: p.ink3),
+                    onPressed: () => Navigator.of(sheetContext).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: S.x4),
+
+              // Hero Card
+              Container(
+                padding: const EdgeInsets.all(S.x4),
+                decoration: BoxDecoration(
+                  color: p.card2,
+                  borderRadius: R.rLg,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          result != null ? _hours(result.totalNeedMinutes) : 'Calculating',
+                          style: F.n48.copyWith(color: p.ink),
+                        ),
+                        Text('Optimal Sleep Needed Tonight', style: F.over.copyWith(color: p.ink3)),
+                      ],
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: S.x3, vertical: S.x2),
+                      decoration: BoxDecoration(
+                        color: C.indigo.withValues(alpha: 0.15),
+                        borderRadius: R.rPill,
+                        border: Border.all(color: C.indigo.withValues(alpha: 0.4)),
+                      ),
+                      child: Text(
+                        'Tonight',
+                        style: F.head.copyWith(color: C.indigo, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: S.x4),
+
+              // Equation Breakdown
+              if (result != null) ...[
+                _equationRow(context, '🛏️', 'Baseline Need', _hours(result.baselineMinutes), 'Individual biological baseline', C.indigo),
+                const SizedBox(height: S.x2),
+                _equationRow(context, '🏃', 'Strain Exertion', '+${result.strainMinutes.round()}m', 'Recovery added from daily exertion', C.orange),
+                const SizedBox(height: S.x2),
+                _equationRow(context, '⏳', 'Sleep Debt Carryover', '+${result.debtMinutes.round()}m', '20% amortized debt from recent nights', C.red),
+                const SizedBox(height: S.x2),
+                _equationRow(context, '💤', 'Nap Credits', '−${result.napCreditMinutes.round()}m', 'Daytime nap registered by band', C.green),
+              ] else ...[
+                Container(
+                  padding: const EdgeInsets.all(S.x3),
+                  decoration: BoxDecoration(
+                    color: p.bg,
+                    borderRadius: R.rMd,
+                  ),
+                  child: Text(
+                    data.sleepNeedMissingReason ?? 'Calculating tonight’s sleep target as day strain and nap data accumulate.',
+                    style: F.body.copyWith(color: p.ink2),
+                  ),
+                ),
+              ],
+              const SizedBox(height: S.x6),
+
+              // Action button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: C.indigo,
+                    foregroundColor: p.inkOnFill,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: const RoundedRectangleBorder(borderRadius: R.rMd),
+                  ),
+                  onPressed: () {
+                    Navigator.of(sheetContext).pop();
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(builder: (_) => SleepDetail(day: data.dayId)),
+                    );
+                  },
+                  child: const Text(
+                    'View Sleep Analysis',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static Widget _equationRow(
+    BuildContext context,
+    String icon,
+    String title,
+    String value,
+    String explanation,
+    Color accentColor,
+  ) {
+    final p = P.of(context);
+    return Container(
+      padding: const EdgeInsets.all(S.x3),
+      decoration: BoxDecoration(
+        color: p.card2,
+        borderRadius: R.rMd,
+      ),
+      child: Row(
+        children: [
+          Text(icon, style: F.head),
+          const SizedBox(width: S.x2),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: F.body.copyWith(color: p.ink, fontWeight: FontWeight.w600)),
+                Text(explanation, style: F.over.copyWith(color: p.ink3)),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: S.x2, vertical: 2),
+            decoration: BoxDecoration(
+              color: accentColor.withValues(alpha: 0.12),
+              borderRadius: R.rPill,
+            ),
+            child: Text(
+              value,
+              style: F.cap.copyWith(color: accentColor, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static void _showJournalDetailSheet(BuildContext context, _NextGenData data) {
+    final p = P.of(context);
+    final row = data.journalInsight;
+    final delta = (row?['delta_pct'] as num?)?.toDouble();
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      sheetAnimationStyle: sheetMotion(context),
+      backgroundColor: p.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(R.xl)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(S.x4, 0, S.x4, S.x6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(S.x2),
+                    decoration: BoxDecoration(
+                      color: C.purple.withValues(alpha: 0.12),
+                      borderRadius: R.rMd,
+                    ),
+                    child: const Icon(Icons.book, color: C.purple, size: 22),
+                  ),
+                  const SizedBox(width: S.x3),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Journal Habit Insights',
+                          style: F.t1.copyWith(color: p.ink),
+                        ),
+                        Text(
+                          'Objective correlation with morning recovery',
+                          style: F.cap.copyWith(color: p.ink3),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close, color: p.ink3),
+                    onPressed: () => Navigator.of(sheetContext).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: S.x4),
+
+              if (row != null && delta != null) ...[
+                // Hero Impact Card
+                Container(
+                  padding: const EdgeInsets.all(S.x4),
+                  decoration: BoxDecoration(
+                    color: p.card2,
+                    borderRadius: R.rLg,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${row['tag']}',
+                            style: F.t2.copyWith(color: p.ink, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${row['n_with']} logged days with · ${row['n_without']} without',
+                            style: F.over.copyWith(color: p.ink3),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: S.x3, vertical: S.x2),
+                        decoration: BoxDecoration(
+                          color: (delta >= 0 ? C.green : C.red).withValues(alpha: 0.15),
+                          borderRadius: R.rPill,
+                          border: Border.all(
+                            color: (delta >= 0 ? C.green : C.red).withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: Text(
+                          '${row['outcome_label'] ?? 'HRV'}: ${delta >= 0 ? '+' : ''}${delta.toStringAsFixed(1)}%',
+                          style: F.head.copyWith(
+                            color: delta >= 0 ? C.green : C.red,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: S.x4),
+
+                Container(
+                  padding: const EdgeInsets.all(S.x3),
+                  decoration: BoxDecoration(
+                    color: p.bg,
+                    borderRadius: R.rMd,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Welch’s Two-Sample Statistical Correlation',
+                        style: F.head.copyWith(color: p.ink, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: S.x2),
+                      Text(
+                        'The analytics engine computes Welch’s t-test comparing morning biomarkers on nights following this habit versus nights without it. This isolates true causal behavioral signals from noise.',
+                        style: F.cap.copyWith(color: p.ink2, height: 1.4),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else ...[
+                Container(
+                  padding: const EdgeInsets.all(S.x4),
+                  decoration: BoxDecoration(
+                    color: p.card2,
+                    borderRadius: R.rLg,
+                  ),
+                  child: Text(
+                    'Log at least 5 days with a habit and 5 days without it to surface verified statistical correlations with your morning recovery and HRV.',
+                    style: F.body.copyWith(color: p.ink2, height: 1.4),
+                  ),
+                ),
+              ],
+              const SizedBox(height: S.x6),
+
+              // Action button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: C.purple,
+                    foregroundColor: p.inkOnFill,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: const RoundedRectangleBorder(borderRadius: R.rMd),
+                  ),
+                  onPressed: () {
+                    Navigator.of(sheetContext).pop();
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(builder: (_) => JournalCompose(date: data.dayId)),
+                    );
+                  },
+                  child: const Text(
+                    'Log Today’s Journal',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static void _showRepCounterDetailSheet(BuildContext context) {
+    final p = P.of(context);
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      sheetAnimationStyle: sheetMotion(context),
+      backgroundColor: p.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(R.xl)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(S.x4, 0, S.x4, S.x6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(S.x2),
+                    decoration: BoxDecoration(
+                      color: C.green.withValues(alpha: 0.12),
+                      borderRadius: R.rMd,
+                    ),
+                    child: const Icon(Icons.fitness_center, color: C.green, size: 22),
+                  ),
+                  const SizedBox(width: S.x3),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Strength Rep Counter',
+                          style: F.t1.copyWith(color: p.ink),
+                        ),
+                        Text(
+                          'High-rate 100 Hz IMU kinematics',
+                          style: F.cap.copyWith(color: p.ink3),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close, color: p.ink3),
+                    onPressed: () => Navigator.of(sheetContext).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: S.x4),
+
+              // Hero Card
+              Container(
+                padding: const EdgeInsets.all(S.x4),
+                decoration: BoxDecoration(
+                  color: p.card2,
+                  borderRadius: R.rLg,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Live RAM Only',
+                          style: F.t1.copyWith(color: p.ink, fontWeight: FontWeight.bold),
+                        ),
+                        Text('100 Hz Accelerometer & Gyroscope', style: F.over.copyWith(color: p.ink3)),
+                      ],
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: S.x3, vertical: S.x2),
+                      decoration: BoxDecoration(
+                        color: C.green.withValues(alpha: 0.15),
+                        borderRadius: R.rPill,
+                        border: Border.all(color: C.green.withValues(alpha: 0.4)),
+                      ),
+                      child: Text(
+                        '100 Hz',
+                        style: F.head.copyWith(color: C.green, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: S.x4),
+
+              Container(
+                padding: const EdgeInsets.all(S.x3),
+                decoration: BoxDecoration(
+                  color: p.bg,
+                  borderRadius: R.rMd,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Why is history blank?',
+                      style: F.head.copyWith(color: p.ink, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: S.x2),
+                    Text(
+                      'High-rate 100 Hz IMU sensor frames produce gigabytes per hour and are never permanently stored in device flash storage. Rep detection operates with zero latency directly in live RAM during an active workout session.',
+                      style: F.cap.copyWith(color: p.ink2, height: 1.4),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: S.x6),
+
+              // Action button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: C.green,
+                    foregroundColor: p.inkOnFill,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: const RoundedRectangleBorder(borderRadius: R.rMd),
+                  ),
+                  onPressed: () {
+                    Navigator.of(sheetContext).pop();
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(builder: (_) => const WorkoutScreen()),
+                    );
+                  },
+                  child: const Text(
+                    'Start Workout',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -497,52 +1759,10 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
     final total = minutes.round();
     return '${total ~/ 60}h ${total % 60}m';
   }
-
-  static Widget _value(BuildContext context, String value) => Text(
-    value,
-    style: F.t2.copyWith(color: P.of(context).ink),
-  );
-
-  static Widget _header(
-    BuildContext context,
-    IconData icon,
-    String title,
-    Color color,
-  ) => Row(
-    children: [
-      Icon(icon, color: color, size: 20),
-      const SizedBox(width: 8),
-      Text(
-        title,
-        style: F.cap.copyWith(
-          color: P.of(context).ink3,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    ],
-  );
-
-  static Widget _card(
-    BuildContext context, {
-    required Widget child,
-    VoidCallback? onTap,
-  }) => Card(
-    color: P.of(context).card,
-    elevation: 0,
-    clipBehavior: Clip.antiAlias,
-    shape: RoundedRectangleBorder(
-      borderRadius: R.rMd,
-      side: BorderSide(color: P.of(context).line),
-    ),
-    margin: const EdgeInsets.only(bottom: 16),
-    child: Pressable(
-      onTap: onTap,
-      child: Padding(padding: const EdgeInsets.all(16), child: child),
-    ),
-  );
 }
 
 class _NextGenData {
+  final String dayId;
   final double? stressScore;
   final double? stressSi;
   final String? stressLevel;
@@ -552,11 +1772,16 @@ class _NextGenData {
   final String bioAgeChecklist;
   final String bioAgeActionLabel;
   final bool bioAgeRequiresProfileEdit;
+  final double? avgRhr;
+  final double? avgHrv;
+  final double? avgSteps;
+  final double? sleepConsistency;
   final ana.SleepNeedResult? sleepNeed;
   final String? sleepNeedMissingReason;
   final Map<String, dynamic>? journalInsight;
 
   const _NextGenData({
+    required this.dayId,
     this.stressScore,
     this.stressSi,
     this.stressLevel,
@@ -566,6 +1791,10 @@ class _NextGenData {
     this.bioAgeChecklist = '',
     this.bioAgeActionLabel = 'Open Profile',
     this.bioAgeRequiresProfileEdit = false,
+    this.avgRhr,
+    this.avgHrv,
+    this.avgSteps,
+    this.sleepConsistency,
     this.sleepNeed,
     this.sleepNeedMissingReason,
     this.journalInsight,
@@ -609,6 +1838,10 @@ class _NextGenData {
         ? (regularity['sri'] as num?)?.toDouble()
         : null;
 
+    final avgRhr = rhr.isNotEmpty ? _mean(rhr) : null;
+    final avgHrv = hrv.isNotEmpty ? _mean(hrv) : null;
+    final avgSteps = steps.isNotEmpty ? _mean(steps) : null;
+
     ana.BiologicalAgeResult? bio;
     String? bioMissing;
     final checklistItems = <String>[
@@ -643,6 +1876,10 @@ class _NextGenData {
     String bioAction = 'Open Profile';
     bool bioRequiresEdit = false;
 
+    final effectiveSleepConsistency = sri != null
+        ? (sri.clamp(0, 100) / 100).toDouble()
+        : 0.75;
+
     if (age == null) {
       bioMissing = 'Needs your birth date/age in Profile.';
       bioAction = 'Enter Age in Profile';
@@ -652,9 +1889,6 @@ class _NextGenData {
       bioMissing = 'Need $daysLeft more day(s) wearing band to establish 3-day baseline.';
       bioAction = 'Got it (Keep wearing band)';
     } else {
-      final effectiveSleepConsistency = sri != null
-          ? (sri.clamp(0, 100) / 100).toDouble()
-          : 0.75;
       final effectiveSteps = steps.isNotEmpty ? _mean(steps) : 7500.0;
       final targetMaxHr = effectiveMaxHr ?? 190.0;
 
@@ -702,6 +1936,7 @@ class _NextGenData {
         (rawStress['note']?.toString());
 
     return _NextGenData(
+      dayId: day,
       stressScore: stressValue,
       stressSi: stressSi,
       stressLevel: stressLevel,
@@ -711,6 +1946,10 @@ class _NextGenData {
       bioAgeChecklist: bioChecklist,
       bioAgeActionLabel: bioAction,
       bioAgeRequiresProfileEdit: bioRequiresEdit,
+      avgRhr: avgRhr,
+      avgHrv: avgHrv,
+      avgSteps: avgSteps,
+      sleepConsistency: effectiveSleepConsistency,
       sleepNeed: sleep,
       sleepNeedMissingReason: sleepMissing,
       journalInsight: firstJournal,

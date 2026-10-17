@@ -302,10 +302,10 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
                       const SizedBox(width: S.x1),
                       Text(
                         data.bio7dDelta! <= -0.05
-                            ? '7d Pace: Reversing ${data.bio7dDelta!.abs().toStringAsFixed(1)} yrs'
+                            ? '7d: -${data.bio7dDelta!.abs().toStringAsFixed(1)} yrs'
                             : (data.bio7dDelta! >= 0.05
-                                ? '7d Pace: +${data.bio7dDelta!.toStringAsFixed(1)} yrs strain'
-                                : '7d Pace: Stable baseline'),
+                                ? '7d: +${data.bio7dDelta!.toStringAsFixed(1)} yrs strain'
+                                : '7d: Stable baseline'),
                         style: F.over.copyWith(
                           color: data.bio7dDelta! <= -0.05
                               ? C.green
@@ -313,7 +313,12 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const Spacer(),
+                      const SizedBox(width: S.x2),
+                      Text(
+                        '·',
+                        style: F.over.copyWith(color: p.ink3),
+                      ),
+                      const SizedBox(width: S.x2),
                       Text(
                         data.isToday ? 'Today' : data.dayId,
                         style: F.over.copyWith(color: p.ink3),
@@ -562,10 +567,11 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
 
             // Middle: Hours & Target
             Text(
-              result != null ? _hours(result.totalNeedMinutes) : 'Calculating',
-              style: result != null ? F.n34.copyWith(color: p.ink) : F.head.copyWith(color: p.ink2),
+              result != null ? _hours(result.totalNeedMinutes) : '—',
+              style: (result != null ? F.t1 : F.head).copyWith(color: p.ink),
+              maxLines: 1,
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 3),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: S.x1, vertical: 2),
               decoration: BoxDecoration(

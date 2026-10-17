@@ -149,9 +149,11 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
     try {
       final r = await collectReport(context.read<AppState>(), _draft(),
           onStage: (st) => _setStep(_stageText(l, st)));
-      _setStep(l.reportStageSharing);
-      await Share.shareXFiles([XFile(r.zip.path)],
-          subject: 'OpenStrap issue report', sharePositionOrigin: origin);
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(r.zip.path)],
+        subject: 'Edge MOD issue report',
+        sharePositionOrigin: origin,
+      ));
     } catch (e) {
       if (mounted) setState(() => _error = e is ReportSendError ? e.status : -2);
     } finally {
@@ -165,9 +167,13 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
   }
 
   Future<void> _pickShot() async {
-    final picked = await FilePicker.platform.pickFiles(type: FileType.image);
-    final path = picked?.files.single.path;
-    if (path != null && mounted) setState(() => _shot = path);
+    try {
+      final picked = await FilePicker.pickFile(type: FileType.image);
+      final path = picked?.path;
+      if (path != null && mounted) setState(() => _shot = path);
+    } catch (e) {
+      debugPrint('pickShot failed: $e');
+    }
   }
 
   Future<void> _delete(SentReport r) async {

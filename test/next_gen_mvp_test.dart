@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:openstrap_edge/data/day_label.dart';
 import 'package:openstrap_edge/data/local_repository.dart';
 import 'package:openstrap_edge/models/metric.dart';
 import 'package:openstrap_edge/ui2/screens/next_gen_mvp.dart';
@@ -105,6 +106,42 @@ void main() {
       findsOneWidget,
       reason: 'only the live rep counter abstains',
     );
+  });
+
+  testWidgets('MOD Next Gen displays day-specific badges for today vs historical days', (
+    tester,
+  ) async {
+    final today = todayLabel();
+    await _pump(
+      tester,
+      NextGenMvpCard(
+        repo: _Repo(),
+        dayId: today,
+        strain: const Metric(value: 12, confidence: 1),
+        sleepMinutes: const Metric(value: 430, confidence: 1),
+        sleepNeedMinutes: const Metric(value: 480, confidence: 1),
+      ),
+    );
+
+    expect(find.text('STRESS · LIVE'), findsOneWidget);
+    expect(find.text('Tonight’s Target'), findsOneWidget);
+    expect(find.text('Today'), findsOneWidget);
+
+    // Now pump with past date
+    await _pump(
+      tester,
+      NextGenMvpCard(
+        repo: _Repo(),
+        dayId: '2026-10-11',
+        strain: const Metric(value: 12, confidence: 1),
+        sleepMinutes: const Metric(value: 430, confidence: 1),
+        sleepNeedMinutes: const Metric(value: 480, confidence: 1),
+      ),
+    );
+
+    expect(find.text('STRESS · DAY RECORD'), findsOneWidget);
+    expect(find.text('Night’s Target'), findsOneWidget);
+    expect(find.text('2026-10-11'), findsOneWidget);
   });
 
   testWidgets('Next Gen stays hidden without a real day and repository', (

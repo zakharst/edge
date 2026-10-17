@@ -27,6 +27,7 @@ class _RecordingHealth implements Health {
     required List<HealthDataType> types,
     required DateTime startTime,
     required DateTime endTime,
+    Map<HealthDataType, HealthDataUnit>? preferredUnits,
     List<RecordingMethod> recordingMethodsToFilter = const [],
   }) async {
     windows.add((startTime, endTime));

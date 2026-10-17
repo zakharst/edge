@@ -1264,6 +1264,9 @@ ActivityHost activityHost(AppState app,
     onSets: (sets) => _bankSets(app, sets),
     history: history,
     bandConnected: app.isConnected,
+    onRepCounting: (active) => app.setStrengthRepCounting(active),
+    addImuListener: (listener) => app.addImuListener(listener),
+    removeImuListener: (listener) => app.removeImuListener(listener),
   );
 }
 

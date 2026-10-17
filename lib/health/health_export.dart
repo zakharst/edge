@@ -528,7 +528,11 @@ class HealthExporter {
   }
 
   /// True on iOS/macOS (Apple Health); false on Android (Health Connect).
-  static bool get isApple => Platform.isIOS || Platform.isMacOS;
+  @visibleForTesting
+  static bool? isAppleOverride;
+
+  static bool get isApple =>
+      isAppleOverride ?? (Platform.isIOS || Platform.isMacOS);
 
   /// Display name of the platform health store.
   static String get storeName => isApple ? 'Apple Health' : 'Health Connect';
@@ -1114,7 +1118,7 @@ class HealthExporter {
         return done;
       };
 
-      return exportPriorityOrBulk();
+      return await exportPriorityOrBulk();
     } catch (e) {
       debugPrint('[health] exportAll: $e');
       return 0;

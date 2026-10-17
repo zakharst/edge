@@ -109,13 +109,13 @@ class _ShareSheetState extends State<ShareSheet> {
       final image = await boundary.toImage(pixelRatio: 3);
       final png = await image.toByteData(format: ui.ImageByteFormat.png);
       if (png == null) return;
-      await Share.shareXFiles(
-        [
+      await SharePlus.instance.share(
+        ShareParams(files: [
           XFile.fromData(png.buffer.asUint8List(),
               mimeType: 'image/png', name: '${r.activity.typeKey}.png'),
         ],
         sharePositionOrigin: origin,
-      );
+      ));
     } catch (e) {
       // A share that quietly does nothing is worse than one that says it
       // failed: this swallowed every iPad share for the life of the screen.
@@ -136,9 +136,8 @@ class _ShareSheetState extends State<ShareSheet> {
   /// or it has the accent gradient.
   Future<void> _pickPhoto() async {
     try {
-      final picked = await FilePicker.platform
-          .pickFiles(type: FileType.image, allowMultiple: false);
-      final path = picked?.files.single.path;
+      final picked = await FilePicker.pickFile(type: FileType.image);
+      final path = picked?.path;
       if (path != null && mounted) setState(() => _photo = File(path));
     } catch (e) {
       debugPrint('photo pick failed: \$e');

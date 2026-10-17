@@ -2013,6 +2013,10 @@ class LiveStreamOwners {
   /// steps. A future opt-in requests IMU through this same owner.
   final bool passiveStrapSteps;
 
+  /// An active strength session is requesting live 100 Hz IMU for automatic
+  /// rep counting (e.g. squats, push-ups).
+  final bool strengthRepCounting;
+
   /// The app is in the foreground. Read ONLY for gen4, where a foreground
   /// connection keeps today's behaviour: HR plus the R10/R11 + IMU + optical
   /// bundle, so gen4 users keep passive strap steps and live HR exactly as
@@ -2027,6 +2031,7 @@ class LiveStreamOwners {
     this.breathing = false,
     this.movementSampling = false,
     this.passiveStrapSteps = false,
+    this.strengthRepCounting = false,
     this.foreground = false,
   });
 
@@ -2037,13 +2042,14 @@ class LiveStreamOwners {
       'hrView: $visibleLiveHrView, workout: $activeWorkout, '
       'fgGait: $foregroundGaitWorkout, breathing: $breathing, '
       'movement: $movementSampling, '
-      'passiveSteps: $passiveStrapSteps, foreground: $foreground)';
+      'passiveSteps: $passiveStrapSteps, '
+      'strengthReps: $strengthRepCounting, foreground: $foreground)';
 }
 
 /// The streams the current owners call for.
 ///
 ///   wantHr  = visibleLiveHrView || activeWorkout || breathing
-///   wantImu = foregroundGaitWorkout || movementSampling || passiveStrapSteps
+///   wantImu = foregroundGaitWorkout || movementSampling || passiveStrapSteps || strengthRepCounting
 ///
 /// plus, on gen4 only, `foreground` as an owner of both (see
 /// [LiveStreamOwners.foreground]). History sync is never an owner — it reads
@@ -2065,6 +2071,7 @@ LiveStreamIntent desiredLiveStreams(
   final imu = (o.foregroundGaitWorkout ||
           o.movementSampling ||
           o.passiveStrapSteps ||
+          o.strengthRepCounting ||
           legacy) &&
       !standardHrFallback;
   return LiveStreamIntent(hr: hr, imu: imu);

@@ -3097,6 +3097,23 @@ class AppState extends ChangeNotifier {
   void setMovementSamplingWindow(bool active) =>
       _liveStreamController.setMovementSamplingWindow(active);
 
+  /// Set whether an active strength session wants live 100 Hz IMU for rep counting.
+  void setStrengthRepCounting(bool active) =>
+      _liveStreamController.setStrengthRepCounting(active);
+
+  /// Listeners receiving live 100 Hz IMU frames.
+  final List<void Function(proto.ImuFrame)> _imuListeners = [];
+
+  void addImuListener(void Function(proto.ImuFrame) listener) {
+    if (!_imuListeners.contains(listener)) {
+      _imuListeners.add(listener);
+    }
+  }
+
+  void removeImuListener(void Function(proto.ImuFrame) listener) {
+    _imuListeners.remove(listener);
+  }
+
   LiveStreamOwners _liveOwners() => _liveStreamController.owners;
 
   // Historical singles only now (live frames go through _onLiveFrame and are
@@ -3138,7 +3155,7 @@ class AppState extends ChangeNotifier {
     if ((breathingActive || breathingWindowOpen) && isRrBearing) {
       _breathingController.tapFrame(hex);
     }
-    // LIVE STEP COUNTER. Gen4: dedicated 0x33 IMU (~10 frames/s × 10 samples)
+    // LIVE STEP COUNTER & REP COUNTER. Gen4: dedicated 0x33 IMU (~10 frames/s × 10 samples)
     // is preferred; full R10 (0x2B) is only a fallback when 0x33 isn't flowing.
     // Gen5 Maverick: live IMU is 0x2B (rec 0x15, 100 Hz planar) — see
     // protocol's frameAccelForBand. Once gen4 0x33 is seen we ignore 0x2B to avoid
@@ -3149,6 +3166,7 @@ class AppState extends ChangeNotifier {
       if (f != null) {
         _ingestLiveMags(f);
         _trackCoverage(recTs);
+        _notifyImuListeners(f);
       }
     } else if (pt == 0x2B && !_imuStreamSeen) {
       // Gen5 Maverick live IMU is 0x2B (100 Hz planar), not top-level 0x33.
@@ -3156,7 +3174,17 @@ class AppState extends ChangeNotifier {
       if (f != null) {
         _ingestLiveMags(f);
         _trackCoverage(recTs);
+        _notifyImuListeners(f);
       }
+    }
+  }
+
+  void _notifyImuListeners(proto.ImuFrame f) {
+    if (_imuListeners.isEmpty) return;
+    for (final l in List<void Function(proto.ImuFrame)>.from(_imuListeners)) {
+      try {
+        l(f);
+      } catch (_) {}
     }
   }
 
@@ -4928,6 +4956,8 @@ class AppState extends ChangeNotifier {
   String get status => _sync.status;
   DateTime? get lastDataAt => _sync.lastDataAt;
   bool get syncingNow => _sync.syncingNow;
+  int get syncDrainRecords => _sync.syncDrainRecords;
+  int get syncDrainBatches => _sync.syncDrainBatches;
   DateTime? get lastRecordAt => _sync.lastRecordAt;
 
   /// A derive job is running RIGHT NOW — the backlog just landed and the

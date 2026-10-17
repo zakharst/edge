@@ -191,6 +191,22 @@ bool syncingNowOf(BuildContext c) {
   }
 }
 
+int syncDrainRecordsOf(BuildContext c) {
+  try {
+    return c.select<AppState, int>((a) => a.syncDrainRecords);
+  } catch (_) {
+    return 0;
+  }
+}
+
+int syncDrainBatchesOf(BuildContext c) {
+  try {
+    return c.select<AppState, int>((a) => a.syncDrainBatches);
+  } catch (_) {
+    return 0;
+  }
+}
+
 /// Whether a derive job is running or about to (the backlog just landed and
 /// today's numbers are being worked out), or false in a golden.
 /// How far the data we hold actually reaches — the band's OWN clock on the
@@ -1047,20 +1063,27 @@ _RingState _ringOf(HomeRingKind k, HomeData d, AppLocalizations? l) {
     case HomeRingKind.sleep:
       final v = d.sleepMin.value;
       final need = d.sleepNeedMin.value;
+      final scorePct = (v != null && need != null && need > 0)
+          ? ((v / need) * 100).round().clamp(0, 100)
+          : null;
       return v == null
           ? _gap(k, l?.homeRingSleep ?? 'Sleep', LucideIcons.moon, C.blue,
               d.sleepMin, l?.homeRingNoSleep ?? 'No sleep', l,
               fallbackWhy: l?.homeSleepGapFallback ??
                   'No night long enough to score was recorded.')
-          : _RingState(k, l?.homeRingSleep ?? 'Sleep', LucideIcons.moon, C.blue,
+          : _RingState(k,
+              scorePct == null
+                  ? (l?.homeRingSleep ?? 'Sleep')
+                  : '${l?.homeRingSleep ?? 'Sleep'} · $scorePct%',
+              LucideIcons.moon,
+              C.blue,
               value: hm(v),
-              // No computed need means no denominator. The hardcoded 480 in
-              // the sleep bundle is not this user's need and must never be
-              // shown as one, so the ring stays open and says so.
               sub: need == null
                   ? (l?.homeSleepNoTarget ?? 'No target yet')
-                  : (l?.homeOfSpan(hm(need)) ?? 'of ${hm(need)}'),
-              frac: need == null || need <= 0 ? null : v / need);
+                  : (scorePct != null
+                      ? '$scorePct% · of ${hm(need)}'
+                      : (l?.homeOfSpan(hm(need)) ?? 'of ${hm(need)}')),
+              frac: need == null || need <= 0 ? null : (v / need).clamp(0.0, 1.0));
   }
 }
 
@@ -1655,10 +1678,19 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
     );
 
     if (syncing) {
+      final records = syncDrainRecordsOf(c);
+      final batches = syncDrainBatchesOf(c);
+      final String progressDetail;
+      if (records > 0) {
+        final formattedRecords = NumberFormat.decimalPattern().format(records);
+        progressDetail = '$formattedRecords records ($batches batches) received. Finalizing and saving...';
+      } else {
+        progressDetail = l?.homeSyncingBody ??
+            'Pulling data now — this can take a few minutes on a full backlog.';
+      }
       return StatusCard(
         l?.homeSyncingTitle ?? 'Syncing with your band',
-        l?.homeSyncingBody ?? 'Pulling data now — this can take a few minutes '
-            'on a full backlog.',
+        progressDetail,
         leading: spinner,
       );
     }
@@ -1752,7 +1784,7 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
         const SizedBox(height: S.x3),
         const DetectedActivitiesCard(),
         const SizedBox(height: S.x3),
-        const NextGenMvpCard(), // MVP Injection
+        NextGenMvpCard(repo: repoOf(c), dayId: null), // MVP Injection
         if (_loading)
           const Center(child: CircularProgressIndicator())
         else if (_failed)
@@ -1988,7 +2020,13 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
         ],
         const DetectedActivitiesCard(),
         const SizedBox(height: S.x3),
-        const NextGenMvpCard(), // MVP Injection
+        NextGenMvpCard(
+          repo: repoOf(c),
+          dayId: d.dayId,
+          strain: d.strain,
+          sleepMinutes: d.sleepMin,
+          sleepNeedMinutes: d.sleepNeedMin,
+        ), // MVP Injection
         const CommunityNudge(),
 
         // ── the rollup was withheld, not absent ──

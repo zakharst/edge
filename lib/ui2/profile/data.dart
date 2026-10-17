@@ -111,8 +111,11 @@ class _DataScreenState extends State<DataScreen> {
               true)
           : (l?.dataNothingToExportYet ?? 'Nothing to export yet.', false);
     }
-    await Share.shareXFiles([for (final p in res.paths) XFile(p)],
-        subject: 'OpenStrap export', sharePositionOrigin: origin);
+    await SharePlus.instance.share(ShareParams(
+      files: [for (final p in res.paths) XFile(p)],
+      subject: 'OpenStrap export',
+      sharePositionOrigin: origin,
+    ));
     final n = res.paths.length;
     final failed = res.hasFailures
         ? ' ${l?.dataSetsFailed(res.failed.length, res.failed.join(', ')) ?? '${res.failed.length} set(s) failed: ${res.failed.join(', ')}.'}'
@@ -156,8 +159,11 @@ class _DataScreenState extends State<DataScreen> {
     if (path == null) {
       return (l?.dataNothingToExportYet ?? 'Nothing to export yet.', false);
     }
-    await Share.shareXFiles([XFile(path)],
-        subject: 'OpenStrap heart rate', sharePositionOrigin: origin);
+    await SharePlus.instance.share(ShareParams(
+      files: [XFile(path)],
+      subject: 'OpenStrap heart rate',
+      sharePositionOrigin: origin,
+    ));
     return (l?.dataFilesShared(1) ?? '1 file shared.', false);
   }
 
@@ -166,8 +172,11 @@ class _DataScreenState extends State<DataScreen> {
     final origin = shareOrigin(context);
     // VACUUM INTO — a transactionally consistent snapshot, not a file copy.
     final path = await LocalDb.exportCopy();
-    await Share.shareXFiles([XFile(path)],
-        subject: 'OpenStrap database', sharePositionOrigin: origin);
+    await SharePlus.instance.share(ShareParams(
+      files: [XFile(path)],
+      subject: 'OpenStrap database',
+      sharePositionOrigin: origin,
+    ));
     return (
       l?.dataDatabaseShared ?? 'Database shared. It is the complete copy.',
       false
@@ -199,8 +208,11 @@ class _DataScreenState extends State<DataScreen> {
         await File(plain).delete();
       } catch (_) {}
     }
-    await Share.shareXFiles([XFile(dest)],
-        subject: 'OpenStrap encrypted backup', sharePositionOrigin: origin);
+    await SharePlus.instance.share(ShareParams(
+      files: [XFile(dest)],
+      subject: 'OpenStrap encrypted backup',
+      sharePositionOrigin: origin,
+    ));
     return (
       l?.dataEncryptedBackupShared ??
           'Encrypted backup shared. Without that passphrase nobody can open it — '
@@ -280,10 +292,9 @@ class _DataScreenState extends State<DataScreen> {
 
   Future<_Note> _import(AppState app) async {
     final l = AppLocalizations.of(context);
-    FilePickerResult? picked;
+    List<PlatformFile> picked;
     try {
-      picked = await FilePicker.platform
-          .pickFiles(allowMultiple: true, withReadStream: false);
+      picked = await FilePicker.pickFiles();
     } catch (e) {
       return (
         l?.dataCouldNotOpenPicker(e.toString()) ??
@@ -291,7 +302,7 @@ class _DataScreenState extends State<DataScreen> {
         true
       );
     }
-    final paths = (picked?.files ?? const [])
+    final paths = picked
         .map((f) => f.path)
         .whereType<String>()
         .toList();

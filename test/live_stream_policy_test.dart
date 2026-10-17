@@ -88,6 +88,14 @@ void main() {
     test('bounded movement-sampling window: IMU only', () {
       expect(_gen5(const LiveStreamOwners(movementSampling: true)), _imuOnly);
     });
+    test('strength rep counting: IMU only (or with active workout: both)', () {
+      expect(
+          _gen5(const LiveStreamOwners(strengthRepCounting: true)), _imuOnly);
+      expect(
+          _gen5(const LiveStreamOwners(
+              activeWorkout: true, strengthRepCounting: true)),
+          _both);
+    });
     test('passive strap-step opt-in: IMU only', () {
       expect(_gen5(const LiveStreamOwners(passiveStrapSteps: true)), _imuOnly);
     });

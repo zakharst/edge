@@ -187,6 +187,13 @@ class ActivityHost {
   /// Whether the band is connected right now.
   final bool bandConnected;
 
+  /// Arms or disarms the 100 Hz IMU stream for live rep counting.
+  final void Function(bool active)? onRepCounting;
+
+  /// Subscribes to live 100 Hz IMU frames. Returns an unlisten callback.
+  final void Function(void Function(dynamic frame) listener)? addImuListener;
+  final void Function(void Function(dynamic frame) listener)? removeImuListener;
+
   const ActivityHost({
     this.feed,
     this.onStart,
@@ -194,6 +201,9 @@ class ActivityHost {
     this.onSets,
     this.history = const {},
     this.bandConnected = false,
+    this.onRepCounting,
+    this.addImuListener,
+    this.removeImuListener,
   });
 
   /// No app behind the screens: they still render, nothing is persisted.
@@ -404,7 +414,10 @@ Widget liveFor(
         history: history,
         private: p,
         onFinish: onFinish,
-        onSets: host.onSets),
+        onSets: host.onSets,
+        onRepCounting: host.onRepCounting,
+        addImuListener: host.addImuListener,
+        removeImuListener: host.removeImuListener),
     Arch.laps => LiveSwim(a,
         feed: feed, weightKg: weightKg, private: p, onFinish: onFinish),
     Arch.flow => LiveFlow(a,
@@ -1157,6 +1170,9 @@ class LiveStrength extends StatefulWidget {
 
   /// Banks the log on every change. See [ActivityHost.onSets].
   final void Function(List<LoggedSet>)? onSets;
+  final void Function(bool active)? onRepCounting;
+  final void Function(void Function(dynamic frame) listener)? addImuListener;
+  final void Function(void Function(dynamic frame) listener)? removeImuListener;
 
   const LiveStrength(this.a,
       {super.key,
@@ -1165,7 +1181,10 @@ class LiveStrength extends StatefulWidget {
       this.private = false,
       this.history = const {},
       this.onFinish,
-      this.onSets});
+      this.onSets,
+      this.onRepCounting,
+      this.addImuListener,
+      this.removeImuListener});
 
   @override
   State<LiveStrength> createState() => _LiveStrengthState();
@@ -1202,10 +1221,12 @@ class _LiveStrengthState extends State<LiveStrength> {
     super.initState();
     _restore();
     _seedFromHistory();
+    widget.onRepCounting?.call(true);
   }
 
   @override
   void dispose() {
+    widget.onRepCounting?.call(false);
     _rest?.cancel();
     restLeft.dispose();
     super.dispose();

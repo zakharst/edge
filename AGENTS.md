@@ -18,6 +18,18 @@ local-first**: BLE offload → SQLite → on-device analytics → UI. No backend
 user data. Network use is limited to OTA update pointers, opt-in
 telemetry/Crashlytics, and BYOK LLM calls.
 
+**Product priority:** WHOOP 4.0 is the primary device and the main product
+vector. Preserve and validate its BLE history sync, record decoding, storage,
+derivation, and UI paths first. Other wearables are secondary integrations and
+must not weaken, complicate, or regress the WHOOP 4.0 path.
+
+**Second priority — Edge MOD:** all product modifications layered on the
+upstream base must remain functional when upstream is refreshed. In particular,
+the Next-Gen experience is a core MOD feature, not an optional demo: keep its
+analytics pin, derivation inputs, persistence/read seams, honest absent-data
+behaviour, and UI integration working end to end. Validate WHOOP 4.0 first,
+then the complete MOD/Next-Gen path before secondary wearable integrations.
+
 Three sibling repos, strict separation — push work to the right one:
 - `OpenStrap/protocol` — bytes: GATT, framing, CRC, opcodes, record decode.
 - `OpenStrap/analytics` — metrics: HRV, sleep staging, readiness, strain.

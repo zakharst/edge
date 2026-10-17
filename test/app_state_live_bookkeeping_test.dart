@@ -39,6 +39,7 @@ void main() {
     expect(a.breathing, b.breathing, reason: when);
     expect(a.movementSampling, b.movementSampling, reason: when);
     expect(a.passiveStrapSteps, b.passiveStrapSteps, reason: when);
+    expect(a.strengthRepCounting, b.strengthRepCounting, reason: when);
     expect(a.foreground, b.foreground, reason: when);
   }
 

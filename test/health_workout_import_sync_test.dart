@@ -51,6 +51,7 @@ class _FakeHealth extends Health {
     required List<HealthDataType> types,
     required DateTime startTime,
     required DateTime endTime,
+    Map<HealthDataType, HealthDataUnit>? preferredUnits,
     List<RecordingMethod> recordingMethodsToFilter = const [],
   }) async =>
       points;

@@ -81,6 +81,15 @@ class LiveStreamController {
 
   bool _movementSampling = false;
 
+  /// An active strength workout set wants live 100 Hz IMU data to count reps.
+  void setStrengthRepCounting(bool active) {
+    if (_strengthRepCounting == active) return;
+    _strengthRepCounting = active;
+    nudge();
+  }
+
+  bool _strengthRepCounting = false;
+
   /// Passive strap-step collection: OFF by default on gen5 (#287 decision 1).
   /// A future explicit opt-in requests IMU through this same owner.
   static const bool _passiveStrapSteps = false;
@@ -98,6 +107,7 @@ class LiveStreamController {
       breathing: _breathing(),
       movementSampling: _movementSampling,
       passiveStrapSteps: _passiveStrapSteps,
+      strengthRepCounting: !_background() && _strengthRepCounting,
       foreground: !_background(),
     );
   }

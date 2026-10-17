@@ -245,7 +245,7 @@ class NotificationService {
         tzdata.initializeTimeZones();
         _tzdbLoaded = true;
       }
-      final name = await FlutterTimezone.getLocalTimezone();
+      final name = (await FlutterTimezone.getLocalTimezone()).identifier;
       if (name != tz.local.name) tz.setLocalLocation(tz.getLocation(name));
     } catch (_) {/* tz stays as-is (UTC on a cold failure); we retry next arm */}
   }
@@ -264,7 +264,7 @@ class NotificationService {
       requestSoundPermission: false,
     );
     await _plugin.initialize(
-      const InitializationSettings(android: android, iOS: darwin),
+      settings: const InitializationSettings(android: android, iOS: darwin),
       onDidReceiveNotificationResponse: _onTap,
     );
     final androidImpl = _plugin.resolvePlatformSpecificImplementation<
@@ -440,10 +440,10 @@ class NotificationService {
       // e.osId overrides only for a caller that also cancels by id (see
       // NotificationEvent.osId).
       await _plugin.show(
-        e.osId ?? await NotificationIds.instance.idFor(e),
-        e.title,
-        e.body.isEmpty ? null : e.body,
-        _details(e.category),
+        id: e.osId ?? await NotificationIds.instance.idFor(e),
+        title: e.title,
+        body: e.body.isEmpty ? null : e.body,
+        notificationDetails: _details(e.category),
         payload: e.route,
       );
       return true;
@@ -506,14 +506,12 @@ class NotificationService {
         }
       }
       await _plugin.zonedSchedule(
-        id,
-        title,
-        body,
-        when,
-        _details(category),
+        id: id,
+        title: title,
+        body: body,
+        scheduledDate: when,
+        notificationDetails: _details(category),
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: DateTimeComponents.time,
         payload: route,
       );
@@ -535,14 +533,12 @@ class NotificationService {
       if (!await ensurePermission(allowPrompt: false)) return;
       await ensureTimezone();
       await _plugin.zonedSchedule(
-        id,
-        title,
-        body,
-        _nextInstanceOf(hour, minute, weekday: weekday),
-        _details(category),
+        id: id,
+        title: title,
+        body: body,
+        scheduledDate: _nextInstanceOf(hour, minute, weekday: weekday),
+        notificationDetails: _details(category),
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
         payload: route,
       );
@@ -570,14 +566,12 @@ class NotificationService {
       if (!await ensurePermission(allowPrompt: false)) return;
       final when = tz.TZDateTime.from(at, tz.local);
       await _plugin.zonedSchedule(
-        id,
-        title,
-        body,
-        when,
-        _details(category),
+        id: id,
+        title: title,
+        body: body,
+        scheduledDate: when,
+        notificationDetails: _details(category),
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
         payload: route,
       );
     } catch (_) {}
@@ -585,7 +579,7 @@ class NotificationService {
 
   Future<void> cancel(int id) async {
     try {
-      await _plugin.cancel(id);
+      await _plugin.cancel(id: id);
     } catch (_) {}
   }
 

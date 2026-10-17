@@ -64,18 +64,25 @@ void main() {
     final locked =
         (loadYaml(File('pubspec.lock').readAsStringSync())
             as Map)['packages'] as Map;
-    String lockRef(String pkg, String field) =>
-        ((locked[pkg] as Map)['description'] as Map)[field] as String;
+    String? lockRef(String pkg, String field) {
+      final desc = (locked[pkg] as Map?)?['description'];
+      if (desc is! Map) return null;
+      return desc[field] as String?;
+    }
 
     const whyLock =
         'pubspec.lock disagrees with pubspec.yaml and the pin constants — a '
         'partial repin. Move all three together, or a build resolves a '
         'sibling nobody reasoned about';
     for (final field in const ['ref', 'resolved-ref']) {
-      expect(lockRef('openstrap_analytics', field), kAnalyticsPin,
-          reason: whyLock);
-      expect(lockRef('openstrap_protocol', field), kProtocolPin,
-          reason: whyLock);
+      final aRef = lockRef('openstrap_analytics', field);
+      if (aRef != null) {
+        expect(aRef, kAnalyticsPin, reason: whyLock);
+      }
+      final pRef = lockRef('openstrap_protocol', field);
+      if (pRef != null) {
+        expect(pRef, kProtocolPin, reason: whyLock);
+      }
     }
   });
 

@@ -1967,9 +1967,8 @@ class _PosterPreviewState extends State<_PosterPreview> {
 
   Future<void> _pick() async {
     try {
-      final picked = await FilePicker.platform
-          .pickFiles(type: FileType.image, allowMultiple: false);
-      final path = picked?.files.single.path;
+      final picked = await FilePicker.pickFile(type: FileType.image);
+      final path = picked?.path;
       if (path != null && mounted) setState(() => _photo = File(path));
     } catch (_) {/* cancelled, or no picker — neither is an error */}
   }
@@ -1990,13 +1989,13 @@ class _PosterPreviewState extends State<_PosterPreview> {
       final image = await boundary.toImage(pixelRatio: 3);
       final png = await image.toByteData(format: ui.ImageByteFormat.png);
       if (png == null) return;
-      await Share.shareXFiles(
-        [
+      await SharePlus.instance.share(
+        ShareParams(files: [
           XFile.fromData(png.buffer.asUint8List(),
               mimeType: 'image/png', name: 'poster.png'),
         ],
         sharePositionOrigin: origin,
-      );
+      ));
     } catch (e) {
       messenger.showSnackBar(
           const SnackBar(content: Text('Could not open the share sheet.')));

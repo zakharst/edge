@@ -2586,6 +2586,10 @@ class BleEngine {
 
   bool get offloadActive => _offloadActive;
 
+  /// Records and batches ingested by the active drain controller on this link.
+  int get syncDrainRecords => _drain?.records ?? 0;
+  int get syncDrainBatches => _drain?.batches ?? 0;
+
   /// True once this connection's history hit the terminal `Stuck` boundary
   ///: a burst failed validation
   /// [kBurstValidationAttemptLimit] times and the abort went out. Nothing may

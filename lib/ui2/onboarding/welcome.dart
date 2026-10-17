@@ -256,10 +256,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
   Future<void> _import() async {
     final app = context.read<AppState>();
-    FilePickerResult? picked;
+    List<PlatformFile> picked;
     try {
-      picked = await FilePicker.platform
-          .pickFiles(allowMultiple: true, withReadStream: false);
+      picked = await FilePicker.pickFiles();
     } catch (e) {
       if (mounted) {
         setState(() =>
@@ -267,7 +266,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       }
       return;
     }
-    final paths = (picked?.files ?? const [])
+    final paths = picked
         .map((f) => f.path)
         .whereType<String>()
         .toList();

@@ -85,11 +85,17 @@ void main() {
   });
 
   group('exportWorkout delete-then-write', () {
-    // The host VM is neither iOS nor macOS, so `HealthExporter.isApple` is
-    // false and these exercise the Health-Connect reading of `delete`.
+    // Exercising the Health-Connect reading of `delete` requires non-Apple mode.
     late _FakeHealthStore store;
 
-    tearDown(() => store.remove());
+    setUp(() {
+      HealthExporter.isAppleOverride = false;
+    });
+
+    tearDown(() {
+      HealthExporter.isAppleOverride = null;
+      store.remove();
+    });
 
     test('a failed delete does not write a duplicate on top of it', () async {
       store = _FakeHealthStore(deleteResult: false)..install();

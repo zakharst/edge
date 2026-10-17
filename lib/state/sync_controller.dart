@@ -1039,6 +1039,10 @@ class SyncController {
   bool get syncingNow =>
       _syncActivity.isActive(DateTime.now().millisecondsSinceEpoch);
 
+  /// Offload metrics from the current link's drainer.
+  int get syncDrainRecords => engine.syncDrainRecords;
+  int get syncDrainBatches => engine.syncDrainBatches;
+
   String get status => device.connection;
 
   DateTime? get lastDataAt => engine.lastRxAt;

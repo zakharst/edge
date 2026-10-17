@@ -1798,7 +1798,10 @@ import 'vendor_sleep.dart';
 // 110 → 111 (#315): new scalar `sdnn_window`, the mean of 5-min-window SDNNs over the sleep NN (windows under 21 beats left out); the Apple Health HRV SDNN sample now carries it instead of the drift-inflated whole-night `sdnn`, which is unchanged. Edge-only.
 // (no bump) The multi-device wearable paths (`compute/inputs/`, the partial readiness composite, wearable worn-minutes and skin-temp cadence, ring nights) only run for a wearable whose developer flag is on and which is the active wearable; flags default off and a flag-off device contributes nothing. WHOOP output is unchanged, pinned by test/whoop_freeze_golden_test.dart against goldens generated from main.
 // 111 → 112 (recovery calibration): analytics main @ 77fe373 (#95). Readiness merges HRV and RHR into one autonomic input (mean of their oriented z's, weight 0.70) and maps the composite z through the user's own spread once 14 prior nights exist: score = logistic(0.65·(z − ĉ)/σ̂), σ̂ = MAD×1.4826 of the trailing `readiness_z` series floored at 0.3, ĉ = its median capped to ±0.5 (re-centring; calibrating before 14 nights). The per-day composite z is stored as `readiness_z`; `readiness_calibration_backfill.dart` rebuilds it from stored drivers and re-scores days whose raw is pruned. readiness_lnrmssd's z/SWC/band use the prior window's median + MAD.
-const int kAlgoVersion = 112;
+// 112 → 113: Edge MOD analytics @ f44875b rebases the research readiness
+// weights and Next-Gen wellness calculators onto current analytics main.
+// Readiness output changes, so immutable derived days require a new version.
+const int kAlgoVersion = 113;
 /// The sibling SHAs this version was derived against, asserted against
 /// pubspec.yaml in test/db_serve_version_and_reads_test.dart.
 ///
@@ -1979,10 +1982,9 @@ const int kAlgoVersion = 112;
 // SleepSegmentation.bandOffsetTrimSec), on OpenStrap/analytics main, for v100
 // above.
 // REPIN @ c0effea: analytics main, #79 + #86 (rmssd gate), for v105.
-// REPIN @ 62a596f: readiness weights already covered by v111 plus additive
-// Next-Gen MVP APIs and their calculator hardening. No existing persisted
-// output changes on this hop.
-const String kAnalyticsPin = '62a596f7d6493cca0fa859913ab960334bfdcf94';
+// REPIN @ f44875b: current analytics main plus the Edge MOD readiness weights,
+// Next-Gen MVP APIs, and calculator hardening, for v113.
+const String kAnalyticsPin = 'f44875b54e7ef9d1918144c078ac70043674b63a';
 // Repinned to analytics main's tip, which carries BOTH PR #72 (hrv_freq
 // Welch gap guard) and PR #73 (overreachingConjunction rhr quantum guard) —
 // the two independent kAlgoVersion bumps above (93 and 94). Verified both

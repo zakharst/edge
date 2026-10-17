@@ -970,13 +970,13 @@ class _ActivitySummaryState extends State<ActivitySummary> {
         return;
       }
       final gpx = buildGpx(route, name: a.name);
-      await Share.shareXFiles(
-        [
+      await SharePlus.instance.share(
+        ShareParams(files: [
           XFile.fromData(Uint8List.fromList(utf8.encode(gpx)),
               mimeType: 'application/gpx+xml', name: '${a.typeKey}.gpx'),
         ],
         sharePositionOrigin: origin,
-      );
+      ));
     } catch (e) {
       if (!c.mounted) return;
       messenger.showSnackBar(SnackBar(

@@ -6,7 +6,7 @@ publish_to: 'none'
 # Watch App" targets in ios/Runner.xcodeproj/project.pbxproj — they aren't wired
 # to FLUTTER_BUILD_NAME/FLUTTER_BUILD_NUMBER. See guides/IOS_INSTALLATION.md
 # "Version Numbers".
-version: 0.10.3+72
+version: 0.10.3+73
 
 environment:
   sdk: ^3.11.4
@@ -503,11 +503,10 @@ dependencies:
       #      grep -n 'varTot == 0\|diffN == 0'`
       # analytics main @ 4fc2b12: adds #80 (band-state night end) plus #81-#85.
       # analytics main @ c0effea: adds #79 (catalog) and #86 (rmssd gate).
-      # Edge MOD analytics @ 62a596f: readiness research weights plus the
-      # additive stress, biological-age, sleep-need, journal and rep-counter
-      # APIs used by the MVP cards. The additions do not alter an existing
-      # persisted output, so this repin does not bump kAlgoVersion.
-      ref: 62a596f7d6493cca0fa859913ab960334bfdcf94
+      # Edge MOD analytics @ f44875b: current OpenStrap analytics main plus the
+      # readiness research weights and additive stress, biological-age,
+      # sleep-need, journal and rep-counter APIs used by the MVP cards.
+      ref: f44875b54e7ef9d1918144c078ac70043674b63a
 
   # BLE — flutter_blue_plus is the maintained cross-platform GATT client.
   flutter_blue_plus: ^1.36.8
@@ -539,7 +538,7 @@ dependencies:
   # 24-h spectra). Android: a real OS-scheduled WorkManager job. iOS: see the
   # honest caveat in lib/compute/background_derivation.dart — app-killed heavy
   # compute is opportunistic via BGTaskScheduler, never guaranteed.
-  workmanager: ^0.9.0
+  workmanager: ^0.10.10
 
   # HTTP — retained ONLY for the OTA self-update pointer (see lib/sync/update_service.dart)
   # and the AI Coach's direct LLM (BYOK) calls. No backend / auth traffic anymore.
@@ -556,7 +555,7 @@ dependencies:
   # want: +3-10 MB of APK in exchange for needing no Google Play Services at
   # all, on a build distributed through GitHub Releases. Do NOT set the
   # `useUnbundled` Gradle property.
-  mobile_scanner: ^7.3.1
+  mobile_scanner: ^7.4.2
 
   # State + small settings persistence.
   provider: ^6.1.2
@@ -577,7 +576,7 @@ dependencies:
   # pulls heavier native storage deps, so v1 uses live CARTO tiles only.
   flutter_map: ^7.0.2
   latlong2: ^0.9.1
-  geolocator: ^13.0.2
+  geolocator: ^14.1.1
 
   # Type: Manrope + Barlow Condensed are BUNDLED under assets/fonts/ (declared
   # in flutter.fonts below), not pulled at runtime — see the note there.
@@ -602,17 +601,17 @@ dependencies:
   clock: ^1.1.2
 
   # Share recap cards (rendered card → image → share sheet).
-  share_plus: ^10.1.4
+  share_plus: ^13.3.1
 
   # File picker for data imports (NOOP raw CSV, Edge .db backup, WHOOP export CSV).
-  file_picker: ^8.1.6
+  file_picker: ^13.1.0
 
   # Apple Health (HealthKit, iOS) + Google Health Connect (Android) — export each
   # day's derived metrics to the platform health store.
   # >=12.0.0 is not optional: 11.1.1's `_alignValue` lists SLEEP_ASLEEP twice
   # and never lists SLEEP_LIGHT, so every light/Core stage write threw on iOS —
   # ~70% of a night, every night, and it flipped the day's export to failed too.
-  health: ^12.2.1
+  health: ^13.3.2
   # Open the Health Connect app/settings so the user can grant per-app access
   # manually (the reliable path when its in-app request dialog is locked out).
   android_intent_plus: ^5.1.0
@@ -622,26 +621,26 @@ dependencies:
   #   • battery_plus       — phone battery + charging state (upload gate)
   #   • connectivity_plus  — Wi-Fi check (only upload the heavy .db on unmetered)
   #   • uuid               — stable anonymous install id (the device_id anchor)
-  device_info_plus: ^10.1.2   # capped <11 by `health`
+  device_info_plus: ^13.3.0
   battery_plus: ^6.1.0
   connectivity_plus: ^6.1.0
   uuid: ^4.5.1
 
   # Home/lock-screen widget bridge (writes a snapshot to the App Group → WidgetKit).
-  home_widget: ^0.6.0
+  home_widget: ^0.10.0
 
   # OS-level notifications (band battery low / charging, health alerts, recovery,
   # scheduled reminders). The single display layer; see lib/notify/. Local +
   # scheduled only (no FCM — the app is cloud-free).
-  flutter_local_notifications: ^18.0.1
+  flutter_local_notifications: ^22.3.1
   # zonedSchedule needs an initialized tz database + the device's IANA zone, so
   # wind-down / weekly-recap nudges fire at the right wall-clock time.
-  timezone: ^0.9.4
-  flutter_timezone: ^3.0.1
+  timezone: ^0.11.1
+  flutter_timezone: ^5.1.1
 
   # OTA self-update (Android sideload): read our own version, download + install the
   # signed APK from the backend's update pointer, with a browser fallback.
-  package_info_plus: ^8.1.0
+  package_info_plus: ^10.2.2
   ota_update: ^7.1.0
   url_launcher: ^6.3.0
   notification_listener_service: ^1.0.0
@@ -650,7 +649,7 @@ dependencies:
   firebase_core: ^4.11.0
   firebase_crashlytics: ^5.2.4
   firebase_performance: ^0.11.4+3
-  firebase_analytics: ^12.4.3
+  firebase_analytics: ^12.6.0
 
 # NOTE: to build against the in-tree sibling packages during local development,
 # create a (gitignored) pubspec_overrides.yaml — pub auto-detects it. Keeping the
@@ -716,6 +715,11 @@ flutter_launcher_icons:
   adaptive_icon_foreground: "assets/launcher/icon_adaptive.png"
 
 flutter:
+  # Flutter 3.47's generated local Swift package loses the aggregate product
+  # identity with the current federated iOS plugins. Keep native plugins on
+  # CocoaPods until Flutter's SPM generator can produce a stable graph.
+  config:
+    enable-swift-package-manager: false
   generate: true
   uses-material-design: true
   assets:

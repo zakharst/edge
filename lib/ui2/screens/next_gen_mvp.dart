@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:openstrap_analytics/onehz.dart' as ana;
 
+import '../../data/day_label.dart' show todayLabel;
 import '../../data/local_repository.dart';
 import '../../models/metric.dart';
 import '../profile/settings.dart';
@@ -121,7 +122,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
               children: [
                 Expanded(child: _compactJournalCard(context, data)),
                 const SizedBox(width: S.x3),
-                Expanded(child: _compactRepCard(context)),
+                Expanded(child: _compactRepCard(context, data)),
               ],
             ),
             const SizedBox(height: S.x4),
@@ -273,6 +274,54 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
                   ],
                 ),
               ),
+              if (data.bio7dDelta != null) ...[
+                const SizedBox(height: S.x2),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: S.x3, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: (data.bio7dDelta! <= -0.05
+                            ? C.green
+                            : (data.bio7dDelta! >= 0.05 ? C.orange : p.card2))
+                        .withValues(alpha: 0.12),
+                    borderRadius: R.rPill,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        data.bio7dDelta! <= -0.05
+                            ? LucideIcons.trendingDown
+                            : (data.bio7dDelta! >= 0.05
+                                ? LucideIcons.trendingUp
+                                : LucideIcons.minus),
+                        size: 13,
+                        color: data.bio7dDelta! <= -0.05
+                            ? C.green
+                            : (data.bio7dDelta! >= 0.05 ? C.orange : p.ink3),
+                      ),
+                      const SizedBox(width: S.x1),
+                      Text(
+                        data.bio7dDelta! <= -0.05
+                            ? '7d Pace: Reversing ${data.bio7dDelta!.abs().toStringAsFixed(1)} yrs'
+                            : (data.bio7dDelta! >= 0.05
+                                ? '7d Pace: +${data.bio7dDelta!.toStringAsFixed(1)} yrs strain'
+                                : '7d Pace: Stable baseline'),
+                        style: F.over.copyWith(
+                          color: data.bio7dDelta! <= -0.05
+                              ? C.green
+                              : (data.bio7dDelta! >= 0.05 ? C.orange : p.ink3),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        data.isToday ? 'Today' : data.dayId,
+                        style: F.over.copyWith(color: p.ink3),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ] else ...[
               Text(
                 'Calibrating Baseline',
@@ -383,7 +432,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
                   const SizedBox(width: S.x1),
                   Expanded(
                     child: Text(
-                      'STRESS · LIVE',
+                      data.isToday ? 'STRESS · LIVE' : 'STRESS · DAY RECORD',
                       style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -441,7 +490,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
             Text(
               isScored
                   ? 'Baevsky SI: ${data.stressSi?.toStringAsFixed(1) ?? '—'}'
-                  : (data.stressNote ?? 'Awaiting rest period'),
+                  : (data.stressNote ?? (data.isToday ? 'Awaiting rest period' : 'No rest recording')),
               style: F.cap.copyWith(color: p.ink3),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -524,7 +573,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
                 borderRadius: R.rPill,
               ),
               child: Text(
-                'Tonight’s Target',
+                data.isToday ? 'Tonight’s Target' : 'Night’s Target',
                 style: F.over.copyWith(color: C.indigo, fontWeight: FontWeight.bold),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -534,9 +583,16 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
 
             // Bottom Subtitle
             Text(
-              result != null
-                  ? 'Base ${_hours(result.baselineMinutes)} · +${result.strainMinutes.round()}m'
-                  : (data.sleepNeedMissingReason ?? 'Awaiting strain data'),
+              !data.isToday && data.actualSleepMinutes != null && result != null
+                  ? () {
+                      final diff = (data.actualSleepMinutes! - result.totalNeedMinutes).round();
+                      return diff >= 0
+                          ? 'Slept ${_hours(data.actualSleepMinutes!)} · +${diff}m surplus'
+                          : 'Slept ${_hours(data.actualSleepMinutes!)} · ${diff.abs()}m debt';
+                    }()
+                  : (result != null
+                      ? 'Base ${_hours(result.baselineMinutes)} · +${result.strainMinutes.round()}m'
+                      : (data.sleepNeedMissingReason ?? 'Awaiting strain data')),
               style: F.cap.copyWith(color: p.ink3),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -598,7 +654,9 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
 
             // Middle: Tag & Impact
             Text(
-              row != null ? '${row['tag']}' : 'No Habits Yet',
+              data.dayLoggedHabits.isNotEmpty
+                  ? data.dayLoggedHabits.join(', ')
+                  : (row != null ? '${row['tag']}' : 'No Habits Yet'),
               style: F.head.copyWith(color: p.ink, fontWeight: FontWeight.bold),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -639,9 +697,11 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
 
             // Bottom Subtitle
             Text(
-              row != null
-                  ? '${row['n_with']} with · ${row['n_without']} without'
-                  : 'Needs 5+ logged days',
+              data.dayLoggedHabits.isNotEmpty
+                  ? 'Logged on this day'
+                  : (row != null
+                      ? '${row['n_with']} with · ${row['n_without']} without'
+                      : 'Needs 5+ logged days'),
               style: F.cap.copyWith(color: p.ink3),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -654,7 +714,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
 
   // ── BENTO 4: Strength Rep Counter ─────────────────────────────────────────
 
-  Widget _compactRepCard(BuildContext context) {
+  Widget _compactRepCard(BuildContext context, _NextGenData data) {
     final p = P.of(context);
 
     return Pressable(
@@ -712,7 +772,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
                 borderRadius: R.rPill,
               ),
               child: Text(
-                '100 Hz Live IMU',
+                data.isToday ? '100 Hz Live IMU' : 'RAM Kinematics',
                 style: F.over.copyWith(color: C.green, fontWeight: FontWeight.bold),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -722,7 +782,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
 
             // Bottom Subtitle
             Text(
-              'Live workout tracking',
+              data.isToday ? 'Live workout tracking' : 'Active session mode',
               style: F.cap.copyWith(color: p.ink3),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -887,6 +947,58 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
                   ),
                 ),
                 const SizedBox(height: S.x6),
+
+                if (data.bioTrajectory.length >= 2) ...[
+                  Row(
+                    children: [
+                      const Icon(LucideIcons.activity, size: 16, color: C.blue),
+                      const SizedBox(width: S.x2),
+                      Text(
+                        '7-DAY LONGEVITY TRAJECTORY',
+                        style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: S.x2),
+                  Container(
+                    padding: const EdgeInsets.all(S.x3),
+                    decoration: BoxDecoration(
+                      color: p.card2,
+                      borderRadius: R.rMd,
+                    ),
+                    child: Column(
+                      children: [
+                        for (final item in data.bioTrajectory) ...[
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  item.$1 == data.dayId ? '${item.$1} (Selected)' : item.$1,
+                                  style: F.cap.copyWith(
+                                    color: item.$1 == data.dayId ? p.ink : p.ink2,
+                                    fontWeight: item.$1 == data.dayId ? FontWeight.bold : FontWeight.normal,
+                                  ),
+                                ),
+                                Text(
+                                  '${item.$2.toStringAsFixed(1)} yrs',
+                                  style: F.cap.copyWith(
+                                    color: item.$2 < result.chronologicalAge ? C.green : p.ink,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (item != data.bioTrajectory.last)
+                            Divider(height: 1, color: p.line.withValues(alpha: 0.5)),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: S.x6),
+                ],
 
                 // Pillars Section Header
                 Text(
@@ -1808,11 +1920,14 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
 
 class _NextGenData {
   final String dayId;
+  final bool isToday;
   final double? stressScore;
   final double? stressSi;
   final String? stressLevel;
   final String? stressNote;
   final ana.BiologicalAgeResult? biologicalAge;
+  final double? bio7dDelta;
+  final List<(String, double)> bioTrajectory;
   final String? bioAgeMissingReason;
   final String bioAgeChecklist;
   final String bioAgeActionLabel;
@@ -1822,16 +1937,21 @@ class _NextGenData {
   final double? avgSteps;
   final double? sleepConsistency;
   final ana.SleepNeedResult? sleepNeed;
+  final double? actualSleepMinutes;
   final String? sleepNeedMissingReason;
   final Map<String, dynamic>? journalInsight;
+  final List<String> dayLoggedHabits;
 
   const _NextGenData({
     required this.dayId,
+    required this.isToday,
     this.stressScore,
     this.stressSi,
     this.stressLevel,
     this.stressNote,
     this.biologicalAge,
+    this.bio7dDelta,
+    this.bioTrajectory = const [],
     this.bioAgeMissingReason,
     this.bioAgeChecklist = '',
     this.bioAgeActionLabel = 'Open Profile',
@@ -1841,8 +1961,10 @@ class _NextGenData {
     this.avgSteps,
     this.sleepConsistency,
     this.sleepNeed,
+    this.actualSleepMinutes,
     this.sleepNeedMissingReason,
     this.journalInsight,
+    this.dayLoggedHabits = const [],
   });
 
   static Future<_NextGenData> load(
@@ -1852,6 +1974,7 @@ class _NextGenData {
     required double? sleepMinutes,
     required double? sleepNeedMinutes,
   }) async {
+    final isToday = day == todayLabel();
     final results = await Future.wait<Object>([
       repo.getDayStress(day),
       repo.getProfile(),
@@ -1870,9 +1993,9 @@ class _NextGenData {
     final journal = results[4] as Map<String, dynamic>;
     final naps = results[5] as Map<String, dynamic>;
 
-    final rhr = _tailValues(results[6] as Map<String, dynamic>, 14);
-    final hrv = _tailValues(results[7] as Map<String, dynamic>, 14);
-    final steps = _tailValues(results[8] as Map<String, dynamic>, 14);
+    final rhr = _tailValues(results[6] as Map<String, dynamic>, 14, day: day);
+    final hrv = _tailValues(results[7] as Map<String, dynamic>, 14, day: day);
+    final steps = _tailValues(results[8] as Map<String, dynamic>, 14, day: day);
     final sex = (profile['sex'] as String?)?.toLowerCase() ?? 'm';
     final age = (profile['age'] as num?)?.toDouble();
     final ceiling = zones['ceiling'];
@@ -1925,6 +2048,7 @@ class _NextGenData {
         ? (sri.clamp(0, 100) / 100).toDouble()
         : 0.75;
 
+    final targetMaxHr = effectiveMaxHr ?? 190.0;
     if (age == null) {
       bioMissing = 'Needs your birth date/age in Profile.';
       bioAction = 'Enter Age in Profile';
@@ -1935,7 +2059,6 @@ class _NextGenData {
       bioAction = 'Got it (Keep wearing band)';
     } else {
       final effectiveSteps = steps.isNotEmpty ? _mean(steps) : 7500.0;
-      final targetMaxHr = effectiveMaxHr ?? 190.0;
 
       bio = ana.BiologicalAgeCalculator.calculate(
         chronologicalAge: age,
@@ -1946,6 +2069,40 @@ class _NextGenData {
         avgDailySteps: effectiveSteps,
         sex: sex,
       );
+    }
+
+    // Dynamics: Calculate 7-day trajectory of biological age up to [day]
+    final dayDt = DateTime.tryParse(day);
+    double? bio7dDelta;
+    final bioTrajectory = <(String, double)>[];
+
+    if (bio != null && age != null && dayDt != null) {
+      for (var i = 6; i >= 0; i--) {
+        final tDate = DateTime(dayDt.year, dayDt.month, dayDt.day - i);
+        final tLabel =
+            '${tDate.year}-${tDate.month.toString().padLeft(2, '0')}-${tDate.day.toString().padLeft(2, '0')}';
+        final tRhr = _tailValues(results[6] as Map<String, dynamic>, 14, day: tLabel);
+        final tHrv = _tailValues(results[7] as Map<String, dynamic>, 14, day: tLabel);
+        final tSteps = _tailValues(results[8] as Map<String, dynamic>, 14, day: tLabel);
+        if (tRhr.length >= 3 && tHrv.length >= 3) {
+          final tBio = ana.BiologicalAgeCalculator.calculate(
+            chronologicalAge: age,
+            maxHr: targetMaxHr,
+            avgRhr: _mean(tRhr),
+            avgHrv: _mean(tHrv),
+            sleepConsistency: effectiveSleepConsistency,
+            avgDailySteps: tSteps.isNotEmpty ? _mean(tSteps) : 7500.0,
+            sex: sex,
+          );
+          bioTrajectory.add((tLabel, tBio.biologicalAge));
+        }
+      }
+
+      if (bioTrajectory.length >= 2) {
+        final earliest = bioTrajectory.first.$2;
+        final latest = bio.biologicalAge;
+        bio7dDelta = latest - earliest;
+      }
     }
 
     ana.SleepNeedResult? sleep;
@@ -1971,6 +2128,17 @@ class _NextGenData {
         ? (journalRows.first as Map).cast<String, dynamic>()
         : null;
 
+    List<String> dayLoggedHabits = const [];
+    try {
+      final entries = await repo.getJournal(range: '30d');
+      for (final e in entries) {
+        if (e['date'] == day && e['tags'] is List) {
+          dayLoggedHabits = (e['tags'] as List).cast<String>();
+          break;
+        }
+      }
+    } catch (_) {}
+
     final stressMap = rawStress['stress'] is Map
         ? (rawStress['stress'] as Map).cast<String, dynamic>()
         : rawStress;
@@ -1982,11 +2150,14 @@ class _NextGenData {
 
     return _NextGenData(
       dayId: day,
+      isToday: isToday,
       stressScore: stressValue,
       stressSi: stressSi,
       stressLevel: stressLevel,
       stressNote: stressNote,
       biologicalAge: bio,
+      bio7dDelta: bio7dDelta,
+      bioTrajectory: bioTrajectory,
       bioAgeMissingReason: bioMissing,
       bioAgeChecklist: bioChecklist,
       bioAgeActionLabel: bioAction,
@@ -1996,8 +2167,10 @@ class _NextGenData {
       avgSteps: avgSteps,
       sleepConsistency: effectiveSleepConsistency,
       sleepNeed: sleep,
+      actualSleepMinutes: sleepMinutes,
       sleepNeedMissingReason: sleepMissing,
       journalInsight: firstJournal,
+      dayLoggedHabits: dayLoggedHabits,
     );
   }
 
@@ -2011,11 +2184,22 @@ class _NextGenData {
     return unwrapped is num ? unwrapped.toDouble() : null;
   }
 
-  static List<double> _tailValues(Map<String, dynamic> chart, int count) {
+  static List<double> _tailValues(
+    Map<String, dynamic> chart,
+    int count, {
+    String? day,
+  }) {
     final points = chart['points'];
+    final dayDt = day != null ? DateTime.tryParse('$day 23:59:59') : null;
+    final dayEndSec = dayDt != null ? dayDt.millisecondsSinceEpoch ~/ 1000 : null;
+
     final values = <double>[
       for (final point in (points is List ? points : const []))
-        if (point is Map && point['v'] is num) (point['v'] as num).toDouble(),
+        if (point is Map && point['v'] is num)
+          if (dayEndSec == null ||
+              point['t'] == null ||
+              (point['t'] is num && (point['t'] as num) <= dayEndSec))
+            (point['v'] as num).toDouble(),
     ];
     return values.length <= count
         ? values

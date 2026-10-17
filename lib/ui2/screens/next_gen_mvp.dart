@@ -108,7 +108,6 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
 
             // ── BENTO ROW 1: Real-Time Stress & Sleep Planner ──
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(child: _compactStressCard(context, data)),
                 const SizedBox(width: S.x3),
@@ -119,7 +118,6 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
 
             // ── BENTO ROW 2: Journal Insights & Rep Counter ──
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(child: _compactJournalCard(context, data)),
                 const SizedBox(width: S.x3),
@@ -219,28 +217,35 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
             // Big Metric & Comparison
             if (result != null) ...[
               Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(
-                    result.biologicalAge.toStringAsFixed(1),
-                    style: F.n48.copyWith(color: p.ink),
-                  ),
-                  const SizedBox(width: S.x2),
-                  Text(
-                    'YRS',
-                    style: F.cap.copyWith(
-                      color: p.ink3,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Text(
+                        result.biologicalAge.toStringAsFixed(1),
+                        style: F.n48.copyWith(color: p.ink),
+                      ),
+                      const SizedBox(width: S.x1),
+                      Text(
+                        'YRS',
+                        style: F.cap.copyWith(
+                          color: p.ink3,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
                   const Spacer(),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        'CALENDAR AGE',
+                        'CALENDAR',
                         style: F.over.copyWith(color: p.ink3),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       Text(
                         '${result.chronologicalAge.toStringAsFixed(0)} yrs',
@@ -260,12 +265,11 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
                   borderRadius: R.rMd,
                 ),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    _miniBiomarkerChip(context, '🫀', data.avgRhr != null ? '${data.avgRhr!.round()} bpm' : '—', 'RHR'),
-                    _miniBiomarkerChip(context, '⚡', data.avgHrv != null ? '${data.avgHrv!.round()} ms' : '—', 'HRV'),
-                    _miniBiomarkerChip(context, '🁢', result.vo2MaxEst.toStringAsFixed(1), 'VO₂ Max'),
-                    _miniBiomarkerChip(context, '🌙', '${((data.sleepConsistency ?? 0.75) * 100).round()}%', 'Sleep'),
+                    Expanded(child: _miniBiomarkerChip(context, '🫀', data.avgRhr != null ? '${data.avgRhr!.round()} bpm' : '—', 'RHR')),
+                    Expanded(child: _miniBiomarkerChip(context, '⚡', data.avgHrv != null ? '${data.avgHrv!.round()} ms' : '—', 'HRV')),
+                    Expanded(child: _miniBiomarkerChip(context, '🁢', result.vo2MaxEst.toStringAsFixed(1), 'VO₂ Max')),
+                    Expanded(child: _miniBiomarkerChip(context, '🌙', '${((data.sleepConsistency ?? 0.75) * 100).round()}%', 'Sleep')),
                   ],
                 ),
               ),
@@ -307,23 +311,22 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(icon, style: F.cap),
-            const SizedBox(width: 3),
-            Text(
-              value,
-              style: F.cap.copyWith(
-                color: p.ink,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
+        Text(
+          '$icon $value',
+          style: F.cap.copyWith(
+            color: p.ink,
+            fontWeight: FontWeight.bold,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
         ),
         Text(
           label,
           style: F.over.copyWith(color: p.ink3),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
         ),
       ],
     );
@@ -334,12 +337,16 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
   Widget _compactStressCard(BuildContext context, _NextGenData data) {
     final p = P.of(context);
     final score = data.stressScore;
-    final level = data.stressLevel ?? 'Balanced';
+    final rawLevel = data.stressLevel ?? 'Balanced';
     final isScored = score != null;
+    final displayLevel = rawLevel.isNotEmpty
+        ? '${rawLevel[0].toUpperCase()}${rawLevel.substring(1)}'
+        : 'Balanced';
+    final levelLower = displayLevel.toLowerCase();
 
-    final Color badgeColor = switch (level.toLowerCase()) {
+    final Color badgeColor = switch (levelLower) {
       'low' => C.teal,
-      'balanced' => C.blue,
+      'balanced' || 'normal' => C.blue,
       'elevated' => C.orange,
       'high' => C.red,
       _ => C.blue,
@@ -348,7 +355,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
     return Pressable(
       onTap: () => _showStressDetailSheet(context, data),
       child: Container(
-        height: 165,
+        height: 154,
         padding: const EdgeInsets.all(S.x3),
         decoration: BoxDecoration(
           color: p.card,
@@ -358,78 +365,84 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // Top Row
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(
-                    color: C.orange.withValues(alpha: 0.12),
-                    borderRadius: R.rSm,
+            // Top Row (fixed height 28 for cross-card baseline alignment)
+            SizedBox(
+              height: 28,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: C.orange.withValues(alpha: 0.12),
+                      borderRadius: R.rSm,
+                    ),
+                    child: const Icon(Icons.bolt, size: 14, color: C.orange),
                   ),
-                  child: const Icon(Icons.bolt, size: 14, color: C.orange),
-                ),
-                const SizedBox(width: S.x1),
-                Expanded(
-                  child: Text(
-                    'STRESS · LIVE',
-                    style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
+                  const SizedBox(width: S.x1),
+                  Expanded(
+                    child: Text(
+                      'STRESS · LIVE',
+                      style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
+            const SizedBox(height: S.x2),
 
             // Middle: Score & Level
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: [
-                    Text(
-                      isScored ? score.toStringAsFixed(0) : 'Resting',
-                      style: isScored ? F.n34.copyWith(color: p.ink) : F.head.copyWith(color: p.ink2),
-                    ),
-                    const SizedBox(width: S.x2),
-                    if (isScored)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: S.x1, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: badgeColor.withValues(alpha: 0.12),
-                          borderRadius: R.rPill,
-                        ),
-                        child: Text(
-                          level,
-                          style: F.over.copyWith(color: badgeColor, fontWeight: FontWeight.bold),
-                        ),
+                Text(
+                  isScored ? score.toStringAsFixed(0) : 'Resting',
+                  style: isScored ? F.n34.copyWith(color: p.ink) : F.head.copyWith(color: p.ink2),
+                ),
+                const SizedBox(width: S.x1),
+                if (isScored)
+                  Flexible(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: S.x1, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: badgeColor.withValues(alpha: 0.12),
+                        borderRadius: R.rPill,
                       ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                // 4-segment mini gauge
-                Row(
-                  children: [
-                    _gaugeSegment(p, C.teal, level == 'Low'),
-                    const SizedBox(width: 3),
-                    _gaugeSegment(p, C.blue, level == 'Balanced'),
-                    const SizedBox(width: 3),
-                    _gaugeSegment(p, C.orange, level == 'Elevated'),
-                    const SizedBox(width: 3),
-                    _gaugeSegment(p, C.red, level == 'High'),
-                  ],
-                ),
+                      child: Text(
+                        displayLevel,
+                        style: F.over.copyWith(color: badgeColor, fontWeight: FontWeight.bold),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
               ],
             ),
+            const SizedBox(height: 6),
+            // 4-segment mini gauge
+            Row(
+              children: [
+                _gaugeSegment(p, C.teal, levelLower == 'low'),
+                const SizedBox(width: 3),
+                _gaugeSegment(p, C.blue, levelLower == 'balanced' || levelLower == 'normal'),
+                const SizedBox(width: 3),
+                _gaugeSegment(p, C.orange, levelLower == 'elevated'),
+                const SizedBox(width: 3),
+                _gaugeSegment(p, C.red, levelLower == 'high'),
+              ],
+            ),
+            const Spacer(),
 
             // Bottom Subtitle
             Text(
               isScored
                   ? 'Baevsky SI: ${data.stressSi?.toStringAsFixed(1) ?? '—'}'
                   : (data.stressNote ?? 'Awaiting rest period'),
-              style: F.cap.copyWith(color: p.ink2),
+              style: F.cap.copyWith(color: p.ink3),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -460,7 +473,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
     return Pressable(
       onTap: () => _showSleepNeedDetailSheet(context, data),
       child: Container(
-        height: 165,
+        height: 154,
         padding: const EdgeInsets.all(S.x3),
         decoration: BoxDecoration(
           color: p.card,
@@ -470,51 +483,61 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // Top Row
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(
-                    color: C.indigo.withValues(alpha: 0.12),
-                    borderRadius: R.rSm,
+            // Top Row (fixed height 28 for cross-card baseline alignment)
+            SizedBox(
+              height: 28,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: C.indigo.withValues(alpha: 0.12),
+                      borderRadius: R.rSm,
+                    ),
+                    child: const Icon(Icons.bedtime, size: 14, color: C.indigo),
                   ),
-                  child: const Icon(Icons.bedtime, size: 14, color: C.indigo),
-                ),
-                const SizedBox(width: S.x1),
-                Expanded(
-                  child: Text(
-                    'SLEEP PLANNER · EXPERIMENTAL',
-                    style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
+                  const SizedBox(width: S.x1),
+                  Expanded(
+                    child: Text(
+                      'SLEEP PLANNER · EXPERIMENTAL',
+                      style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
+                      maxLines: 2,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
+            const SizedBox(height: S.x2),
 
             // Middle: Hours & Target
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  result != null ? _hours(result.totalNeedMinutes) : 'Calculating',
-                  style: result != null ? F.n34.copyWith(color: p.ink) : F.head.copyWith(color: p.ink2),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Tonight’s Target',
-                  style: F.over.copyWith(color: p.ink3),
-                ),
-              ],
+            Text(
+              result != null ? _hours(result.totalNeedMinutes) : 'Calculating',
+              style: result != null ? F.n34.copyWith(color: p.ink) : F.head.copyWith(color: p.ink2),
             ),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: S.x1, vertical: 2),
+              decoration: BoxDecoration(
+                color: C.indigo.withValues(alpha: 0.12),
+                borderRadius: R.rPill,
+              ),
+              child: Text(
+                'Tonight’s Target',
+                style: F.over.copyWith(color: C.indigo, fontWeight: FontWeight.bold),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const Spacer(),
 
             // Bottom Subtitle
             Text(
               result != null
-                  ? 'Base ${result.baselineMinutes.round()}m + Strain ${result.strainMinutes.round()}m'
+                  ? 'Base ${_hours(result.baselineMinutes)} · +${result.strainMinutes.round()}m'
                   : (data.sleepNeedMissingReason ?? 'Awaiting strain data'),
-              style: F.cap.copyWith(color: p.ink2),
+              style: F.cap.copyWith(color: p.ink3),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -534,7 +557,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
     return Pressable(
       onTap: () => _showJournalDetailSheet(context, data),
       child: Container(
-        height: 165,
+        height: 154,
         padding: const EdgeInsets.all(S.x3),
         decoration: BoxDecoration(
           color: p.card,
@@ -544,64 +567,82 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // Top Row
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(
-                    color: C.purple.withValues(alpha: 0.12),
-                    borderRadius: R.rSm,
+            // Top Row (fixed height 28 for cross-card baseline alignment)
+            SizedBox(
+              height: 28,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: C.purple.withValues(alpha: 0.12),
+                      borderRadius: R.rSm,
+                    ),
+                    child: const Icon(Icons.book, size: 14, color: C.purple),
                   ),
-                  child: const Icon(Icons.book, size: 14, color: C.purple),
-                ),
-                const SizedBox(width: S.x1),
-                Expanded(
-                  child: Text(
-                    'JOURNAL INSIGHTS',
-                    style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
+                  const SizedBox(width: S.x1),
+                  Expanded(
+                    child: Text(
+                      'JOURNAL INSIGHTS',
+                      style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
+            const SizedBox(height: S.x2),
 
             // Middle: Tag & Impact
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  row != null ? '${row['tag']}' : 'No Habits Yet',
-                  style: F.head.copyWith(color: p.ink, fontWeight: FontWeight.bold),
+            Text(
+              row != null ? '${row['tag']}' : 'No Habits Yet',
+              style: F.head.copyWith(color: p.ink, fontWeight: FontWeight.bold),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 4),
+            if (delta != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: S.x1, vertical: 2),
+                decoration: BoxDecoration(
+                  color: (delta >= 0 ? C.green : C.red).withValues(alpha: 0.12),
+                  borderRadius: R.rPill,
+                ),
+                child: Text(
+                  '${row?['outcome_label'] ?? 'HRV'}: ${delta >= 0 ? '+' : ''}${delta.toStringAsFixed(1)}%',
+                  style: F.over.copyWith(
+                    color: delta >= 0 ? C.green : C.red,
+                    fontWeight: FontWeight.bold,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
-                if (delta != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: S.x1, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: (delta >= 0 ? C.green : C.red).withValues(alpha: 0.12),
-                      borderRadius: R.rPill,
-                    ),
-                    child: Text(
-                      '${row?['outcome_label'] ?? 'HRV'}: ${delta >= 0 ? '+' : ''}${delta.toStringAsFixed(1)}%',
-                      style: F.over.copyWith(
-                        color: delta >= 0 ? C.green : C.red,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: S.x1, vertical: 2),
+                decoration: BoxDecoration(
+                  color: p.card2,
+                  borderRadius: R.rPill,
+                ),
+                child: Text(
+                  'Awaiting Logs',
+                  style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            const Spacer(),
 
             // Bottom Subtitle
             Text(
               row != null
-                  ? '${row['n_with']} with / ${row['n_without']} without'
-                  : 'Log 5+ entries for correlations',
-              style: F.cap.copyWith(color: p.ink2),
+                  ? '${row['n_with']} with · ${row['n_without']} without'
+                  : 'Needs 5+ logged days',
+              style: F.cap.copyWith(color: p.ink3),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -619,7 +660,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
     return Pressable(
       onTap: () => _showRepCounterDetailSheet(context),
       child: Container(
-        height: 165,
+        height: 154,
         padding: const EdgeInsets.all(S.x3),
         decoration: BoxDecoration(
           color: p.card,
@@ -629,56 +670,60 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // Top Row
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(
-                    color: C.green.withValues(alpha: 0.12),
-                    borderRadius: R.rSm,
+            // Top Row (fixed height 28 for cross-card baseline alignment)
+            SizedBox(
+              height: 28,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: C.green.withValues(alpha: 0.12),
+                      borderRadius: R.rSm,
+                    ),
+                    child: const Icon(Icons.fitness_center, size: 14, color: C.green),
                   ),
-                  child: const Icon(Icons.fitness_center, size: 14, color: C.green),
-                ),
-                const SizedBox(width: S.x1),
-                Expanded(
-                  child: Text(
-                    'REP COUNTER',
-                    style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
+                  const SizedBox(width: S.x1),
+                  Expanded(
+                    child: Text(
+                      'REP COUNTER',
+                      style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
+            const SizedBox(height: S.x2),
 
             // Middle: Abstaining Dash & Live IMU
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '—',
-                  style: F.n34.copyWith(color: p.ink),
-                ),
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: S.x1, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: C.green.withValues(alpha: 0.12),
-                    borderRadius: R.rPill,
-                  ),
-                  child: Text(
-                    '100 Hz Live IMU',
-                    style: F.over.copyWith(color: C.green, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
+            Text(
+              '—',
+              style: F.n34.copyWith(color: p.ink),
             ),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: S.x1, vertical: 2),
+              decoration: BoxDecoration(
+                color: C.green.withValues(alpha: 0.12),
+                borderRadius: R.rPill,
+              ),
+              child: Text(
+                '100 Hz Live IMU',
+                style: F.over.copyWith(color: C.green, fontWeight: FontWeight.bold),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const Spacer(),
 
             // Bottom Subtitle
             Text(
-              'Real-time workout session only',
-              style: F.cap.copyWith(color: p.ink2),
+              'Live workout tracking',
+              style: F.cap.copyWith(color: p.ink3),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),

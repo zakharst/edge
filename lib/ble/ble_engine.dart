@@ -6039,6 +6039,7 @@ class BleEngine {
         state.charging = h.charging;
         state.wristOn = h.wristOn;
         onState(state);
+        unawaited(LocalDb.noteBandFirmware(h.firmwareVersion));
         _log('[HELLO gen5] serial=${h.serial} fw=${h.firmwareVersion} '
             'battery=${h.batteryPct}% charging=${h.charging} '
             'wrist=${h.wristOn} whoop5=${h.isWhoop5}');
@@ -7552,7 +7553,15 @@ class BleEngine {
         ackedAt: DateTime.now().millisecondsSinceEpoch,
         metaPatch: {
           'batch_id': m.batchId,
+          // Cumulative for the connection, not this chunk (kept as it was);
+          // the chunk's own counts and record-time range follow.
           'records': d.records,
+          if (d.lastChunkStats case final c?) ...{
+            'chunk_rows': c.raws,
+            'chunk_archived': c.archives,
+            'chunk_ts_min': ?c.tsMin,
+            'chunk_ts_max': ?c.tsMax,
+          },
         },
       ));
       _noteStored(); // a banked batch → schedule a (debounced) derive
@@ -9287,6 +9296,10 @@ class DrainController {
   final BurstStats burstStats = BurstStats();
 
   int records = 0; // total this connection
+
+  /// What the last token commit banked: rows, archived frames and the range of
+  /// record times. Written to that chunk's ledger row when it is ACKed.
+  ({int raws, int archives, int? tsMin, int? tsMax})? lastChunkStats;
   int recordsThisOffload = 0; // since the last HISTORY_COMPLETE / rearm
   int batches = 0; // total this connection
   // Since the last [startFreshTask] — what [awaitComplete]'s report carries.
@@ -9771,6 +9784,24 @@ class DrainController {
         }
         await commit(raws, samples, tokenHex,
             archives: archives, ecgRawPackets: ecgRaw);
+      }
+      if (tokenHex != null) {
+        // What this chunk actually banked, and the record times it carried
+        // (#450: a chunk whose times sit far behind the stored edge is a band
+        // clock that moved, which the per-chunk ledger row then shows).
+        int? lo, hi;
+        for (final x in samples) {
+          final t = x?.tsEpoch;
+          if (t == null || t <= 0) continue;
+          if (lo == null || t < lo) lo = t;
+          if (hi == null || t > hi) hi = t;
+        }
+        lastChunkStats = (
+          raws: raws.length,
+          archives: archives.length,
+          tsMin: lo,
+          tsMax: hi,
+        );
       }
       return raws.length + archives.length + ecgRaw.length;
     } catch (e) {

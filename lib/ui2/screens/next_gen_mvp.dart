@@ -156,6 +156,51 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
 
   Widget _bioAgeCard(BuildContext context, _NextGenData data) {
     final result = data.biologicalAge;
+    final diff = result?.ageDifference ?? 0.0;
+
+    final String subtitleText;
+    final String explanationText;
+
+    if (result == null) {
+      subtitleText = data.bioAgeMissingReason ?? 'Missing Baseline Inputs';
+      explanationText = 'To calculate your Biological Age, the algorithm needs:\n\n'
+          '${data.bioAgeChecklist}\n\n'
+          'Why this matters:\n'
+          'Biological Age compares your cellular and cardiovascular fitness against chronological age benchmarks using VO₂ Max, Resting HR, overnight HRV, sleep consistency and activity.';
+    } else {
+      final sexLabel = result.sex == 'f' ? 'Female' : 'Male';
+      final diffAbs = diff.abs().toStringAsFixed(1);
+      if (diff < 0) {
+        subtitleText = '$diffAbs yrs younger than chronological (${result.chronologicalAge.toStringAsFixed(0)})';
+      } else if (diff > 0) {
+        subtitleText = '$diffAbs yrs older than chronological (${result.chronologicalAge.toStringAsFixed(0)})';
+      } else {
+        subtitleText = 'Matches chronological age (${result.chronologicalAge.toStringAsFixed(0)})';
+      }
+
+      final verdict = diff <= -1.5
+          ? '🎉 Excellent! Your biomarkers indicate superior cardiovascular and cellular fitness.'
+          : diff >= 1.5
+              ? '⚠️ Your biomarkers reflect elevated physiological stress or lower aerobic recovery.'
+              : '👍 Balanced. Your physiological markers match chronological peers.';
+
+      final tipsText = result.actionableTips.map((t) => '• $t').join('\n\n');
+
+      explanationText = '$verdict\n\n'
+          'Pillars Breakdown ($sexLabel Benchmarks):\n\n'
+          '🫀 Resting Heart Rate (RHR):\n'
+          '${result.heartInsight}\n\n'
+          '⚡ Nervous System (Overnight HRV):\n'
+          '${result.hrvInsight}\n\n'
+          '🫁 Aerobic Endurance (VO₂ Max):\n'
+          '${result.vo2Insight}\n\n'
+          '🌙 Sleep Stability & Daily Movement:\n'
+          '${result.lifestyleInsight}\n\n'
+          '━━━━━━━━━━━━━━━━━━━━━━\n'
+          '💡 HOW TO REVERSE BIOLOGICAL AGE:\n'
+          '$tipsText';
+    }
+
     return _card(
       context,
       onTap: () => _showDetailSheet(
@@ -164,24 +209,8 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
         icon: Icons.favorite,
         color: C.red,
         scoreText: result == null ? 'Calibrating' : '${result.biologicalAge.toStringAsFixed(1)} yrs',
-        subtitle: result == null
-            ? (data.bioAgeMissingReason ?? 'Missing Baseline Inputs')
-            : 'Chronological: ${result.chronologicalAge.toStringAsFixed(0)} yrs',
-        explanation: result == null
-            ? 'To calculate your Biological Age, the algorithm needs:\n\n'
-                '${data.bioAgeChecklist}\n\n'
-                'Why this matters:\n'
-                'Biological Age compares your cellular and cardiovascular fitness against chronological age benchmarks using VO₂ Max, Resting HR, overnight HRV, sleep consistency and activity.'
-            : 'Biological Age estimates your cellular and cardiovascular fitness compared to chronological peers using 4 primary biomarker pillars:\n\n'
-                '1. VO₂ Max Estimate (Uth–Sørensen model based on Max HR / Resting HR ratio).\n'
-                '2. Overnight HRV (Higher HRV reduces biological age).\n'
-                '3. Resting Heart Rate (Sub-50 bpm gives positive rejuvenation credits).\n'
-                '4. Lifestyle: Sleep Consistency (SRI) & Average Daily Step volume.\n\n'
-                'Requirements to calculate:\n'
-                '• Profile Age & Birthdate\n'
-                '• 7+ days of Resting HR and overnight HRV\n'
-                '• 7+ days of steps recorded\n'
-                '• At least 3 nights to calculate Sleep Regularity Index (SRI).',
+        subtitle: subtitleText,
+        explanation: explanationText,
         actionLabel: data.bioAgeActionLabel,
         onAction: () {
           if (data.bioAgeRequiresProfileEdit) {
@@ -213,10 +242,12 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
           ),
           Text(
             result == null
-                ? 'Missing: ${data.bioAgeMissingReason ?? 'Profile age, measured Max HR, and 7 days of RHR/HRV.'} (Tap to fix)'
-                : 'Chronological ${result.chronologicalAge.toStringAsFixed(0)} · '
-                    'VO₂ ${_signed(result.vo2Modifier)} · HRV ${_signed(result.hrvModifier)} · '
-                    'RHR ${_signed(result.rhrModifier)} · Lifestyle ${_signed(result.lifestyleModifier)}',
+                ? 'Missing: ${data.bioAgeMissingReason ?? 'Profile age & 3+ days of band data.'} (Tap to check)'
+                : (result.isYounger
+                    ? '${(-diff).toStringAsFixed(1)} yrs younger than chronological (${result.chronologicalAge.toStringAsFixed(0)}) · Tap for insights'
+                    : diff > 0
+                        ? '${diff.toStringAsFixed(1)} yrs older than chronological (${result.chronologicalAge.toStringAsFixed(0)}) · Tap for insights'
+                        : 'Matches chronological age (${result.chronologicalAge.toStringAsFixed(0)}) · Tap for insights'),
             style: F.cap.copyWith(color: P.of(context).ink2),
           ),
         ],
@@ -462,9 +493,6 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
     );
   }
 
-  static String _signed(double value) =>
-      '${value >= 0 ? '+' : ''}${value.toStringAsFixed(1)}y';
-
   static String _hours(double minutes) {
     final total = minutes.round();
     return '${total ~/ 60}h ${total % 60}m';
@@ -571,9 +599,11 @@ class _NextGenData {
     final rhr = _tailValues(results[6] as Map<String, dynamic>, 14);
     final hrv = _tailValues(results[7] as Map<String, dynamic>, 14);
     final steps = _tailValues(results[8] as Map<String, dynamic>, 14);
+    final sex = (profile['sex'] as String?)?.toLowerCase() ?? 'm';
     final age = (profile['age'] as num?)?.toDouble();
     final ceiling = zones['ceiling'];
-    final maxHr = ceiling is Map ? (ceiling['bpm'] as num?)?.toDouble() : null;
+    final measuredMaxHr = ceiling is Map ? (ceiling['bpm'] as num?)?.toDouble() : null;
+    final effectiveMaxHr = measuredMaxHr ?? (age != null ? (208.0 - 0.7 * age) : null);
     final regularity = _envelopeValue(insights['regularity']);
     final sri = regularity is Map
         ? (regularity['sri'] as num?)?.toDouble()
@@ -583,23 +613,30 @@ class _NextGenData {
     String? bioMissing;
     final checklistItems = <String>[
       age != null
-          ? '✓ Age in Profile: ${age.toStringAsFixed(0)} years'
+          ? '✓ Profile Age: ${age.toStringAsFixed(0)} years'
           : '✗ Profile Age: Missing (tap button below to enter)',
-      maxHr != null
-          ? '✓ Max Heart Rate: ${maxHr.toStringAsFixed(0)} bpm'
-          : '✗ Max HR Ceiling: Need workout/cardio strain data',
-      rhr.length >= 7
-          ? '✓ Resting HR: ${rhr.length}/7 days baseline recorded'
-          : '✗ Resting HR: ${rhr.length}/7 days (wear band for ${7 - rhr.length} more days)',
-      hrv.length >= 7
-          ? '✓ Overnight HRV: ${hrv.length}/7 days baseline recorded'
-          : '✗ Overnight HRV: ${hrv.length}/7 days (sleep with band for ${7 - hrv.length} more nights)',
-      steps.length >= 7
-          ? '✓ Daily Steps: ${steps.length}/7 days recorded'
-          : '✗ Daily Steps: ${steps.length}/7 days (sync band for ${7 - steps.length} more days)',
+      sex == 'f'
+          ? '✓ Biological Sex: Female (normative female benchmarks applied)'
+          : (sex == 'm'
+              ? '✓ Biological Sex: Male (normative male benchmarks applied)'
+              : '✓ Biological Sex: Standard benchmark applied'),
+      measuredMaxHr != null
+          ? '✓ Max Heart Rate: ${measuredMaxHr.toStringAsFixed(0)} bpm (measured)'
+          : (effectiveMaxHr != null
+              ? '✓ Max Heart Rate: ${effectiveMaxHr.toStringAsFixed(0)} bpm (estimated from age)'
+              : '✗ Max HR Ceiling: Need age to estimate or workout to measure'),
+      rhr.length >= 3
+          ? '✓ Resting HR: ${rhr.length}/7 days recorded'
+          : '✗ Resting HR: ${rhr.length}/3 days minimum needed',
+      hrv.length >= 3
+          ? '✓ Overnight HRV: ${hrv.length}/7 days recorded'
+          : '✗ Overnight HRV: ${hrv.length}/3 nights minimum needed',
+      steps.isNotEmpty
+          ? '✓ Daily Steps: ${steps.length}/7 days recorded (${_mean(steps).toStringAsFixed(0)} avg)'
+          : '• Daily Steps: Calibrating (using standard active benchmark)',
       sri != null
           ? '✓ Sleep Regularity (SRI): ${sri.toStringAsFixed(0)}%'
-          : '✗ Sleep Regularity (SRI): Need 3+ consecutive nights recorded',
+          : '• Sleep Regularity: Calibrating (using standard rhythm)',
     ];
     final bioChecklist = checklistItems.join('\n');
 
@@ -610,28 +647,25 @@ class _NextGenData {
       bioMissing = 'Needs your birth date/age in Profile.';
       bioAction = 'Enter Age in Profile';
       bioRequiresEdit = true;
-    } else if (maxHr == null) {
-      bioMissing = 'Needs Max HR — record a workout or cardio session to set your HR ceiling.';
-      bioAction = 'Got it (Requires workout)';
-    } else if (rhr.length < 7 || hrv.length < 7) {
-      final daysLeft = 7 - (rhr.length < hrv.length ? rhr.length : hrv.length);
-      bioMissing = 'Need $daysLeft more days/nights wearing the band to establish your 7-day RHR & HRV baseline.';
+    } else if (rhr.length < 3 || hrv.length < 3) {
+      final daysLeft = 3 - (rhr.length < hrv.length ? rhr.length : hrv.length);
+      bioMissing = 'Need $daysLeft more day(s) wearing band to establish 3-day baseline.';
       bioAction = 'Got it (Keep wearing band)';
-    } else if (steps.length < 7) {
-      final stepsLeft = 7 - steps.length;
-      bioMissing = 'Need $stepsLeft more days of step tracking to establish your baseline.';
-      bioAction = 'Got it (Keep wearing band)';
-    } else if (sri == null) {
-      bioMissing = 'Need 3+ nights of sleep tracking to calculate Sleep Regularity Index (SRI).';
-      bioAction = 'Got it (Sleep with band tonight)';
     } else {
+      final effectiveSleepConsistency = sri != null
+          ? (sri.clamp(0, 100) / 100).toDouble()
+          : 0.75;
+      final effectiveSteps = steps.isNotEmpty ? _mean(steps) : 7500.0;
+      final targetMaxHr = effectiveMaxHr ?? 190.0;
+
       bio = ana.BiologicalAgeCalculator.calculate(
         chronologicalAge: age,
-        maxHr: maxHr,
+        maxHr: targetMaxHr,
         avgRhr: _mean(rhr),
         avgHrv: _mean(hrv),
-        sleepConsistency: (sri.clamp(0, 100) / 100).toDouble(),
-        avgDailySteps: _mean(steps),
+        sleepConsistency: effectiveSleepConsistency,
+        avgDailySteps: effectiveSteps,
+        sex: sex,
       );
     }
 

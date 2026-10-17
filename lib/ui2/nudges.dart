@@ -107,7 +107,7 @@ class _AskCard extends StatelessWidget {
           (Color tint) =>
               Icon(LucideIcons.heartHandshake, size: 16, color: tint),
           C.pink,
-          l?.nudgeDonateTitle ?? 'Enjoying OpenStrap?',
+          l?.nudgeDonateTitle ?? 'Enjoying Edge MOD?',
           l?.nudgeDonateBody ??
               'It is a free, open-source project with no subscription. '
                   'Sponsoring keeps it maintained.',

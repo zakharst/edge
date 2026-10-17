@@ -331,7 +331,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
       color: C.green,
       scoreText: 'Live Sensor Only',
       subtitle: 'Real-time IMU Processing',
-      explanation: 'OpenStrap counts exercise repetitions in real time using the band’s high-rate 100 Hz accelerometer and gyroscope.\n\n'
+      explanation: 'Edge MOD counts exercise repetitions in real time using the band’s high-rate 100 Hz accelerometer and gyroscope.\n\n'
           'Why is history blank?\n'
           'Because high-rate 100 Hz IMU streams are gigabytes per hour and are never stored permanently in device memory. Rep counting runs purely in live RAM during an active workout session.',
       actionLabel: 'Start Workout',

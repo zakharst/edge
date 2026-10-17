@@ -113,7 +113,7 @@ class _DataScreenState extends State<DataScreen> {
     }
     await SharePlus.instance.share(ShareParams(
       files: [for (final p in res.paths) XFile(p)],
-      subject: 'OpenStrap export',
+      subject: 'Edge MOD export',
       sharePositionOrigin: origin,
     ));
     final n = res.paths.length;
@@ -161,7 +161,7 @@ class _DataScreenState extends State<DataScreen> {
     }
     await SharePlus.instance.share(ShareParams(
       files: [XFile(path)],
-      subject: 'OpenStrap heart rate',
+      subject: 'Edge MOD heart rate',
       sharePositionOrigin: origin,
     ));
     return (l?.dataFilesShared(1) ?? '1 file shared.', false);
@@ -174,7 +174,7 @@ class _DataScreenState extends State<DataScreen> {
     final path = await LocalDb.exportCopy();
     await SharePlus.instance.share(ShareParams(
       files: [XFile(path)],
-      subject: 'OpenStrap database',
+      subject: 'Edge MOD database',
       sharePositionOrigin: origin,
     ));
     return (
@@ -210,7 +210,7 @@ class _DataScreenState extends State<DataScreen> {
     }
     await SharePlus.instance.share(ShareParams(
       files: [XFile(dest)],
-      subject: 'OpenStrap encrypted backup',
+      subject: 'Edge MOD encrypted backup',
       sharePositionOrigin: origin,
     ));
     return (

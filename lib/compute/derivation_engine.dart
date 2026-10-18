@@ -2992,10 +2992,12 @@ class DerivationEngine {
     bool heavy = false,
     bool force = false,
     void Function(String day, int index, int total)? onDayDone,
+    void Function(String stage, double fraction, String? detail)? onProgress,
   }) async {
     if (_running) return 0;
     _running = true;
     final startedAt = DateTime.now().millisecondsSinceEpoch;
+    onProgress?.call('preparing', 0.08, 'Decoding & preparing raw records…');
     _diag
       ..['running'] = true
       ..['stage'] = 'scope'
@@ -3042,6 +3044,7 @@ class DerivationEngine {
       // (`compute_freshness`); a failure leaves the key unset and the next pass
       // retries — never fatal to the derive.
       _diag['stage'] = 'quiet_hrr_seed';
+      onProgress?.call('preparing', 0.15, 'Calibrating baseline sensors…');
       var seeded = 0;
       try {
         seeded = await seedQuietHrrHistoryOnce(
@@ -3057,6 +3060,7 @@ class DerivationEngine {
       // this isolate). The history-wide part and the re-score of days with
       // no substrate run after the sweep, in `finally`. One-shot.
       _diag['stage'] = 'readiness_z_seed';
+      onProgress?.call('preparing', 0.20, 'Loading historical baselines…');
       try {
         final z = await seedRecentReadinessZ();
         if (z > 0) {
@@ -3157,6 +3161,13 @@ class DerivationEngine {
       // FIRST days dispatched, not the last one a long sweep gets to. A no-op
       // for the light path (0-1 days), so always safe to apply.
       final orderedDays = todoDays.reversed.toList();
+      onProgress?.call(
+        'analyzing',
+        0.25,
+        orderedDays.length > 1
+            ? 'Analyzing sleep & HRV (Day 1 of ${orderedDays.length})…'
+            : 'Analyzing sleep stages & HRV…',
+      );
 
       var done = 0;
       var completed = 0;
@@ -3220,6 +3231,14 @@ class DerivationEngine {
         activeDays.remove(dayId);
         _diag['active_days'] = activeDays.toList();
         completed++;
+        final dayFraction = 0.25 + 0.60 * (completed / orderedDays.length);
+        onProgress?.call(
+          'analyzing',
+          dayFraction.clamp(0.25, 0.85),
+          orderedDays.length > 1
+              ? 'Analyzing sleep & HRV (Day $completed of ${orderedDays.length})…'
+              : 'Analyzing sleep stages & HRV…',
+        );
         onDayDone?.call(dayId, completed, orderedDays.length);
       }
 
@@ -3231,9 +3250,11 @@ class DerivationEngine {
 
       // 4. Cross-day rollup + notifications (best-effort).
       if (done > 0) {
+        onProgress?.call('finalizing', 0.88, 'Scoring recovery & daily strain…');
         _diag['stage'] = 'baselines';
         await _refreshBaselines();
         _diag['stage'] = 'cross_day';
+        onProgress?.call('finalizing', 0.94, 'Updating multi-day trends…');
         await _runCrossDay(profile);
         _diag['stage'] = 'notifications';
         await _runNotifications();
@@ -3354,6 +3375,7 @@ class DerivationEngine {
         ..['active_days'] = const <String>[]
         ..['finished_at'] = finishedAt
         ..['duration_ms'] = finishedAt - startedAt;
+      onProgress?.call('idle', 1.0, null);
       
       try { await runTrace?.stop(); } catch (_) {}
     }
@@ -6091,10 +6113,13 @@ class DerivationEngine {
     if (day.date != todayLabel()) return;
     final hasSleep = day.sleepOffsetSec > day.sleepOnsetSec;
     if (!hasSleep) return;
-    final overnightComplete = overnightSettled(
-      sleepOffsetSec: day.sleepOffsetSec,
-      dataEdgeSec: dataNowSec,
-    );
+    final isConfirmed = day.sleepSource == 'confirmed' ||
+        day.sleepSource == 'manual';
+    final overnightComplete = isConfirmed ||
+        overnightSettled(
+          sleepOffsetSec: day.sleepOffsetSec,
+          dataEdgeSec: dataNowSec,
+        );
     final current = await LocalDb.frozenHeadline();
     final next = nextFrozenHeadline(
       today: day.date,

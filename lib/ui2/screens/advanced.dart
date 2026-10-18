@@ -14,6 +14,7 @@ import '../ui2.dart';
 import 'beats.dart';
 import 'circadian_detail.dart';
 import 'home_screen.dart' show go;
+import 'investigate.dart';
 import 'metric_detail.dart' show detailScaffold, detailLinkRow;
 
 class AdvancedScreen extends StatelessWidget {
@@ -46,6 +47,15 @@ class AdvancedScreen extends StatelessWidget {
         l?.advancedRhythmSub ??
             'Sleep hour by hour, variability while still, the predicted shape of today',
         () => go(c, const CircadianDetail(advanced: true)),
+      ),
+      const SizedBox(height: S.x3),
+      detailLinkRow(
+        c,
+        LucideIcons.binary,
+        l?.metricDetailNerdStatsTitle ?? 'Nerd stats',
+        l?.metricDetailNerdStatsSub ??
+            'The figures behind the picture, raw inputs and sample counts',
+        () => go(c, const Investigate('hrv')),
       ),
     ]);
   }

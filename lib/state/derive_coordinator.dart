@@ -18,6 +18,50 @@ typedef DeriveRunHook = Future<int> Function(
   void Function(String day, int index, int total)? onDayDone,
 });
 
+/// Fine-grained on-device derivation progress and stage information.
+class DeriveProgress {
+  final String stage; // 'idle', 'preparing', 'analyzing', 'finalizing'
+  final int completedDays;
+  final int totalDays;
+  final double fraction; // 0.0 to 1.0
+  final String? activeDay;
+  final String? stageDescription;
+
+  const DeriveProgress({
+    this.stage = 'idle',
+    this.completedDays = 0,
+    this.totalDays = 0,
+    this.fraction = 0.0,
+    this.activeDay,
+    this.stageDescription,
+  });
+
+  static const idle = DeriveProgress();
+
+  bool get isComputing => stage != 'idle' && fraction < 1.0;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DeriveProgress &&
+          stage == other.stage &&
+          completedDays == other.completedDays &&
+          totalDays == other.totalDays &&
+          fraction == other.fraction &&
+          activeDay == other.activeDay &&
+          stageDescription == other.stageDescription;
+
+  @override
+  int get hashCode => Object.hash(
+        stage,
+        completedDays,
+        totalDays,
+        fraction,
+        activeDay,
+        stageDescription,
+      );
+}
+
 class DeriveCoordinator {
   DeriveCoordinator({
     required DerivationEngine Function() derive,
@@ -78,6 +122,12 @@ class DeriveCoordinator {
   /// full ChangeNotifier repaint.
   final ValueNotifier<int> insightsRevision = ValueNotifier<int>(0);
 
+  /// Fine-grained on-device derivation progress notifier.
+  final ValueNotifier<DeriveProgress> deriveProgressNotifier =
+      ValueNotifier<DeriveProgress>(DeriveProgress.idle);
+
+  DeriveProgress get progress => deriveProgressNotifier.value;
+
   /// Stand-ins for the derive engine's per-pass work, so a test can hold or
   /// fail a pass without a substrate. Null (the default) runs the real engine.
   /// Tests only.
@@ -93,6 +143,14 @@ class DeriveCoordinator {
   Future<void> afterDrain({bool heavy = false}) async {
     final mode = heavy ? 'heavy' : 'light';
     try {
+      deriveProgressNotifier.value = const DeriveProgress(
+        stage: 'preparing',
+        completedDays: 0,
+        totalDays: 1,
+        fraction: 0.12,
+        stageDescription: 'Decoding raw biometric records & calibrating baselines…',
+      );
+
       // Context for whatever crash/ANR report comes next — the derivation
       // engine's heavy per-day compute is isolate-offloaded, but the
       // assembly/UI-refresh wiring around it still runs on the main isolate,
@@ -103,18 +161,56 @@ class DeriveCoordinator {
       // Refresh the UI after EACH day so Today/trends fill in as the sweep runs,
       // not only at the end (a multi-day backfill can be many days of work).
       await TelemetryService.instance.traced('derive_$mode', () {
-        final DeriveRunHook run = debugDeriveRun ?? _derive().run;
-        return run(
+        void handleDayDone(String day, int index, int total) {
+          final dayFraction = 0.25 + 0.60 * (index / total);
+          deriveProgressNotifier.value = DeriveProgress(
+            stage: 'analyzing',
+            completedDays: index,
+            totalDays: total,
+            fraction: dayFraction.clamp(0.25, 0.85),
+            activeDay: day,
+            stageDescription: total > 1
+                ? 'Analyzing sleep & HRV (Day $index of $total)…'
+                : 'Analyzing sleep stages & HRV…',
+          );
+          if (index == total || index == 1 || index % 3 == 0) {
+            _notify();
+          }
+        }
+
+        final hook = debugDeriveRun;
+        if (hook != null) {
+          return hook(
+            _profile(),
+            heavy: heavy,
+            onDayDone: handleDayDone,
+          );
+        }
+
+        return _derive().run(
           _profile(),
           heavy: heavy,
-          onDayDone: (day, index, total) async {
-            if (index == total || index == 1 || index % 3 == 0) {
-              _notify();
-            }
+          onDayDone: handleDayDone,
+          onProgress: (stage, fraction, detail) {
+            deriveProgressNotifier.value = DeriveProgress(
+              stage: stage,
+              completedDays: deriveProgressNotifier.value.completedDays,
+              totalDays: deriveProgressNotifier.value.totalDays,
+              fraction: fraction,
+              activeDay: deriveProgressNotifier.value.activeDay,
+              stageDescription: detail,
+            );
           },
         );
       });
       TelemetryService.instance.breadcrumb('derive: $mode done');
+      deriveProgressNotifier.value = const DeriveProgress(
+        stage: 'finalizing',
+        completedDays: 1,
+        totalDays: 1,
+        fraction: 0.90,
+        stageDescription: 'Scoring recovery, readiness & daily strain…',
+      );
       // A drain can bank band coverage and a day can have rolled over since the
       // last read — both change which source owns today's steps.
       unawaited(_refreshPhoneStepsToday());
@@ -142,6 +238,13 @@ class DeriveCoordinator {
       // wake, only light drains are left to see it settle.
       unawaited(_maybeNotifyRecoveryReady());
       if (heavy) {
+        deriveProgressNotifier.value = const DeriveProgress(
+          stage: 'finalizing',
+          completedDays: 1,
+          totalDays: 1,
+          fraction: 0.95,
+          stageDescription: 'Updating multi-day baselines & trends…',
+        );
         // Baseline-dirty rescan: new data may have shifted the rolling baseline,
         // so refresh baseline-dependent scalars (readiness/illness/stress) on
         // recent FINALIZED days. Cheap when the baseline is unchanged (a single
@@ -188,6 +291,7 @@ class DeriveCoordinator {
       // fatal: the app keeps running, but this is worth knowing about.
       TelemetryService.instance.recordNonFatal(e, st, reason: 'post_drain_failed');
     } finally {
+      deriveProgressNotifier.value = DeriveProgress.idle;
       TelemetryService.instance.setContext('derive_active', false);
     }
   }
@@ -262,5 +366,6 @@ class DeriveCoordinator {
     cancelActivityReviewRetry();
     disposeScheduler();
     disposeInsightsRevision();
+    deriveProgressNotifier.dispose();
   }
 }

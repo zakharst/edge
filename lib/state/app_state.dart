@@ -128,7 +128,7 @@ import '../sync/file_log.dart';
 import 'breathing_controller.dart';
 import 'package:uuid/uuid.dart';
 
-export 'derive_coordinator.dart' show DeriveRunHook;
+export 'derive_coordinator.dart' show DeriveProgress, DeriveRunHook;
 export 'workout_controller.dart' show LiveWorkoutState;
 
 /// The onboarding/app gate states, in order. See [AppState.route].
@@ -1772,6 +1772,7 @@ class AppState extends ChangeNotifier {
       IosShortcutSync.foregroundEngine = null;
     }
     _sync.cancelQuietTimer();
+    engine.cancelAdapterMonitoring();
     _disposed = true;
     _ecg?.dispose();
     _ecgTransport?.dispose();
@@ -2730,6 +2731,7 @@ class AppState extends ChangeNotifier {
       if (_background) {
         await _sync.startBackgroundSession();
       } else {
+        engine.initAdapterMonitoring();
         openSession();
       }
     }
@@ -4179,6 +4181,7 @@ class AppState extends ChangeNotifier {
     // background and — API 31+ — relaunches us when the band appears.
     // Fire-and-forget: logging happens inside; pairing must never block on it.
     unawaited(AndroidBackground.associateCompanion(remoteId));
+    engine.initAdapterMonitoring();
     notifyListeners();
     await openSession();
   }
@@ -4972,6 +4975,11 @@ class AppState extends ChangeNotifier {
   /// only because a caller may want to say "about to" rather than "is".
   bool get derivePending =>
       _deriveScheduler.pendingLight || _deriveScheduler.pendingHeavy;
+
+  /// Fine-grained on-device derivation progress and stage information.
+  DeriveProgress get deriveProgress => _deriveCoordinator.progress;
+  ValueNotifier<DeriveProgress> get deriveProgressNotifier =>
+      _deriveCoordinator.deriveProgressNotifier;
 
   Future<bool> bluetoothReady() async {
     if (!await FlutterBluePlus.isSupported) return false;

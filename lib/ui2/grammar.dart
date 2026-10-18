@@ -34,6 +34,7 @@ import '../l10n/app_localizations.dart';
 import '../l10n/presentation_text.dart';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderAbstractViewport;
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -361,7 +362,10 @@ class SignalCard extends StatelessWidget {
     final p = P.of(c);
     return Surface(
       onTap: onTap,
-      semanticLabel: '$label, $value ${uiText(c, unit)}'.trim(),
+      semanticLabel: [
+        '$label, $value ${uiText(c, unit)}'.trim(),
+        if (sub.isNotEmpty) sub,
+      ].join(', '),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2685,7 +2689,8 @@ class _XMarks extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _XMarks o) => o.color != color || o.at != at;
+  bool shouldRepaint(covariant _XMarks o) =>
+      o.color != color || !listEquals(o.at, at);
 }
 
 /// The body of an empty [ChartFrame]. Says what is missing in words.

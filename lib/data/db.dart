@@ -37,6 +37,7 @@ import '../compute/derivation_engine.dart'
         pinnableNight,
         overnightSettled,
         recoveryStateOf,
+        RecoveryState,
         RecoveryStateWire;
 import '../compute/sleep_profile_policy.dart' show SleepProfilePolicy;
 import '../ble/adapters/_registry.dart' show kAdapterSignals;
@@ -11470,6 +11471,7 @@ class LocalDb {
     Map<String, dynamic>? todayRow;
     int? overnightRecheckAt;
     String? recoveryState;
+    bool todaySettled = false;
     for (final row in recent) {
       final dayId = row['day_id']?.toString();
       if (dayId == null || dayId.isEmpty) continue;
@@ -11496,23 +11498,36 @@ class LocalDb {
       // without the stamp fall back to the band's edge.
       final edgeSec =
           (decoded['data_edge_sec'] as num?)?.toInt() ?? bandEdgeSec;
+      final sleepSource = decoded['sleep_source']?.toString();
+      final isManualOrConfirmed =
+          sleepSource == 'confirmed' || sleepSource == 'manual';
       if (dayId == today) {
-        recoveryState = recoveryStateOf(
-          wakeSec: wakeSec,
-          dataEdgeSec: edgeSec,
-          nowSec: nowSec,
-        )?.wire;
+        recoveryState = isManualOrConfirmed
+            ? RecoveryState.finalReady.wire
+            : recoveryStateOf(
+                wakeSec: wakeSec,
+                dataEdgeSec: edgeSec,
+                nowSec: nowSec,
+              )?.wire;
       }
-      if (dayId == today &&
-          !overnightSettled(
+      final isSettled = dayId != today ||
+          isManualOrConfirmed ||
+          overnightSettled(
             sleepOffsetSec: wakeSec,
             dataEdgeSec: edgeSec,
             nowSec: nowSec,
-          )) {
+          );
+      if (dayId == today) todaySettled = isSettled;
+      final isWakeConfirmed = recoveryState == RecoveryState.provisional.wire ||
+          recoveryState == RecoveryState.finalReady.wire;
+      if (dayId == today && !isSettled && !isWakeConfirmed) {
         // When the give-up lands; getToday re-checks then, since a quiet
         // strap triggers no derive to do it.
         overnightRecheckAt = (wakeSec ?? edgeSec) + kOvernightGiveUpSec;
         continue;
+      }
+      if (dayId == today && !isSettled) {
+        overnightRecheckAt = (wakeSec ?? edgeSec) + kOvernightGiveUpSec;
       }
       final scalars = ((decoded['scalars'] as Map?) ?? const {})
           .cast<String, dynamic>();
@@ -11528,6 +11543,7 @@ class LocalDb {
         }
       }
       if (latestRecoveryDay == null &&
+          isSettled &&
           ((row['readiness'] as num?) != null || scalars['readiness'] is num)) {
         latestRecoveryDay = dayId;
         latestRecoveryComputedAt = (row['computed_at'] as num?)?.toInt();
@@ -11541,7 +11557,7 @@ class LocalDb {
     final todayComputedAt = (todayRow?['computed_at'] as num?)?.toInt();
     final wakeComputedAt = (todayWake?['computed_at'] as num?)?.toInt();
     final activityReady = todayRow != null || todayWake != null;
-    final overnightReady = latestOvernightDay == today;
+    final overnightReady = latestOvernightDay == today && todaySettled;
     final rawReachedToday =
         latestRawTs != null && _localDayLabelFromEpoch(latestRawTs) == today;
     final activityState = activityReady

@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.metadata.DataOrigin
+import androidx.health.connect.client.records.metadata.Device
 import androidx.health.connect.client.records.metadata.Metadata
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
@@ -75,9 +76,7 @@ object HealthConnectHeartRateWriter {
                                 startZoneOffset = ZoneId.systemDefault().rules.getOffset(request.start),
                                 endZoneOffset = ZoneId.systemDefault().rules.getOffset(request.end),
                                 samples = samples,
-                                metadata = Metadata(
-                                    recordingMethod = Metadata.RECORDING_METHOD_AUTOMATICALLY_RECORDED,
-                                ),
+                                metadata = Metadata.autoRecorded(Device(type = Device.TYPE_UNKNOWN)),
                             ),
                         ),
                     ).recordIdsList.size == 1

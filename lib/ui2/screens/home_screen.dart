@@ -28,12 +28,18 @@ import '../../l10n/date_text.dart';
 // only three of them and they are read together.
 
 import 'dart:async';
+import 'dart:io' show Platform;
+import 'package:flutter_blue_plus/flutter_blue_plus.dart' show FlutterBluePlus;
+import 'package:geolocator/geolocator.dart' show Geolocator;
 import 'next_gen_mvp.dart';
 
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 
+import '../../ble/band_status_l10n.dart' show localizedBandStatus;
+import '../../ble/ble_state.dart' show BandCondition, BandStatus;
+import '../pairing/device_picker.dart' show DevicePickerScreen;
 import '../../ai/briefing.dart'
     show Briefing, BriefingPeriod, BriefingStore, currentBriefingPeriod, resolveBriefingToShow;
 import '../../compute/findings.dart'
@@ -66,7 +72,7 @@ import '../../theme/theme_switcher.dart' show themedRoute;
 import '../activity/day_strain.dart' show DayStrainDetail;
 import '../profile/alarm.dart'
     show AlarmArmState, alarmArmOf, alarmDoor, alarmGlanceCard;
-import '../profile/devices.dart' show formatDayTime;
+import '../profile/devices.dart' show formatDayTime, MyDevices;
 import '../profile/profile.dart';
 import '../profile/wearable_numbers.dart'
     show WearableCells, kHomeWearableRows;
@@ -261,15 +267,79 @@ String syncedThroughLabel(DateTime? at, String? todayId,
   try {
     return c.select<AppState, (double, bool)?>((a) {
       final pct = a.device.batteryPct;
-      final charging = a.device.charging;
-      // Both or neither — a known level with an unknown charging state must
-      // not fall back to `false`, which would draw a plain (or worse, red)
-      // icon over a charging state we simply haven't heard yet.
-      return (pct == null || charging == null) ? null : (pct, charging);
+      if (pct == null) return null;
+      final charging = a.device.charging ?? false;
+      return (pct, charging);
     });
   } catch (_) {
     return null;
   }
+}
+
+double? deviceBatteryPackOf(BuildContext c) {
+  try {
+    return c.select<AppState, double?>((a) => a.device.batteryPackPct);
+  } catch (_) {
+    return null;
+  }
+}
+
+int? liveHrOf(BuildContext c) {
+  try {
+    return c.select<AppState, int?>((a) => a.device.liveHr);
+  } catch (_) {
+    return null;
+  }
+}
+
+Widget _headerBatteryChip(
+    BuildContext c, P p, double pct, bool charging, double? packPct) {
+  final isLow = lowBattery(pct, charging);
+  return Pressable(
+    onTap: () => go(c, const MyDevices()),
+    semanticLabel:
+        'WHOOP battery ${pct.round()} percent${charging ? ', charging' : ''}${packPct != null ? ', battery pack attached' : ''}',
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: S.x3, vertical: 5),
+      decoration: BoxDecoration(
+        color: isLow ? p.wash(C.red) : p.card2,
+        borderRadius: R.rPill,
+        border: Border.all(
+          color: isLow
+              ? p.on(C.red).withValues(alpha: 0.4)
+              : p.line.withValues(alpha: 0.6),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            charging ? LucideIcons.batteryCharging : LucideIcons.battery,
+            size: 13,
+            color: isLow ? p.on(C.red) : p.ink2,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            '${pct.round()}%',
+            style: F.cap.copyWith(
+              color: isLow ? p.on(C.red) : p.ink,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          if (packPct != null) ...[
+            const SizedBox(width: 4),
+            Text(
+              '+pack',
+              style: F.over.copyWith(
+                color: p.on(C.green),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ],
+      ),
+    ),
+  );
 }
 
 /// Draining, not charging, at or under the same default the low-battery
@@ -309,6 +379,646 @@ Widget syncedThroughLine(BuildContext c, String? todayId,
     syncedThroughLabel(lastDataAtOf(c), todayId, l),
     style: F.cap.copyWith(color: P.of(c).ink3),
   );
+}
+
+/// Data slice read by [_WhoopStatusBar], so it rebuilds ONLY when these
+/// specific device or link properties flip — NOT on every internal AppState tick.
+@immutable
+class _StatusBarData {
+  final bool isPaired;
+  final String connection;
+  final String? strapName;
+  final BandStatus bandStatus;
+  final bool isSyncing;
+  final bool isDeriving;
+  final int syncDrainRecords;
+  final int syncDrainBatches;
+  final DeriveProgress deriveProgress;
+  final DateTime? lastRecordAt;
+  final double? batteryPct;
+  final bool isCharging;
+  final double? batteryPackPct;
+  final int? liveHr;
+
+  const _StatusBarData({
+    required this.isPaired,
+    required this.connection,
+    this.strapName,
+    required this.bandStatus,
+    required this.isSyncing,
+    required this.isDeriving,
+    required this.syncDrainRecords,
+    this.syncDrainBatches = 0,
+    this.deriveProgress = DeriveProgress.idle,
+    this.lastRecordAt,
+    this.batteryPct,
+    required this.isCharging,
+    this.batteryPackPct,
+    this.liveHr,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is _StatusBarData &&
+          isPaired == other.isPaired &&
+          connection == other.connection &&
+          strapName == other.strapName &&
+          bandStatus.condition == other.bandStatus.condition &&
+          bandStatus.title == other.bandStatus.title &&
+          isSyncing == other.isSyncing &&
+          isDeriving == other.isDeriving &&
+          syncDrainRecords == other.syncDrainRecords &&
+          syncDrainBatches == other.syncDrainBatches &&
+          deriveProgress == other.deriveProgress &&
+          lastRecordAt == other.lastRecordAt &&
+          batteryPct == other.batteryPct &&
+          isCharging == other.isCharging &&
+          batteryPackPct == other.batteryPackPct &&
+          liveHr == other.liveHr;
+
+  @override
+  int get hashCode => Object.hash(
+        isPaired,
+        connection,
+        strapName,
+        bandStatus.condition,
+        bandStatus.title,
+        isSyncing,
+        isDeriving,
+        syncDrainRecords,
+        syncDrainBatches,
+        deriveProgress,
+        lastRecordAt,
+        batteryPct,
+        isCharging,
+        batteryPackPct,
+        liveHr,
+      );
+}
+
+/// The WHOOP Connection, Freshness and Sync Status Bar.
+///
+/// Prominently displays:
+///   1. Device link state (Connected, Connecting, Offline, Bluetooth Fault)
+///   2. Data freshness (Live, Synced just now, Synced Xm ago, Offline)
+///   3. Sync & derive progress in real time (records transferred)
+///   4. Battery level, charging glyph, and battery pack level
+///   5. Critical faults with 1-tap resolution actions
+class _WhoopStatusBar extends StatelessWidget {
+  final String? todayId;
+  final VoidCallback? onSync;
+
+  const _WhoopStatusBar({this.todayId, this.onSync});
+
+  @override
+  Widget build(BuildContext c) {
+    AppState? app;
+    _StatusBarData? data;
+    try {
+      app = Provider.of<AppState>(c, listen: false);
+      data = c.select<AppState, _StatusBarData>((a) => _StatusBarData(
+            isPaired: a.isPaired,
+            connection: a.device.connection,
+            strapName: a.device.strapName,
+            bandStatus: a.engine.bandStatus,
+            isSyncing: a.syncingNow,
+            isDeriving: a.deriving || a.deriveProgress.isComputing,
+            syncDrainRecords: a.syncDrainRecords,
+            syncDrainBatches: a.syncDrainBatches,
+            deriveProgress: a.deriveProgress,
+            lastRecordAt: a.lastRecordAt,
+            batteryPct: a.device.batteryPct,
+            isCharging: a.device.charging ?? false,
+            batteryPackPct: a.device.batteryPackPct,
+            liveHr: a.device.liveHr,
+          ));
+    } catch (_) {
+      // Golden or widget test without AppState
+    }
+
+    if (data == null) {
+      return const SizedBox.shrink();
+    }
+
+    if (app != null) {
+      return ValueListenableBuilder<DeriveProgress>(
+        valueListenable: app.deriveProgressNotifier,
+        builder: (c, progress, _) {
+          final effective = progress.isComputing
+              ? _StatusBarData(
+                  isPaired: data!.isPaired,
+                  connection: data.connection,
+                  strapName: data.strapName,
+                  bandStatus: data.bandStatus,
+                  isSyncing: data.isSyncing,
+                  isDeriving: true,
+                  syncDrainRecords: data.syncDrainRecords,
+                  syncDrainBatches: data.syncDrainBatches,
+                  deriveProgress: progress,
+                  lastRecordAt: data.lastRecordAt,
+                  batteryPct: data.batteryPct,
+                  isCharging: data.isCharging,
+                  batteryPackPct: data.batteryPackPct,
+                  liveHr: data.liveHr,
+                )
+              : data!;
+          return _buildContent(c, effective);
+        },
+      );
+    }
+
+    return _buildContent(c, data);
+  }
+
+  Widget _buildContent(BuildContext c, _StatusBarData data) {
+    final p = P.of(c);
+    final l = AppLocalizations.of(c);
+
+
+    final isPaired = data.isPaired;
+    final status = data.bandStatus;
+    final localized = localizedBandStatus(c, status);
+    final isFault = status.isFault;
+    final isSyncing = data.isSyncing;
+    final isDeriving = data.isDeriving;
+    final lastRecordAt = data.lastRecordAt;
+    final batteryPct = data.batteryPct;
+    final isCharging = data.isCharging;
+    final connection = data.connection;
+    final isConnected = connection == 'connected';
+
+    // ── 1A. ACTIVE BLE SYNC STATE ──────────────────────────────────────
+    if (isSyncing) {
+      final records = data.syncDrainRecords;
+      final batches = data.syncDrainBatches;
+      final formattedRecords = records > 0
+          ? NumberFormat.decimalPattern().format(records)
+          : null;
+
+      return Container(
+        margin: const EdgeInsets.only(bottom: S.x3),
+        padding: const EdgeInsets.all(S.x4),
+        decoration: BoxDecoration(
+          color: p.wash(C.blue, strength: 0.12),
+          borderRadius: R.rMd,
+          border: Border.all(
+            color: p.on(C.blue).withValues(alpha: 0.25),
+            width: 1.0,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Icon(LucideIcons.bluetooth, size: 15, color: p.on(C.blue)),
+                const SizedBox(width: S.x2),
+                Expanded(
+                  child: Text(
+                    l?.homeSyncingTitle ?? 'Syncing with your band',
+                    style: F.head.copyWith(
+                      color: p.ink,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: S.x2, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: p.wash(C.blue, strength: 0.2),
+                    borderRadius: R.rPill,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 8,
+                        height: 8,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 1.5,
+                          color: p.on(C.blue),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'TRANSFERRING',
+                        style: F.over.copyWith(
+                          color: p.on(C.blue),
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: S.x2),
+            ClipRRect(
+              borderRadius: R.rSm,
+              child: LinearProgressIndicator(
+                minHeight: 4,
+                backgroundColor: p.on(C.blue).withValues(alpha: 0.15),
+                color: p.on(C.blue),
+              ),
+            ),
+            const SizedBox(height: S.x2),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    formattedRecords != null
+                        ? '$formattedRecords records transferred · Saving locally…'
+                        : (l?.homeSyncingBody ?? 'Transferring data from WHOOP band…'),
+                    style: F.cap.copyWith(color: p.ink2),
+                  ),
+                ),
+                if (batches > 0)
+                  Text(
+                    '$batches batches',
+                    style: F.over.copyWith(color: p.ink3),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Biometrics will be calculated locally on your phone once transfer completes.',
+              style: F.over.copyWith(color: p.ink3),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ── 1B. ON-DEVICE DERIVATION (CRUNCHING) STATE ─────────────────────
+    if (isDeriving) {
+      final progress = data.deriveProgress;
+      final hasFraction = progress.fraction > 0.0;
+      final fraction = (hasFraction ? progress.fraction : 0.05).clamp(0.02, 0.98);
+      final percentInt = (progress.fraction * 100).round();
+
+      final String stageTitle;
+      final String stageDetail;
+      if (progress.stage == 'preparing' || !hasFraction || fraction < 0.25) {
+        stageTitle = 'Step 1 of 3: Preparing Data';
+        stageDetail = progress.stageDescription ?? 'Decoding raw biometric records & calibrating baselines…';
+      } else if (progress.stage == 'analyzing' || fraction < 0.85) {
+        if (progress.totalDays > 1) {
+          stageTitle = 'Step 2 of 3: Analyzing History (${progress.completedDays}/${progress.totalDays} days)';
+        } else {
+          stageTitle = 'Step 2 of 3: Sleep & HRV Analysis';
+        }
+        stageDetail = progress.stageDescription ?? 'Calculating sleep stages (Deep/REM), HRV & resting heart rate…';
+      } else {
+        stageTitle = 'Step 3 of 3: Finalizing';
+        stageDetail = progress.stageDescription ?? 'Scoring recovery, readiness & daily strain…';
+      }
+
+      return Container(
+        margin: const EdgeInsets.only(bottom: S.x3),
+        padding: const EdgeInsets.all(S.x4),
+        decoration: BoxDecoration(
+          color: p.wash(C.blue, strength: 0.12),
+          borderRadius: R.rMd,
+          border: Border.all(
+            color: p.on(C.blue).withValues(alpha: 0.3),
+            width: 1.0,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Icon(LucideIcons.cpu, size: 16, color: p.on(C.blue)),
+                const SizedBox(width: S.x2),
+                Expanded(
+                  child: Text(
+                    'On-Device Calculation',
+                    style: F.head.copyWith(
+                      color: p.ink,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: S.x2, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: p.wash(C.green, strength: 0.18),
+                    borderRadius: R.rPill,
+                    border: Border.all(
+                      color: p.on(C.green).withValues(alpha: 0.35),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(LucideIcons.shieldCheck, size: 10, color: p.on(C.green)),
+                      const SizedBox(width: 4),
+                      Text(
+                        '100% PRIVATE',
+                        style: F.over.copyWith(
+                          color: p.on(C.green),
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: S.x2),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    stageTitle,
+                    style: F.cap.copyWith(
+                      color: p.ink,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: S.x2),
+                Text(
+                  hasFraction ? '$percentInt%' : 'Calculating…',
+                  style: F.cap.copyWith(
+                    color: p.on(C.blue),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            ClipRRect(
+              borderRadius: R.rSm,
+              child: hasFraction
+                  ? TweenAnimationBuilder<double>(
+                      tween: Tween<double>(begin: 0.05, end: fraction),
+                      duration: const Duration(milliseconds: 400),
+                      curve: Curves.easeOutCubic,
+                      builder: (context, value, _) => LinearProgressIndicator(
+                        value: value,
+                        minHeight: 5,
+                        backgroundColor: p.on(C.blue).withValues(alpha: 0.15),
+                        color: p.on(C.blue),
+                      ),
+                    )
+                  : LinearProgressIndicator(
+                      value: null,
+                      minHeight: 5,
+                      backgroundColor: p.on(C.blue).withValues(alpha: 0.15),
+                      color: p.on(C.blue),
+                    ),
+            ),
+            const SizedBox(height: S.x2),
+            Text(
+              stageDetail,
+              style: F.cap.copyWith(color: p.ink2),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(LucideIcons.check, size: 11, color: p.on(C.green)),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    'Band sync complete. Processed on your iPhone CPU — health data never leaves this device.',
+                    style: F.over.copyWith(color: p.ink3),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ── 2. FAULT / ACTION REQUIRED STATE ──────────────────────────────
+    if (isFault) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: S.x3),
+        padding: const EdgeInsets.all(S.x4),
+        decoration: BoxDecoration(
+          color: p.wash(C.red, strength: 0.12),
+          borderRadius: R.rMd,
+          border: Border.all(
+            color: p.on(C.red).withValues(alpha: 0.35),
+            width: 1.0,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(LucideIcons.triangleAlert, size: 16, color: p.on(C.red)),
+                const SizedBox(width: S.x2),
+                Expanded(
+                  child: Text(
+                    localized.title,
+                    style: F.head.copyWith(
+                      color: p.on(C.red),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: S.x1),
+            Text(
+              localized.reason,
+              style: F.cap.copyWith(color: p.ink2),
+            ),
+            if (localized.fix != null) ...[
+              const SizedBox(height: S.x3),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Pressable(
+                  onTap: () {
+                    switch (status.condition) {
+                      case BandCondition.bluetoothOff:
+                        if (Platform.isAndroid) {
+                          try {
+                            FlutterBluePlus.turnOn();
+                          } catch (_) {
+                            unawaited(Geolocator.openAppSettings());
+                          }
+                        } else {
+                          unawaited(Geolocator.openAppSettings());
+                        }
+                        break;
+                      case BandCondition.bluetoothDenied:
+                        unawaited(Geolocator.openAppSettings());
+                        break;
+                      case BandCondition.reconnectPaused:
+                      case BandCondition.repairNeeded:
+                        go(c, const DevicePickerScreen());
+                        break;
+                      default:
+                        onSync?.call();
+                    }
+                  },
+                  semanticLabel: localized.fix,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: S.x3, vertical: S.x2),
+                    decoration: BoxDecoration(
+                      color: p.fill(C.red),
+                      borderRadius: R.rPill,
+                    ),
+                    child: Text(
+                      localized.fix!,
+                      style: F.over.copyWith(
+                        color: p.inkOnFill,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
+
+    // ── 3. LOW BATTERY WARNING (When connected) ───────────────────────
+    final isLowBat = batteryPct != null && lowBattery(batteryPct, isCharging);
+    if (isConnected && isPaired) {
+      if (isLowBat) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: S.x3),
+          padding: const EdgeInsets.symmetric(horizontal: S.x4, vertical: S.x2 + 2),
+          decoration: BoxDecoration(
+            color: p.wash(C.red, strength: 0.1),
+            borderRadius: R.rPill,
+            border: Border.all(color: p.on(C.red).withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            children: [
+              Icon(LucideIcons.batteryWarning, size: 14, color: p.on(C.red)),
+              const SizedBox(width: S.x2),
+              Expanded(
+                child: Text(
+                  'Low WHOOP battery (${batteryPct.round()}%) · Slide on battery pack',
+                  style: F.cap.copyWith(color: p.on(C.red), fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+      // Calm, quiet default: zero pill between greeting and recovery hero!
+      return const SizedBox.shrink();
+    }
+
+    // ── 4. NOT PAIRED ────────────────────────────────────────────────
+    if (!isPaired) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: S.x3),
+        padding: const EdgeInsets.symmetric(horizontal: S.x4, vertical: S.x3),
+        decoration: BoxDecoration(
+          color: p.card2,
+          borderRadius: R.rMd,
+          border: Border.all(color: p.line),
+        ),
+        child: Row(
+          children: [
+            Icon(LucideIcons.circleDashed, size: 16, color: p.ink3),
+            const SizedBox(width: S.x3),
+            Expanded(
+              child: Text(
+                'No band paired · Pair your WHOOP band to start tracking',
+                style: F.cap.copyWith(color: p.ink2),
+              ),
+            ),
+            Pressable(
+              onTap: () => go(c, const DevicePickerScreen()),
+              child: Text(
+                'Pair',
+                style: F.cap.copyWith(color: p.on(C.blue), fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ── 5. CONNECTING / SCANNING ──────────────────────────────────────
+    if (connection == 'connecting' || connection == 'scanning') {
+      return Container(
+        margin: const EdgeInsets.only(bottom: S.x3),
+        padding: const EdgeInsets.symmetric(horizontal: S.x4, vertical: S.x3),
+        decoration: BoxDecoration(
+          color: p.wash(C.orange, strength: 0.12),
+          borderRadius: R.rMd,
+          border: Border.all(color: p.on(C.orange).withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2, color: p.on(C.orange)),
+            ),
+            const SizedBox(width: S.x3),
+            Expanded(
+              child: Text(
+                'Connecting to WHOOP… · Searching in range',
+                style: F.cap.copyWith(color: p.ink),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ── 6. OFFLINE / DISCONNECTED ────────────────────────────────────
+    final isPastDay = todayId != null && todayId != todayLabel();
+    return Container(
+      margin: const EdgeInsets.only(bottom: S.x3),
+      padding: const EdgeInsets.symmetric(horizontal: S.x4, vertical: S.x3),
+      decoration: BoxDecoration(
+        color: p.card2,
+        borderRadius: R.rMd,
+        border: Border.all(color: p.line),
+      ),
+      child: Row(
+        children: [
+          Icon(LucideIcons.bluetoothOff, size: 15, color: p.ink3),
+          const SizedBox(width: S.x3),
+          Expanded(
+            child: Text(
+              isPastDay
+                  ? 'Viewing past day · Offline'
+                  : 'WHOOP is offline · ${syncedThroughLabel(lastRecordAt, todayId, l)}',
+              style: F.cap.copyWith(color: p.ink2),
+            ),
+          ),
+          if (!isPastDay)
+            Pressable(
+              onTap: onSync,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: S.x2, vertical: S.x1),
+                child: Text(
+                  'Reconnect',
+                  style: F.cap.copyWith(color: p.on(C.blue), fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 bool derivingOf(BuildContext c) {
@@ -852,68 +1562,176 @@ class RingTrio extends StatelessWidget {
     final l = AppLocalizations.of(c);
     final rings = [for (final k in HomeRingKind.values) _ringOf(k, d, l)];
     final gaps = rings.where((r) => r.why != null).toList();
-    // THERE IS NO "THESE TWO ARE FROM SATURDAY" LINE ANY MORE, and there is
-    // nothing left for one to explain. Recovery and sleep used to be served
-    // from the last scored night whenever today's had not settled, and this
-    // card carried one sentence naming that night. Read on a phone, the
-    // sentence lost: a number inside a ring is today's, and a caption under
-    // three rings does not undo it. The loader refuses the older night now
-    // ([overnightMetric]), so a ring with no night behind it is a gap row with
-    // the reason in it — same place every other absence on this screen goes.
+
+    final readinessVal = d.readiness.value?.round();
+    final isCalibrating = d.readiness.value == null && d.readiness.note != null;
+
+    final ({String title, String subtitle, Color color, IconData icon})? heroVerdict;
+    if (readinessVal != null) {
+      if (readinessVal >= 67) {
+        heroVerdict = (
+          title: 'OPTIMAL RECOVERY',
+          subtitle: 'Autonomic balance restored · Primed for high strain',
+          color: C.green,
+          icon: LucideIcons.sparkles,
+        );
+      } else if (readinessVal >= 34) {
+        heroVerdict = (
+          title: 'STEADY RECOVERY',
+          subtitle: 'Maintaining normal baseline · Moderate strain advised',
+          color: C.yellow,
+          icon: LucideIcons.activity,
+        );
+      } else {
+        heroVerdict = (
+          title: 'REST RECOMMENDED',
+          subtitle: 'Elevated physiological strain · Focus on rest & sleep',
+          color: C.red,
+          icon: LucideIcons.batteryLow,
+        );
+      }
+    } else if (isCalibrating) {
+      heroVerdict = (
+        title: 'ESTABLISHING BASELINE',
+        subtitle: 'Wear your WHOOP band tonight to calibrate your normal range',
+        color: C.blue,
+        icon: LucideIcons.circleDashed,
+      );
+    } else {
+      heroVerdict = null;
+    }
 
     return Surface(
       elevation: 2,
-      child: Column(children: [
-        if (bigText(c))
-          // Past ~1.3× a 100 pt column cannot hold the word "Recovery" on one
-          // line and there is nowhere for it to wrap to. The ring keeps its
-          // size and the type gets the width instead.
-          for (var i = 0; i < rings.length; i++) ...[
-            if (i > 0) const SizedBox(height: S.x2),
-            _RingRow(rings[i], onTap: _open(rings[i].kind)),
-          ]
-        else
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (var i = 0; i < rings.length; i++) ...[
-                if (i > 0) const SizedBox(width: S.x3),
-                Expanded(
-                    child: _RingColumn(rings[i], onTap: _open(rings[i].kind))),
-              ],
-            ],
-          ),
-        for (final r in gaps) ...[
-          const SizedBox(height: S.x2),
-          Divider(color: p.line, height: 1),
-          _GapRow(r, onTap: _open(r.kind)),
-        ],
-        if (recoveryUpdatedLine(d.readinessUpdate, l) case final note?) ...[
-          const SizedBox(height: S.x2),
-          Text(note, style: F.cap.copyWith(color: p.ink3)),
-        ],
-        if (d.readiness.value != null && d.drivers.isNotEmpty) ...[
-          const SizedBox(height: S.x3),
-          Divider(color: p.line, height: 1),
-          const SizedBox(height: S.x3),
-          Pressable(
-            onTap: _open(HomeRingKind.recovery),
-            // Top-aligned: at an accessibility size the driver list is three
-            // lines and "Why?" was centred against the middle of them.
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(l?.homeWhyLabel ?? 'Why?', style: F.cap.copyWith(color: p.ink3)),
-              const SizedBox(width: S.x2),
-              Expanded(
-                child: Text(
-                  d.drivers
-                      .take(3)
-                      .map((e) => driverLabel(e['label'], l))
-                      .join(' · '),
-                  style: F.cap.copyWith(color: p.ink2),
-                ),
+      pad: const EdgeInsets.all(S.x5),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (heroVerdict != null) ...[
+            if (bigText(c)) ...[
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: S.x3, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: p.wash(heroVerdict.color),
+                        borderRadius: R.rPill,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(heroVerdict.icon, size: 12, color: p.on(heroVerdict.color)),
+                          const SizedBox(width: S.x1),
+                          Flexible(
+                            child: Text(
+                              heroVerdict.title,
+                              style: F.over.copyWith(
+                                color: p.on(heroVerdict.color),
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.6,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              Icon(LucideIcons.chevronRight, size: 15, color: p.ink3),
-            ]),
+              if (recoveryUpdatedLine(d.readinessUpdate, l) case final note?) ...[
+                const SizedBox(height: S.x1),
+                Text(note, style: F.over.copyWith(color: p.ink3)),
+              ],
+            ] else ...[
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: S.x3, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: p.wash(heroVerdict.color),
+                      borderRadius: R.rPill,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(heroVerdict.icon, size: 12, color: p.on(heroVerdict.color)),
+                        const SizedBox(width: S.x1),
+                        Text(
+                          heroVerdict.title,
+                          style: F.over.copyWith(
+                            color: p.on(heroVerdict.color),
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Spacer(),
+                  if (recoveryUpdatedLine(d.readinessUpdate, l) case final note?)
+                    Text(note, style: F.over.copyWith(color: p.ink3)),
+                ],
+              ),
+            ],
+            const SizedBox(height: S.x2),
+            Text(
+              heroVerdict.subtitle,
+              style: F.body.copyWith(color: p.ink2, height: 1.3),
+            ),
+            const SizedBox(height: S.x4),
+          ],
+          if (bigText(c))
+            for (var i = 0; i < rings.length; i++) ...[
+              if (i > 0) const SizedBox(height: S.x2),
+              _RingRow(rings[i], onTap: _open(rings[i].kind)),
+            ]
+          else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var i = 0; i < rings.length; i++) ...[
+                  if (i > 0) const SizedBox(width: S.x3),
+                  Expanded(
+                      child: _RingColumn(rings[i], onTap: _open(rings[i].kind))),
+                ],
+              ],
+            ),
+          for (final r in gaps) ...[
+            const SizedBox(height: S.x2),
+            Divider(color: p.line, height: 1),
+            _GapRow(r, onTap: _open(r.kind)),
+          ],
+          if (heroVerdict == null)
+            if (recoveryUpdatedLine(d.readinessUpdate, l) case final note?) ...[
+              const SizedBox(height: S.x2),
+              Text(note, style: F.cap.copyWith(color: p.ink3)),
+            ],
+          if (d.readiness.value != null && d.drivers.isNotEmpty) ...[
+            const SizedBox(height: S.x3),
+            Divider(color: p.line, height: 1),
+            const SizedBox(height: S.x3),
+            Pressable(
+              onTap: _open(HomeRingKind.recovery),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(l?.homeWhyLabel ?? 'Why?', style: F.cap.copyWith(color: p.ink3)),
+                const SizedBox(width: S.x2),
+                Expanded(
+                  child: Text(
+                    d.drivers
+                        .take(3)
+                        .map((e) => driverLabel(e['label'], l))
+                        .join(' · '),
+                    style: F.cap.copyWith(color: p.ink2),
+                  ),
+                ),
+                Icon(LucideIcons.chevronRight, size: 15, color: p.ink3),
+              ]),
             ),
           ],
         ],
@@ -999,8 +1817,8 @@ class _RingState {
   /// reading, so it is not one.
   bool get measured => why == null && !calibrating;
 
-  Color arc(P p) => calibrating || provisional ? p.ink3 : p.on(color);
-  Color ink(P p) => measured && !provisional ? p.on(color) : p.ink3;
+  Color arc(P p) => calibrating ? p.ink3 : p.on(color);
+  Color ink(P p) => measured ? p.on(color) : p.ink3;
 
   String get spoken => [
         label,
@@ -1017,21 +1835,21 @@ _RingState _ringOf(HomeRingKind k, HomeData d, AppLocalizations? l) {
       final band = readinessBand(v, l);
       if (d.recoveryState == 'night_in_progress') {
         return _RingState(k, l?.homeRingRecovery ?? 'Recovery',
-            LucideIcons.batteryCharging, C.green,
+            LucideIcons.heartPulse, C.green,
             value: l?.homeRecoverySleeping ?? 'Sleeping…',
             why: l?.homeRecoveryAfterWake ??
                 'Recovery is scored after you wake.');
       }
       if (d.recoveryState == 'provisional' && v != null) {
         return _RingState(k, l?.homeRingRecovery ?? 'Recovery',
-            LucideIcons.batteryCharging, band.color,
+            LucideIcons.heartPulse, band.color,
             value: '${v.round()}',
             sub: l?.homeRecoveryFinishingUp ?? 'Finishing up',
             frac: v / 100,
             provisional: true);
       }
       return v == null
-          ? _gap(k, l?.homeRingRecovery ?? 'Recovery', LucideIcons.batteryCharging,
+          ? _gap(k, l?.homeRingRecovery ?? 'Recovery', LucideIcons.heartPulse,
               C.green, d.readiness, l?.homeReadinessNotScored ?? 'Not scored', l,
               // The same shortfall sentence the Readiness detail screen's
               // banner shows, off the SAME stored diagnostic — _gap's own
@@ -1050,7 +1868,7 @@ _RingState _ringOf(HomeRingKind k, HomeData d, AppLocalizations? l) {
                       metricName: 'recovery') ??
                   '')
           : _RingState(k, l?.homeRingRecovery ?? 'Recovery',
-              LucideIcons.batteryCharging, band.color,
+              LucideIcons.heartPulse, band.color,
               value: '${v.round()}', sub: band.label, frac: v / 100);
     case HomeRingKind.strain:
       final v = d.strain.value;
@@ -1473,13 +2291,21 @@ class HomeData {
     // read too. A provisional night shows its own number, greyed.
     final head = todayHeadlineOf(today);
     final recoveryState = head['recovery_state'] as String?;
+    final isConfirmedNight = recoveryState == 'provisional' || recoveryState == 'final';
     final readiness = recoveryState == 'provisional'
-        ? metricOf(d('readiness_provisional'))
+        ? metricOf(d('readiness_provisional') ?? d('readiness'))
         : overnightMetric(today, d('readiness'), l);
     final absentDiag = readiness.value != null
         ? null
         : await LocalDb.readinessAbsentDiag(
             (today['status'] as Map?)?['today_day']?.toString());
+
+    final sleepMetric = isConfirmedNight
+        ? metricOf(s('duration_min'))
+        : overnightMetric(today, s('duration_min'), l);
+    final rhrMetric = isConfirmedNight
+        ? metricOf(d('resting_hr'))
+        : overnightMetric(today, d('resting_hr'), l);
 
     return HomeData(
       name: profile['name']?.toString(),
@@ -1497,8 +2323,8 @@ class HomeData {
           if (e is Map) e.cast<String, dynamic>(),
       ],
       strain: metricOf(d('strain')),
-      sleepMin: overnightMetric(today, s('duration_min'), l),
-      rhr: overnightMetric(today, d('resting_hr'), l),
+      sleepMin: sleepMetric,
+      rhr: rhrMetric,
       steps: metricOf(d('steps')),
       calories: metricOf(d('calories')),
       caloriesTotal: metricOf(d('calories_total')),
@@ -1677,29 +2503,11 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
       child: CircularProgressIndicator(strokeWidth: 2, color: P.of(c).ink3),
     );
 
-    if (syncing) {
-      final records = syncDrainRecordsOf(c);
-      final batches = syncDrainBatchesOf(c);
-      final String progressDetail;
-      if (records > 0) {
-        final formattedRecords = NumberFormat.decimalPattern().format(records);
-        progressDetail = '$formattedRecords records ($batches batches) received. Finalizing and saving...';
-      } else {
-        progressDetail = l?.homeSyncingBody ??
-            'Pulling data now — this can take a few minutes on a full backlog.';
-      }
-      return StatusCard(
-        l?.homeSyncingTitle ?? 'Syncing with your band',
-        progressDetail,
-        leading: spinner,
-      );
-    }
-    if (deriving) {
-      return StatusCard(
-        l?.homeAnalyzingTitle ?? 'Crunching last night\'s numbers',
-        l?.homeAnalyzingBody ?? 'The data is in — sleep, recovery and strain '
-            'are next.',
-        leading: spinner,
+    if (syncing || deriving) {
+      return const StatusCard(
+        'Calculating today’s metrics',
+        'Your recovery, sleep, and strain cards will appear here as soon as processing completes.',
+        icon: LucideIcons.hourglass,
       );
     }
     if (_syncTapped) {
@@ -1710,6 +2518,41 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
       );
     }
     return null;
+  }
+
+  Widget _provisionalAwakeCard(
+    BuildContext c,
+    P p,
+    AppLocalizations? l,
+    HomeData d,
+  ) {
+    final sleepMin = d.sleepMin.value?.round();
+    final sleepStr = sleepMin != null
+        ? '${sleepMin ~/ 60}h ${(sleepMin % 60).toString().padLeft(2, '0')}m'
+        : null;
+    final title = sleepStr != null
+        ? (l?.homeAwakeConfirmTitle(sleepStr) ??
+            'Awake? Logged $sleepStr of sleep')
+        : (l?.homeAwakeGenericTitle ?? 'Awake? Night detected');
+    final meta = l?.homeAwakeConfirmBody ??
+        'Tap if you are awake to finalize your recovery score immediately.';
+    final cta = l?.homeAwakeConfirmAction ?? "I'm awake";
+
+    return ActionCard(
+      title,
+      meta,
+      cta,
+      LucideIcons.sunMedium,
+      C.yellow,
+      onTap: () {
+        try {
+          final targetDay = d.dayId ?? todayLabel();
+          c.read<AppState>().confirmSleep(targetDay);
+        } catch (_) {
+          // In test environments without AppState
+        }
+      },
+    );
   }
 
   Widget _bareStatusCard(BuildContext c, HomeData d, AppLocalizations? l,
@@ -1726,8 +2569,24 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
         icon: LucideIcons.calendarOff,
       );
     }
-    final phase = _phaseStatusCard(c, l);
-    if (phase != null) return phase;
+    final syncing = syncingNowOf(c);
+    final deriving = derivingOf(c);
+    if (syncing || deriving) {
+      return StatusCard(
+        syncing
+            ? (l?.homeSyncingTitle ?? 'Syncing with your band')
+            : (l?.homeAnalyzingTitle ?? 'Analyzing sleep & recovery'),
+        'Your daily metrics will appear once processing completes.',
+        icon: LucideIcons.hourglass,
+      );
+    }
+    if (_syncTapped) {
+      return StatusCard(
+        l?.homeConnectingTitle ?? 'Connecting to your band',
+        l?.homeConnectingBody ?? 'Hang on — this usually takes a few seconds.',
+        icon: LucideIcons.bluetooth,
+      );
+    }
 
     final sync = syncOf(c);
     return StatusCard(
@@ -1771,16 +2630,10 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
       return _refreshable(ListView(padding: pad, children: [
         const SizedBox(height: S.x8),
         // No day on screen ⇒ no `todayId`, so this renders the dated form.
-        // Shown here TOO: a first run, a failed read and a sync in flight are
-        // exactly when "how far are we?" is worth answering, and the header
-        // this line normally sits under does not exist on this path.
-        Align(alignment: Alignment.centerLeft, child: syncedThroughLine(c, null, l)),
-        // The battery reading lives on AppState.device, independent of
-        // HomeData — a load failure or first run must not hide it too.
-        if (batteryLine(c) case final battery?) ...[
-          const SizedBox(height: 2),
-          Align(alignment: Alignment.centerLeft, child: battery),
-        ],
+        _WhoopStatusBar(
+          todayId: _day,
+          onSync: syncOf(c) == null ? null : () => _tapSync(syncOf(c)!),
+        ),
         const SizedBox(height: S.x3),
         const DetectedActivitiesCard(),
         const SizedBox(height: S.x3),
@@ -1878,44 +2731,59 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
       ...?_bodyWatch(c, d, todayLabel(widget.now)),
       // ── greeting ──
       Padding(
-        padding: const EdgeInsets.only(top: S.x3, bottom: S.x5),
-        child: Row(children: [
-          Expanded(
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Flexible(
-                  child: Text(
-                    d.name == null || d.name!.isEmpty
-                        ? g.word
-                        : '${g.word}, ${d.name}',
-                    style: F.t2.copyWith(color: p.ink),
+        padding: const EdgeInsets.only(top: S.x3, bottom: S.x2),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    prettyDay(d.dayId, l).toUpperCase(),
+                    style: F.over.copyWith(
+                      color: p.ink3,
+                      letterSpacing: 0.8,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-                const SizedBox(width: S.x2),
-                Icon(g.icon, size: 17, color: p.on(g.color)),
-              ]),
-              const SizedBox(height: 2),
-              Text(prettyDay(d.dayId, l), style: F.cap.copyWith(color: p.ink3)),
-              // How far the band's data reaches, always — the question "am I
-              // looking at today, or at last night?" used to be answerable
-              // only by opening Profile > Devices.
-              syncedThroughLine(c, d.dayId, l),
-              // Its own line, not squeezed into the sync line's row: at
-              // accessibility text sizes that row has no slack left, and
-              // `Expanded` would only shrink the sync text into extra wrapped
-              // lines to make room rather than ever actually overflow.
-              if (batteryLine(c) case final battery?) ...[
-                const SizedBox(height: 2),
-                battery,
-              ],
-            ]),
-          ),
-          const SizedBox(width: S.x3),
-          // The coach moved to its own chip under the plan, and Profile is the
-          // same avatar every tab carries.
-          const ProfileAvatar(accent: C.domHome),
-        ]),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          d.name == null || d.name!.isEmpty
+                              ? g.word
+                              : '${g.word}, ${d.name}',
+                          style: F.t2.copyWith(
+                            color: p.ink,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: S.x2),
+                      Icon(g.icon, size: 18, color: p.on(g.color)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: S.x3),
+            if (deviceBatteryOf(c) case (final double pct, final bool charging)?) ...[
+              _headerBatteryChip(c, p, pct, charging, deviceBatteryPackOf(c)),
+              const SizedBox(width: S.x2),
+            ],
+            const ProfileAvatar(accent: C.domHome),
+          ],
+        ),
+      ),
+
+      // ── WHOOP Live Status & Connection Bar ──
+      _WhoopStatusBar(
+        todayId: d.dayId,
+        onSync: syncOf(c) == null ? null : () => _tapSync(syncOf(c)!),
       ),
 
       if (bare) ...[
@@ -1931,14 +2799,6 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
             child: Text(l?.homeBackToToday ?? 'Back to today'),
           ),
         ),
-      // A sync or a derive in flight on an ordinary morning. It used to show
-      // only on a bare day, so yesterday's rings sat on screen during a sync
-      // with nothing but a grey "Synced through" line to say anything moved.
-      if (!bare && isToday)
-        if (_phaseStatusCard(c, l) case final phase?) ...[
-          phase,
-          const SizedBox(height: S.x3),
-        ],
       // The active wearable's day, cell by cell. Nothing on a WHOOP-only
       // install, nor when the screen is handed its data.
       if (widget.data == null)
@@ -1973,7 +2833,7 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
         // diagnostic used to go nowhere but a Firebase breadcrumb. It belongs
         // one tap away, on the Readiness screen: a wall of per-input
         // diagnostics on Home makes the app read as broken.
-        if (RingTrio.has(d))
+        if (RingTrio.has(d)) ...[
           RingTrio(
             d: d,
             onOpen: (k) => go(
@@ -1987,7 +2847,12 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
                   // pick resolves to that one.
                   HomeRingKind.sleep => SleepDetail(day: isToday ? null : _day),
                 }),
-          )
+          ),
+          if (isToday && d.recoveryState == 'provisional') ...[
+            const SizedBox(height: S.x3),
+            _provisionalAwakeCard(c, p, l, d),
+          ],
+        ]
         else
           Builder(builder: (c) {
             final need = needMessageFromNote(d.readiness.note);
@@ -2015,32 +2880,47 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
                       whyFromNote(d.readiness.note) ??
                       (l?.homeReadinessNoReason ?? 'Nothing recorded says why.'),
               fix: l?.homeSeeWhatWasMissing ?? 'See what was missing',
-              icon: LucideIcons.batteryCharging,
+              icon: LucideIcons.heartPulse,
               onFix: () => go(c, const ReadinessDetail()),
             );
           }),
 
-        const SizedBox(height: S.x3),
-        const DetectedActivitiesCard(),
-        const SizedBox(height: S.x3),
-        NextGenMvpCard(
-          repo: repoOf(c),
-          dayId: d.dayId,
-          strain: d.strain,
-          sleepMinutes: d.sleepMin,
-          sleepNeedMinutes: d.sleepNeedMin,
-        ), // MVP Injection
-        const CommunityNudge(),
-
         // ── the rollup was withheld, not absent ──
         if (stale != null) ...[const SizedBox(height: S.x3), stale],
 
-        // ── at a glance ──
-        // First, in the first weeks too: resting HR, steps and the night's
-        // sleep are real from night one, so they lead and the "what arrives
-        // when" card follows them.
+        // ── Level 2: Today's Vitals (Supporting Metrics) ──
+        const SizedBox(height: S.x2),
         Section(l?.homeAtAGlance ?? 'At a glance',
             _glance(c, d, isToday: isToday)),
+
+        // ── Level 3: Actionable Guidance (Today's Plan) ──
+        if (isToday)
+          Section(l?.homeTodaysPlan ?? "Today's plan", _plan(c, p, d)),
+
+        // ── Level 4: Progressive Disclosure & Deeper Workflows ──
+        const SizedBox(height: S.x4),
+        detailLinkRow(c, LucideIcons.chartGantt,
+            l?.homeBreakdownTitle ?? 'Breakdown of your day',
+            l?.homeBreakdownSubtitle ?? 'Hour by hour',
+            () => go(c, DayTimelineScreen(day: _day))),
+
+        const SizedBox(height: S.x4),
+        Section(
+          'Longevity & Biomarkers',
+          NextGenMvpCard(
+            repo: repoOf(c),
+            dayId: d.dayId,
+            strain: d.strain,
+            sleepMinutes: d.sleepMin,
+            sleepNeedMinutes: d.sleepNeedMin,
+          ),
+        ),
+
+        const SizedBox(height: S.x3),
+        const DetectedActivitiesCard(),
+
+        const CommunityNudge(),
+
         if (firstWeeks) ...[
           const SizedBox(height: S.x3),
           firstWeekCard(c,
@@ -2048,25 +2928,6 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
               strainScored: !d.strain.isEmpty,
               recoveryNightsLeft: recoveryNightsLeft),
         ],
-
-        // ── today's plan: only what the app can actually stand behind ──
-        // Skipped on a past day — "3,000 steps left" or "aim for 11.4
-        // strain" about a day already over is an instruction, not a fact.
-        if (isToday)
-          Section(l?.homeTodaysPlan ?? "Today's plan", _plan(c, p, d)),
-
-        // ── the way into the whole day ──
-        //
-        // A DOOR, NOT A CARD, and that is what keeps it on the right side of
-        // the law at the top of this file. It shows no number, previews no
-        // shape and makes no observation — it names a place and goes there.
-        // Home decides; the day view is where you go to look, and until this
-        // row existed the only ways in were two screens deep.
-        const SizedBox(height: S.x5),
-        detailLinkRow(c, LucideIcons.chartGantt,
-            l?.homeBreakdownTitle ?? 'Breakdown of your day',
-            l?.homeBreakdownSubtitle ?? 'Hour by hour',
-            () => go(c, DayTimelineScreen(day: _day))),
       ],
 
       // ── the next alarm: a door, same as the one above ──
@@ -2190,13 +3051,39 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
     // Sleep is a RING now, duration and all — the card here was the same
     // number twice on one screen, and the ring is the one that says what the
     // duration was measured against.
+    final liveHr = isToday ? liveHrOf(c) : null;
     add(
       d.rhr,
-      () => SignalCard(LucideIcons.heart, C.red, l?.homeHeartRate ?? 'Heart rate',
-          '${d.rhr.value!.round()}',
-          unit: 'bpm',
-          sub: l?.homeRestingSub ?? 'Resting',
-          onTap: () => go(c, const MetricDetail('resting_hr'))),
+      () => SignalCard(
+        LucideIcons.heart,
+        C.red,
+        l?.homeHeartRate ?? 'Heart rate',
+        liveHr != null ? '$liveHr' : '${d.rhr.value!.round()}',
+        unit: 'bpm',
+        sub: liveHr != null
+            ? (d.rhr.value != null
+                ? 'Live · Resting ${d.rhr.value!.round()} bpm'
+                : 'Live heart rate')
+            : (l?.homeRestingSub ?? 'Resting'),
+        trailing: liveHr != null
+            ? Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: S.x2, vertical: 2),
+                decoration: BoxDecoration(
+                  color: P.of(c).wash(C.green),
+                  borderRadius: R.rPill,
+                ),
+                child: Text(
+                  'LIVE',
+                  style: F.over.copyWith(
+                    color: P.of(c).on(C.green),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              )
+            : null,
+        onTap: () => go(c, const MetricDetail('resting_hr')),
+      ),
       // "no sleep was recorded" was stated as fact, unconditionally — and it
       // was rendered directly beside a Sleep card showing that night's
       // duration. Sleep duration and nocturnal RHR are gated separately: a

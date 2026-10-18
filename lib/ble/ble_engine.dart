@@ -1455,6 +1455,11 @@ class BleEngine {
   Duration reconnectDelay(int attempt) => reconnectPolicy.delayFor(attempt);
 
   // ── reconnecting-state surface (owned by the caller's reconnect loop) ────────
+  /// Tracks whether an active reconnect loop intent is in flight, so a failed
+  /// connection attempt during backoff does not transiently drop the state to
+  /// `idle` (which flickers 'disconnected' to the UI for milliseconds).
+  bool _reconnectIntent = false;
+
   /// The caller (AppState._reconnect) owns reconnect INTENT, so only it knows
   /// when the engine's `idle` actually means "between reconnect attempts" rather
   /// than "genuinely disconnected". It calls this at the top of each retry so
@@ -1462,6 +1467,7 @@ class BleEngine {
   /// while the loop backs off. Only lifts idle/error — never stomps an
   /// in-flight connect phase or an established listen.
   void markReconnecting() {
+    _reconnectIntent = true;
     if (_phase == BleConnState.idle || _phase == BleConnState.error) {
       _setPhase(BleConnState.reconnecting);
     }
@@ -1470,6 +1476,7 @@ class BleEngine {
   /// The reconnect loop gave up (keepAlive dropped / unpaired) — fall back to
   /// a truthful 'disconnected'. No-op unless we're actually in `reconnecting`.
   void clearReconnecting() {
+    _reconnectIntent = false;
     if (_phase == BleConnState.reconnecting) _setPhase(BleConnState.idle);
   }
 
@@ -2571,6 +2578,9 @@ class BleEngine {
 
   void _setPhase(BleConnState p) {
     _phase = p;
+    if (p == BleConnState.listening) {
+      _reconnectIntent = false;
+    }
     state.connection = connStringFor(p);
     // Removal is only heard over a live link, so off one the pack reading is
     // no longer known to be true. The next 109 brings it back.
@@ -2791,6 +2801,36 @@ class BleEngine {
     onState(state);
   }
 
+  StreamSubscription<BluetoothAdapterState>? _adapterSub;
+
+  /// Reactively tracks the phone's Bluetooth radio state so adapter off/on
+  /// and permissions events are immediately surfaced without waiting for a
+  /// command to throw an exception.
+  void initAdapterMonitoring() {
+    try {
+      _adapterSub = FlutterBluePlus.adapterState.listen((s) {
+        if (s == BluetoothAdapterState.off ||
+            s == BluetoothAdapterState.turningOff) {
+          _noteBlocker(BleBlocker.adapterOff);
+        } else if (s == BluetoothAdapterState.unauthorized) {
+          _noteBlocker(BleBlocker.permissionDenied);
+        } else if (s == BluetoothAdapterState.unavailable) {
+          _noteBlocker(BleBlocker.unsupported);
+        } else if (s == BluetoothAdapterState.on) {
+          _clearBlocker();
+        }
+      }, onError: (_) {});
+    } catch (_) {
+      // In headless test environments where FlutterBluePlus platform channel isn't registered
+    }
+  }
+
+  /// Cancels active Bluetooth adapter monitoring.
+  void cancelAdapterMonitoring() {
+    _adapterSub?.cancel();
+    _adapterSub = null;
+  }
+
   /// Reconnect to a previously-paired device by its persisted remote id.
   ///
   /// [generationHint] is the persisted 'gen4'/'gen5' from the pairing record:
@@ -2853,7 +2893,7 @@ class BleEngine {
   Future<void> _failConnect() async {
     await _teardownSession(intentional: true);
     _releaseBand();
-    _setPhase(BleConnState.idle);
+    _setPhase(_reconnectIntent ? BleConnState.reconnecting : BleConnState.idle);
   }
 
   Future<bool> _doConnect(BluetoothDevice device, {String? generationHint}) async {
@@ -8954,6 +8994,7 @@ class BleEngine {
     // drain once we've genuinely let go. If we were already preempted by another
     // engine, _releaseBand no-ops (it only clears when we still hold the claim).
     _releaseBand();
+    _reconnectIntent = false;
     _setPhase(BleConnState.idle);
     _log('Disconnected.');
   });

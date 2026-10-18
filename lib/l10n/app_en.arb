@@ -4457,7 +4457,7 @@
   "@coachNotSetUp": {
     "description": "Coach screen: subtitle shown wherever the coach has no model configured yet"
   },
-  "coachNotSetUpBody": "Pick a model on your own computer, or any OpenAI-compatible provider with your own key. Nothing goes through OpenStrap either way.",
+  "coachNotSetUpBody": "Pick a model on your own computer, or any OpenAI-compatible provider with your own key. Nothing goes through Edge MOD either way.",
   "@coachNotSetUpBody": {
     "description": "Coach screen: body text explaining how to set up the coach and its privacy stance"
   },
@@ -7346,13 +7346,13 @@
   "@homeSyncingBody": {
     "description": "Body shown on a bare day while records are actively arriving from the band."
   },
-  "homeAnalyzingTitle": "Crunching last night's numbers",
+  "homeAnalyzingTitle": "Analyzing sleep & recovery",
   "@homeAnalyzingTitle": {
-    "description": "Title shown on a bare day once the backlog has landed and a derive job is computing today's numbers."
+    "description": "Title shown once the backlog has landed and a derive job is computing today's numbers."
   },
-  "homeAnalyzingBody": "The data is in — sleep, recovery and strain are next.",
+  "homeAnalyzingBody": "Calculating recovery, sleep stages & strain…",
   "@homeAnalyzingBody": {
-    "description": "Body shown on a bare day once the backlog has landed and a derive job is computing today's numbers."
+    "description": "Body shown once the backlog has landed and a derive job is computing today's numbers."
   },
   "homeConnectingTitle": "Connecting to your band",
   "@homeConnectingTitle": {
@@ -9291,7 +9291,7 @@
       }
     }
   },
-  "workoutDeleteBodyOwn": "It disappears from OpenStrap. A copy in {storeName}, if there is one, stays where it is.",
+  "workoutDeleteBodyOwn": "It disappears from Edge MOD. A copy in {storeName}, if there is one, stays where it is.",
   "@workoutDeleteBodyOwn": {
     "description": "Confirm-delete dialog body for a session this band recorded",
     "placeholders": {
@@ -9300,7 +9300,7 @@
       }
     }
   },
-  "workoutDeleteBodyImported": "It disappears from OpenStrap and will not be re-imported. The original in {storeName} stays.",
+  "workoutDeleteBodyImported": "It disappears from Edge MOD and will not be re-imported. The original in {storeName} stays.",
   "@workoutDeleteBodyImported": {
     "description": "Confirm-delete dialog body for an imported session",
     "placeholders": {
@@ -11828,11 +11828,11 @@
   "@bandStatusBluetoothDeniedTitle": {
     "description": "BandStatus card title: app-level Bluetooth permission denied"
   },
-  "bandStatusBluetoothDeniedReason": "The phone isn’t letting OpenStrap use Bluetooth, so nothing can connect. Allow Bluetooth for OpenStrap in your phone’s settings.",
+  "bandStatusBluetoothDeniedReason": "The phone isn’t letting Edge MOD use Bluetooth, so nothing can connect. Allow Bluetooth for Edge MOD in your phone’s settings.",
   "@bandStatusBluetoothDeniedReason": {
     "description": "BandStatus card body: app-level Bluetooth permission denied"
   },
-  "bandStatusBluetoothDeniedFix": "Open Settings → OpenStrap and allow Bluetooth",
+  "bandStatusBluetoothDeniedFix": "Open Settings → Edge MOD and allow Bluetooth",
   "@bandStatusBluetoothDeniedFix": {
     "description": "BandStatus fix action: app-level Bluetooth permission denied"
   },
@@ -12113,7 +12113,7 @@
   "@nudgeDiscordCta": {
     "description": "CTA button label of the Home nudge card inviting the user to join Discord."
   },
-  "nudgeDonateTitle": "Enjoying OpenStrap?",
+  "nudgeDonateTitle": "Enjoying Edge MOD?",
   "@nudgeDonateTitle": {
     "description": "Title of the Home nudge card inviting the user to sponsor the project."
   },
@@ -13213,7 +13213,7 @@
   "@supplementALowConfidenceOverlayA9fbabe": {
     "description": "Presentation-only text for existing interface, exports or notifications."
   },
-  "supplementAMinuteOfNotesTonightac2cf6": "A minute of notes tonight teaches OpenStrap what actually moves your recovery.",
+  "supplementAMinuteOfNotesTonightac2cf6": "A minute of notes tonight teaches Edge MOD what actually moves your recovery.",
   "@supplementAMinuteOfNotesTonightac2cf6": {
     "description": "Presentation-only text for existing interface, exports or notifications."
   },
@@ -14077,7 +14077,7 @@
   "@supplementG54fd17": {
     "description": "Presentation-only text for existing interface, exports or notifications."
   },
-  "supplementIOSCanOnlyShowThe2139b2": "iOS shows the pairing sheet only before the app has used Bluetooth. Close OpenStrap completely, then reopen it to see the sheet.",
+  "supplementIOSCanOnlyShowThe2139b2": "iOS shows the pairing sheet only before the app has used Bluetooth. Close Edge MOD completely, then reopen it to see the sheet.",
   "@supplementIOSCanOnlyShowThe2139b2": {
     "description": "Presentation-only text for existing interface, exports or notifications."
   },
@@ -14934,7 +14934,7 @@
   "@devicePickerBlurbMiscale2": {
     "description": "Device picker blurb under this device category."
   },
-  "iosUninstallUnpairsWarning": "On iOS, deleting OpenStrap also unpairs every band and sensor paired here from the phone, so other apps, including the maker's own, lose them too.",
+  "iosUninstallUnpairsWarning": "On iOS, deleting Edge MOD also unpairs every band and sensor paired here from the phone, so other apps, including the maker's own, lose them too.",
   "@iosUninstallUnpairsWarning": {
     "description": "iOS only: AccessorySetupKit pairings are removed by iOS for all apps when OpenStrap is deleted."
   },
@@ -15755,5 +15755,26 @@
         "type": "String"
       }
     }
+  },
+  "homeAwakeConfirmTitle": "Awake? Logged {duration} of sleep",
+  "@homeAwakeConfirmTitle": {
+    "description": "Home morning card title asking if the user has woken up, showing the recorded duration.",
+    "placeholders": {
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "homeAwakeGenericTitle": "Awake? Night detected",
+  "@homeAwakeGenericTitle": {
+    "description": "Home morning card title asking if the user has woken up when duration is not yet formatted."
+  },
+  "homeAwakeConfirmBody": "Tap if you are awake to finalize your recovery score immediately.",
+  "@homeAwakeConfirmBody": {
+    "description": "Home morning card body explaining wake confirmation."
+  },
+  "homeAwakeConfirmAction": "I'm awake",
+  "@homeAwakeConfirmAction": {
+    "description": "Action button text to confirm user is awake."
   }
 }

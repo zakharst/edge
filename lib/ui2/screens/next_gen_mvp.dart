@@ -5,12 +5,13 @@ import 'package:openstrap_analytics/onehz.dart' as ana;
 import '../../data/day_label.dart' show todayLabel;
 import '../../data/local_repository.dart';
 import '../../models/metric.dart';
+import '../grammar.dart';
 import '../profile/settings.dart';
+import '../revision.dart';
 import '../screens/journal_compose.dart';
 import '../screens/sleep_detail.dart';
 import '../screens/wellness_screen.dart';
 import '../screens/workout_screen.dart';
-import '../grammar.dart';
 import '../theme.dart';
 
 /// Next-Generation Bento Grid and interactive longevity sheets.
@@ -37,8 +38,16 @@ class NextGenMvpCard extends StatefulWidget {
   State<NextGenMvpCard> createState() => _NextGenMvpCardState();
 }
 
-class _NextGenMvpCardState extends State<NextGenMvpCard> {
-  Future<_NextGenData>? _future;
+class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
+  _NextGenData? _data;
+  bool _loading = true;
+  bool _failed = false;
+
+  @override
+  bool get revisionReloads => widget.repo != null && widget.dayId != null;
+
+  @override
+  void reload() => _reload();
 
   @override
   void initState() {
@@ -49,86 +58,142 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
   @override
   void didUpdateWidget(covariant NextGenMvpCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.repo != widget.repo ||
-        oldWidget.dayId != widget.dayId ||
-        oldWidget.strain.value != widget.strain.value ||
+    if (oldWidget.repo != widget.repo || oldWidget.dayId != widget.dayId) {
+      _reload();
+    } else if (oldWidget.strain.value != widget.strain.value ||
         oldWidget.sleepMinutes.value != widget.sleepMinutes.value ||
         oldWidget.sleepNeedMinutes.value != widget.sleepNeedMinutes.value) {
-      _reload();
+      _updateSleepNeedOnly();
     }
+  }
+
+  void _updateSleepNeedOnly() {
+    final current = _data;
+    if (current == null) return;
+    final strain = widget.strain.value?.toDouble();
+    final sleepMinutes = widget.sleepMinutes.value?.toDouble();
+    final sleepNeedMinutes = widget.sleepNeedMinutes.value?.toDouble();
+
+    ana.SleepNeedResult? sleep;
+    String? sleepMissing;
+    if (strain == null) {
+      sleepMissing =
+          'Awaiting day activity — calculated as your daily strain accumulates.';
+    } else if (sleepMinutes == null || sleepNeedMinutes == null) {
+      sleepMissing =
+          'Needs last night’s sleep data to calculate carryover sleep debt.';
+    } else {
+      sleep = ana.SleepNeedCalculator.calculate(
+        strain: strain,
+        previousTotalNeed: sleepNeedMinutes,
+        previousActualSleep: sleepMinutes,
+        napMinutes: current.napMinutes,
+      );
+    }
+    setState(() {
+      _data = current.copyWith(
+        sleepNeed: sleep,
+        sleepNeedMissingReason: sleepMissing,
+        actualSleepMinutes: sleepMinutes,
+      );
+    });
   }
 
   void _reload() {
     final repo = widget.repo;
     final day = widget.dayId;
-    _future = repo == null || day == null
-        ? null
-        : _NextGenData.load(
-            repo,
-            day: day,
-            strain: widget.strain.value?.toDouble(),
-            sleepMinutes: widget.sleepMinutes.value?.toDouble(),
-            sleepNeedMinutes: widget.sleepNeedMinutes.value?.toDouble(),
-          );
+    if (repo == null || day == null) {
+      if (_data != null || _loading) {
+        setState(() {
+          _data = null;
+          _loading = false;
+        });
+      }
+      return;
+    }
+    final t = beginRead(#nextGen);
+    if (_data == null && !_loading) {
+      setState(() => _loading = true);
+    }
+    _NextGenData.load(
+      repo,
+      day: day,
+      strain: widget.strain.value?.toDouble(),
+      sleepMinutes: widget.sleepMinutes.value?.toDouble(),
+      sleepNeedMinutes: widget.sleepNeedMinutes.value?.toDouble(),
+    ).then((data) {
+      if (stillNewest(#nextGen, t)) {
+        setState(() {
+          _data = data;
+          _loading = false;
+          _failed = false;
+        });
+      }
+    }).catchError((_) {
+      if (stillNewest(#nextGen, t)) {
+        setState(() {
+          _loading = false;
+          _failed = true;
+        });
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final future = _future;
-    if (future == null) return const SizedBox.shrink();
-    return FutureBuilder<_NextGenData>(
-      future: future,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: S.x3),
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
-        final data = snapshot.data;
-        if (data == null) {
-          return Container(
-            padding: const EdgeInsets.all(S.x4),
-            decoration: BoxDecoration(
-              color: P.of(context).card,
-              borderRadius: R.rLg,
-              border: Border.all(color: P.of(context).line),
-            ),
-            child: Text(
-              'Experimental metrics could not be read.',
-              style: F.body.copyWith(color: P.of(context).ink2),
-            ),
-          );
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+    if (widget.repo == null || widget.dayId == null) {
+      return const SizedBox.shrink();
+    }
+    if (_loading && _data == null) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: S.x3),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (_failed && _data == null) {
+      return Container(
+        padding: const EdgeInsets.all(S.x4),
+        decoration: BoxDecoration(
+          color: P.of(context).card,
+          borderRadius: R.rLg,
+          border: Border.all(color: P.of(context).line),
+        ),
+        child: Text(
+          'Experimental metrics could not be read.',
+          style: F.body.copyWith(color: P.of(context).ink2),
+        ),
+      );
+    }
+    final data = _data;
+    if (data == null) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // ── BENTO HERO: Biological Longevity ──
+        _bioAgeHeroCard(context, data),
+        const SizedBox(height: S.x3),
+
+        // ── BENTO ROW 1: Real-Time Stress & Sleep Planner ──
+        Row(
           children: [
-            // ── BENTO HERO: Biological Longevity ──
-            _bioAgeHeroCard(context, data),
-            const SizedBox(height: S.x3),
-
-            // ── BENTO ROW 1: Real-Time Stress & Sleep Planner ──
-            Row(
-              children: [
-                Expanded(child: _compactStressCard(context, data)),
-                const SizedBox(width: S.x3),
-                Expanded(child: _compactSleepCard(context, data)),
-              ],
-            ),
-            const SizedBox(height: S.x3),
-
-            // ── BENTO ROW 2: Journal Insights & Rep Counter ──
-            Row(
-              children: [
-                Expanded(child: _compactJournalCard(context, data)),
-                const SizedBox(width: S.x3),
-                Expanded(child: _compactRepCard(context, data)),
-              ],
-            ),
-            const SizedBox(height: S.x4),
+            Expanded(child: _compactStressCard(context, data)),
+            const SizedBox(width: S.x3),
+            Expanded(child: _compactSleepCard(context, data)),
           ],
-        );
-      },
+        ),
+        const SizedBox(height: S.x3),
+
+        // ── BENTO ROW 2: Journal Insights & Rep Counter ──
+        Row(
+          children: [
+            Expanded(child: _compactJournalCard(context, data)),
+            const SizedBox(width: S.x3),
+            Expanded(child: _compactRepCard(context, data)),
+          ],
+        ),
+        const SizedBox(height: S.x4),
+      ],
     );
   }
 
@@ -142,7 +207,9 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
     final diffAbs = diff.abs().toStringAsFixed(1);
 
     return Pressable(
-      onTap: () => _showBioAgeDetailSheet(context, data),
+      onTap: () => _showBioAgeDetailSheet(context, data, onReload: _reload),
+      semanticLabel:
+          'Biological age overview. Tap to view longevity breakdown and calibration checklist.',
       child: Container(
         padding: const EdgeInsets.all(S.x4),
         decoration: BoxDecoration(
@@ -351,7 +418,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
                     style: F.cap.copyWith(color: p.ink3),
                   ),
                 ),
-                Icon(Icons.arrow_forward_ios, size: 12, color: p.ink3),
+                Icon(LucideIcons.chevronRight, size: 12, color: p.ink3),
               ],
             ),
           ],
@@ -408,6 +475,8 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
 
     return Pressable(
       onTap: () => _showStressDetailSheet(context, data),
+      semanticLabel:
+          'Real-time stress level $displayLevel${isScored ? ", score ${score.toStringAsFixed(0)}" : ""}. Tap to open details.',
       child: Container(
         height: 154,
         padding: const EdgeInsets.all(S.x3),
@@ -432,7 +501,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
                       color: C.orange.withValues(alpha: 0.12),
                       borderRadius: R.rSm,
                     ),
-                    child: const Icon(Icons.bolt, size: 14, color: C.orange),
+                    child: const Icon(LucideIcons.zap, size: 14, color: C.orange),
                   ),
                   const SizedBox(width: S.x1),
                   Expanded(
@@ -526,6 +595,8 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
 
     return Pressable(
       onTap: () => _showSleepNeedDetailSheet(context, data),
+      semanticLabel:
+          'Sleep planner target ${result != null ? _hours(result.totalNeedMinutes) : "calculating"}. Tap to open sleep target details.',
       child: Container(
         height: 154,
         padding: const EdgeInsets.all(S.x3),
@@ -550,7 +621,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
                       color: C.indigo.withValues(alpha: 0.12),
                       borderRadius: R.rSm,
                     ),
-                    child: const Icon(Icons.bedtime, size: 14, color: C.indigo),
+                    child: const Icon(LucideIcons.moon, size: 14, color: C.indigo),
                   ),
                   const SizedBox(width: S.x1),
                   Expanded(
@@ -617,7 +688,9 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
     final delta = (row?['delta_pct'] as num?)?.toDouble();
 
     return Pressable(
-      onTap: () => _showJournalDetailSheet(context, data),
+      onTap: () => _showJournalDetailSheet(context, data, onReload: _reload),
+      semanticLabel:
+          'Journal insights ${data.dayLoggedHabits.isNotEmpty ? data.dayLoggedHabits.join(", ") : (row != null ? row["tag"].toString() : "awaiting logs")}. Tap to open journal details.',
       child: Container(
         height: 154,
         padding: const EdgeInsets.all(S.x3),
@@ -642,7 +715,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
                       color: C.purple.withValues(alpha: 0.12),
                       borderRadius: R.rSm,
                     ),
-                    child: const Icon(Icons.book, size: 14, color: C.purple),
+                    child: const Icon(LucideIcons.notebook, size: 14, color: C.purple),
                   ),
                   const SizedBox(width: S.x1),
                   Expanded(
@@ -725,6 +798,8 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
 
     return Pressable(
       onTap: () => _showRepCounterDetailSheet(context),
+      semanticLabel:
+          'Strength rep counter. Tap to view strength trainer and rep detection.',
       child: Container(
         height: 154,
         padding: const EdgeInsets.all(S.x3),
@@ -749,7 +824,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
                       color: C.green.withValues(alpha: 0.12),
                       borderRadius: R.rSm,
                     ),
-                    child: const Icon(Icons.fitness_center, size: 14, color: C.green),
+                    child: const Icon(LucideIcons.dumbbell, size: 14, color: C.green),
                   ),
                   const SizedBox(width: S.x1),
                   Expanded(
@@ -801,7 +876,11 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
 
   // ── MODAL SHEETS ──────────────────────────────────────────────────────────
 
-  static void _showBioAgeDetailSheet(BuildContext context, _NextGenData data) {
+  static void _showBioAgeDetailSheet(
+    BuildContext context,
+    _NextGenData data, {
+    VoidCallback? onReload,
+  }) {
     final p = P.of(context);
     final result = data.biologicalAge;
     final diff = result?.ageDifference ?? 0.0;
@@ -856,7 +935,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
                     ),
                   ),
                   IconButton(
-                    icon: Icon(Icons.close, color: p.ink3),
+                    icon: Icon(LucideIcons.x, color: p.ink3),
                     onPressed: () => Navigator.of(sheetContext).pop(),
                   ),
                 ],
@@ -1112,17 +1191,18 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: const RoundedRectangleBorder(borderRadius: R.rMd),
                   ),
-                  onPressed: () {
+                  onPressed: () async {
                     Navigator.of(sheetContext).pop();
                     if (data.bioAgeRequiresProfileEdit) {
-                      Navigator.of(context).push(
+                      await Navigator.of(context).push(
                         MaterialPageRoute<void>(builder: (_) => const EditProfile()),
                       );
+                      onReload?.call();
                     }
                   },
                   child: Text(
                     data.bioAgeActionLabel,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    style: F.head.copyWith(fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
@@ -1250,7 +1330,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
                       color: C.orange.withValues(alpha: 0.12),
                       borderRadius: R.rMd,
                     ),
-                    child: const Icon(Icons.bolt, color: C.orange, size: 22),
+                    child: const Icon(LucideIcons.zap, color: C.orange, size: 22),
                   ),
                   const SizedBox(width: S.x3),
                   Expanded(
@@ -1269,7 +1349,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
                     ),
                   ),
                   IconButton(
-                    icon: Icon(Icons.close, color: p.ink3),
+                    icon: Icon(LucideIcons.x, color: p.ink3),
                     onPressed: () => Navigator.of(sheetContext).pop(),
                   ),
                 ],
@@ -1381,9 +1461,9 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
                       MaterialPageRoute<void>(builder: (_) => const WellnessScreen()),
                     );
                   },
-                  child: const Text(
+                  child: Text(
                     'Open Mind & Stress Dashboard',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    style: F.head.copyWith(fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
@@ -1447,7 +1527,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
                       color: C.indigo.withValues(alpha: 0.12),
                       borderRadius: R.rMd,
                     ),
-                    child: const Icon(Icons.bedtime, color: C.indigo, size: 22),
+                    child: const Icon(LucideIcons.moon, color: C.indigo, size: 22),
                   ),
                   const SizedBox(width: S.x3),
                   Expanded(
@@ -1466,7 +1546,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
                     ),
                   ),
                   IconButton(
-                    icon: Icon(Icons.close, color: p.ink3),
+                    icon: Icon(LucideIcons.x, color: p.ink3),
                     onPressed: () => Navigator.of(sheetContext).pop(),
                   ),
                 ],
@@ -1550,9 +1630,9 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
                       MaterialPageRoute<void>(builder: (_) => SleepDetail(day: data.dayId)),
                     );
                   },
-                  child: const Text(
+                  child: Text(
                     'View Sleep Analysis',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    style: F.head.copyWith(fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
@@ -1607,7 +1687,11 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
     );
   }
 
-  static void _showJournalDetailSheet(BuildContext context, _NextGenData data) {
+  static void _showJournalDetailSheet(
+    BuildContext context,
+    _NextGenData data, {
+    VoidCallback? onReload,
+  }) {
     final p = P.of(context);
     final row = data.journalInsight;
     final delta = (row?['delta_pct'] as num?)?.toDouble();
@@ -1637,7 +1721,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
                       color: C.purple.withValues(alpha: 0.12),
                       borderRadius: R.rMd,
                     ),
-                    child: const Icon(Icons.book, color: C.purple, size: 22),
+                    child: const Icon(LucideIcons.notebook, color: C.purple, size: 22),
                   ),
                   const SizedBox(width: S.x3),
                   Expanded(
@@ -1656,7 +1740,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
                     ),
                   ),
                   IconButton(
-                    icon: Icon(Icons.close, color: p.ink3),
+                    icon: Icon(LucideIcons.x, color: p.ink3),
                     onPressed: () => Navigator.of(sheetContext).pop(),
                   ),
                 ],
@@ -1756,15 +1840,16 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: const RoundedRectangleBorder(borderRadius: R.rMd),
                   ),
-                  onPressed: () {
+                  onPressed: () async {
                     Navigator.of(sheetContext).pop();
-                    Navigator.of(context).push(
+                    await Navigator.of(context).push(
                       MaterialPageRoute<void>(builder: (_) => JournalCompose(date: data.dayId)),
                     );
+                    onReload?.call();
                   },
-                  child: const Text(
+                  child: Text(
                     'Log Today’s Journal',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    style: F.head.copyWith(fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
@@ -1803,7 +1888,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
                       color: C.green.withValues(alpha: 0.12),
                       borderRadius: R.rMd,
                     ),
-                    child: const Icon(Icons.fitness_center, color: C.green, size: 22),
+                    child: const Icon(LucideIcons.dumbbell, color: C.green, size: 22),
                   ),
                   const SizedBox(width: S.x3),
                   Expanded(
@@ -1822,7 +1907,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
                     ),
                   ),
                   IconButton(
-                    icon: Icon(Icons.close, color: p.ink3),
+                    icon: Icon(LucideIcons.x, color: p.ink3),
                     onPressed: () => Navigator.of(sheetContext).pop(),
                   ),
                 ],
@@ -1905,9 +1990,9 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> {
                       MaterialPageRoute<void>(builder: (_) => const WorkoutScreen()),
                     );
                   },
-                  child: const Text(
+                  child: Text(
                     'Start Workout',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    style: F.head.copyWith(fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
@@ -1947,6 +2032,7 @@ class _NextGenData {
   final String? sleepNeedMissingReason;
   final Map<String, dynamic>? journalInsight;
   final List<String> dayLoggedHabits;
+  final double napMinutes;
 
   const _NextGenData({
     required this.dayId,
@@ -1971,7 +2057,41 @@ class _NextGenData {
     this.sleepNeedMissingReason,
     this.journalInsight,
     this.dayLoggedHabits = const [],
+    this.napMinutes = 0.0,
   });
+
+  _NextGenData copyWith({
+    ana.SleepNeedResult? sleepNeed,
+    double? actualSleepMinutes,
+    String? sleepNeedMissingReason,
+  }) {
+    return _NextGenData(
+      dayId: dayId,
+      isToday: isToday,
+      stressScore: stressScore,
+      stressSi: stressSi,
+      stressLevel: stressLevel,
+      stressNote: stressNote,
+      biologicalAge: biologicalAge,
+      bio7dDelta: bio7dDelta,
+      bioTrajectory: bioTrajectory,
+      bioAgeMissingReason: bioAgeMissingReason,
+      bioAgeChecklist: bioAgeChecklist,
+      bioAgeActionLabel: bioAgeActionLabel,
+      bioAgeRequiresProfileEdit: bioAgeRequiresProfileEdit,
+      avgRhr: avgRhr,
+      avgHrv: avgHrv,
+      avgSteps: avgSteps,
+      sleepConsistency: sleepConsistency,
+      sleepNeed: sleepNeed ?? this.sleepNeed,
+      actualSleepMinutes: actualSleepMinutes ?? this.actualSleepMinutes,
+      sleepNeedMissingReason:
+          sleepNeedMissingReason ?? this.sleepNeedMissingReason,
+      journalInsight: journalInsight,
+      dayLoggedHabits: dayLoggedHabits,
+      napMinutes: napMinutes,
+    );
+  }
 
   static Future<_NextGenData> load(
     LocalRepository repo, {
@@ -2111,6 +2231,7 @@ class _NextGenData {
       }
     }
 
+    final napMinutes = (naps['nap_min'] as num?)?.toDouble() ?? 0.0;
     ana.SleepNeedResult? sleep;
     String? sleepMissing;
     if (strain == null) {
@@ -2122,7 +2243,7 @@ class _NextGenData {
         strain: strain,
         previousTotalNeed: sleepNeedMinutes,
         previousActualSleep: sleepMinutes,
-        napMinutes: (naps['nap_min'] as num?)?.toDouble() ?? 0,
+        napMinutes: napMinutes,
       );
     }
 
@@ -2177,6 +2298,7 @@ class _NextGenData {
       sleepNeedMissingReason: sleepMissing,
       journalInsight: firstJournal,
       dayLoggedHabits: dayLoggedHabits,
+      napMinutes: napMinutes,
     );
   }
 

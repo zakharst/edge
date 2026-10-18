@@ -45,6 +45,7 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' show PointMode;
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 
 import 'theme.dart';
@@ -494,8 +495,14 @@ class LineChart extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant LineChart o) =>
-      o.d != d || o.t != t || o.color != color || o.axis != axis ||
-      o.fill != fill || o.selectedX != selectedX;
+      !listEquals(o.d, d) ||
+      o.t != t ||
+      o.color != color ||
+      o.axis != axis ||
+      o.fill != fill ||
+      o.selectedX != selectedX ||
+      o.dotInk != dotInk ||
+      o.dots != dots;
 }
 
 /// Discrete buckets — days of a week, minutes in a zone.
@@ -591,7 +598,7 @@ class Bars extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant Bars o) =>
-      o.d != d ||
+      !listEquals(o.d, d) ||
       o.t != t ||
       o.highlight != highlight ||
       o.axis != axis ||
@@ -919,7 +926,7 @@ class Hypnogram extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant Hypnogram o) =>
-      o.t != t || o.stages != stages || o.p.dark != p.dark;
+      o.t != t || !listEquals(o.stages, stages) || o.p.dark != p.dark;
 }
 
 /// Time in heart-rate zones as five labelled rows: the zone, its bpm range,
@@ -1091,7 +1098,7 @@ class Actogram extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant Actogram o) => o.days != days;
+  bool shouldRepaint(covariant Actogram o) => !listEquals(o.days, days);
 }
 
 /// Column-major grid. [weeks] is one list per COLUMN — seven days of a
@@ -1231,7 +1238,10 @@ class Poincare extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant Poincare o) =>
-      o.nn != nn || o.color != color || o.axis != axis || o.grid != grid;
+      !listEquals(o.nn, nn) ||
+      o.color != color ||
+      o.axis != axis ||
+      o.grid != grid;
 }
 
 /// Several signals stacked over one shared night timeline — HR, movement,

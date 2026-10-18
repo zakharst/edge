@@ -39,6 +39,7 @@ import 'package:provider/provider.dart';
 
 import '../../ble/adapters/_registry.dart';
 import '../../ble/band_status_l10n.dart' show localizedBandStatus;
+import '../../ble/ble_friendly_error.dart';
 import '../../ble/ble_state.dart'
     show BleUnavailableException, bandStatusFor, classifyBleBlocker;
 import '../../ble/hrs_link.dart';
@@ -139,8 +140,12 @@ class _DevicePickerScreenState extends State<DevicePickerScreen> {
           ? localizedBandStatus(context,
                   bandStatusFor(connection: 'disconnected', blocker: blocker))
               .reason
-          : (AppLocalizations.of(context)?.pairSensorScanDidNotRun(e.toString()) ??
-              'The scan did not run: $e'));
+          : (AppLocalizations.of(context)?.pairSensorScanDidNotRun(
+                  friendlyBleError(e, AppLocalizations.of(context))) ??
+              'The scan did not run: ${friendlyBleError(e, AppLocalizations.of(context))}'));
+      if (_problem != null) {
+        announceAccessibility(context, _problem!);
+      }
     } finally {
       if (mounted) setState(() => _scanning = false);
     }
@@ -179,9 +184,14 @@ class _DevicePickerScreenState extends State<DevicePickerScreen> {
           : await HrsLink.pairNotifySensor(sensor.entry, cand.device,
               label: cand.label);
     } catch (e) {
-      failure = l?.pairSensorCouldNotPair(e.toString()) ?? 'Could not pair that device: $e';
+      final friendly = friendlyBleError(e, l);
+      failure = l?.pairSensorCouldNotPair(friendly) ??
+          'Could not pair that device: $friendly';
     }
     if (!mounted) return;
+    if (failure != null) {
+      announceAccessibility(context, failure);
+    }
     setState(() {
       _busy = null;
       _problem = failure;

@@ -16,6 +16,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 
 import '../../ble/band_status_l10n.dart' show localizedBandStatus;
+import '../../ble/ble_friendly_error.dart';
 import '../../ble/ble_state.dart';
 import '../../l10n/app_localizations.dart';
 import '../../state/app_state.dart';
@@ -150,6 +151,8 @@ class _PairingScreenState extends State<PairingScreen> {
       }
     } catch (e) {
       if (!mounted) return;
+      final friendly = friendlyBleError(e);
+      announceAccessibility(context, friendly);
       setState(() {
         _blocker = pairBlocker(e);
         _phase = classifyPairError(e, bondRefusals: app.device.bondRefusals);
@@ -352,19 +355,93 @@ class PairingView extends StatelessWidget {
   }
 }
 
-/// The raw error, kept but demoted. It is useless to most people and the only
-/// thing that helps in a bug report.
-class _Detail extends StatelessWidget {
+/// The error summary, presented in human-readable terms with technical diagnostics
+/// available behind an expandable disclosure for bug reporting and support.
+class _Detail extends StatefulWidget {
   final String text;
   const _Detail(this.text);
 
   @override
+  State<_Detail> createState() => _DetailState();
+}
+
+class _DetailState extends State<_Detail> {
+  bool _expanded = false;
+
+  @override
   Widget build(BuildContext c) {
     final p = P.of(c);
+    final friendly = friendlyBleError(widget.text);
+    final hasRawDetails =
+        widget.text.contains('(') || widget.text.contains(':');
+
     return Surface(
       elevation: 0,
       color: p.card2,
-      child: Text(text, style: F.cap.copyWith(color: p.ink3)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(LucideIcons.info, size: 14, color: p.ink3),
+              const SizedBox(width: S.x2),
+              Expanded(
+                child: Text(friendly, style: F.cap.copyWith(color: p.ink2)),
+              ),
+            ],
+          ),
+          if (hasRawDetails) ...[
+            const SizedBox(height: S.x2),
+            Pressable(
+              onTap: () => setState(() => _expanded = !_expanded),
+              semanticLabel: _expanded
+                  ? 'Hide technical diagnostics'
+                  : 'Show technical diagnostics',
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _expanded
+                          ? 'Hide technical details'
+                          : 'Technical details (for support)',
+                      style: F.over.copyWith(
+                        color: p.ink3,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      _expanded
+                          ? LucideIcons.chevronUp
+                          : LucideIcons.chevronDown,
+                      size: 12,
+                      color: p.ink3,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (_expanded) ...[
+              const SizedBox(height: S.x2),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(S.x2),
+                decoration: BoxDecoration(
+                  color: p.bg,
+                  borderRadius: R.rSm,
+                ),
+                child: SelectableText(
+                  widget.text,
+                  style: F.over.copyWith(color: p.ink3),
+                ),
+              ),
+            ],
+          ],
+        ],
+      ),
     );
   }
 }

@@ -334,7 +334,7 @@ class _InitFailed extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('OpenStrap could not start',
+                Text('Edge MOD could not start',
                     style: F.t2.copyWith(color: p.ink)),
                 const SizedBox(height: 8),
                 Text(
@@ -349,7 +349,7 @@ class _InitFailed extends StatelessWidget {
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: p.card2,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: R.rMd,
                   ),
                   child: SelectableText(
                     app.initError ?? 'No error was recorded.',

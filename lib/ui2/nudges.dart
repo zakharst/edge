@@ -98,7 +98,7 @@ class _AskCard extends StatelessWidget {
           C.indigo,
           l?.nudgeDiscordTitle ?? 'Come say hi',
           l?.nudgeDiscordBody ??
-              'Other OpenStrap users hang out on Discord — bugs, ideas, and '
+              'Other Edge MOD users hang out on Discord — bugs, ideas, and '
                   'people running the same band as you.',
           l?.nudgeDiscordCta ?? 'Join Discord',
           kDiscordUrl,

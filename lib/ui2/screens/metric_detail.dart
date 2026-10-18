@@ -141,7 +141,7 @@ const _specs = <String, MetricSpec>{
     chartKey: 'recovery',
     title: 'Recovery',
     color: C.green,
-    icon: LucideIcons.batteryCharging,
+    icon: LucideIcons.heartPulse,
     // The weights are DATA — `readiness_glassbox` emits one per input and the
     // Readiness screen renders them. Repeating them as prose here meant two
     // surfaces could disagree about the same composite, silently, forever.
@@ -2055,7 +2055,11 @@ class DayNav extends StatelessWidget {
           child: Pressable(
             onTap: to == null ? null : () => onDay(to),
             semanticLabel: label,
-            child: Icon(icon, size: 20, color: p.ink),
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: S.x3, vertical: S.x2),
+              child: Icon(icon, size: 20, color: p.ink),
+            ),
           ),
         );
 

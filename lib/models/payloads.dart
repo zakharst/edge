@@ -634,7 +634,8 @@ Map<String, dynamic> todayHeadlineOf(Map<String, dynamic> today) {
     'recovery_state': state,
     'recovery': switch (state) {
       'final' => ownNight ? v(daily['readiness']) : null,
-      'provisional' => v(daily['readiness_provisional']),
+      'provisional' =>
+          v(daily['readiness_provisional']) ?? (ownNight ? v(daily['readiness']) : null),
       _ => null,
     },
     'strain': v(daily['strain']),

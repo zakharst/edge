@@ -683,7 +683,8 @@ class MoreSettingsView extends StatelessWidget {
                 ]),
                 // Band, App, Data, Privacy, Advanced: named for what is in
                 // them, so nothing needs a sub-line listing its contents.
-                settingsGroup(c, l?.settingsGroupApp ?? 'App', [
+                // Preferences: Notifications, Units, Appearance, Clock format, App Icon, Cycle tracking
+                settingsGroup(c, l?.settingsGroupApp ?? 'Preferences', [
                   SetRow(LucideIcons.bell, C.blue,
                       l?.settingsManageNotificationsRowTitle ??
                           'Manage notifications',
@@ -710,9 +711,6 @@ class MoreSettingsView extends StatelessWidget {
                       onTap: onCycleClockFormat),
                   if (appIcon != null)
                     _IconRow(chosen: appIcon!, onPick: onPickIcon),
-                  // Opt-in, and it says what it does rather than what it is
-                  // about — "Cycle tracking" alone leaves you guessing whether
-                  // switching it off throws the entries away.
                   SetRow(LucideIcons.droplet, C.pink,
                       l?.settingsCycleTrackingRowTitle ?? 'Cycle tracking',
                       sub: l?.settingsCycleTrackingRowSubHealth ??
@@ -721,18 +719,15 @@ class MoreSettingsView extends StatelessWidget {
                       value: cycleTracking ? on : off,
                       onTap: onToggleCycleTracking),
                 ]),
-                settingsGroup(c, l?.settingsGroupData ?? 'Data', [
+
+                // Data & integrations
+                settingsGroup(c, l?.settingsGroupData ?? 'Data & integrations', [
                   SetRow(LucideIcons.download, C.green,
                       l?.settingsExportBackupImportRowTitle ??
                           'Export, backup, import',
                       sub: l?.settingsExportBackupImportRowSub ??
                           'Spreadsheets, a full copy, and bringing history in',
                       onTap: onData),
-                  // The row P1 was missing. Everything behind it — the
-                  // permission request, the retry/backoff, the four gates —
-                  // was already written and simply had no way to be switched
-                  // on, so the write entitlement and usage strings described a
-                  // path that could not run.
                   SetRow(LucideIcons.heartPulse, C.red,
                       l?.settingsWriteToHealthStoreRowTitle(healthStore) ??
                           'Write to $healthStore',
@@ -746,22 +741,6 @@ class MoreSettingsView extends StatelessWidget {
                               'band doesn’t cover. Nothing leaves the device',
                       value: phoneSteps ? on : off,
                       onTap: onTogglePhoneSteps),
-                ]),
-                settingsGroup(c, l?.settingsGroupPrivacy ?? 'Privacy', [
-                  SetRow(LucideIcons.bug, C.orange,
-                      l?.settingsCrashReportsRowTitle ?? 'Crash reports',
-                      sub: l?.settingsCrashReportsRowSub ??
-                          'Nothing is sent until you say so',
-                      value: telemetry ? on : off,
-                      onTap: onToggleTelemetry),
-                  SetRow(LucideIcons.messageSquareWarning, C.orange,
-                      l?.settingsReportIssueRowTitle ?? 'Report an issue',
-                      sub: l?.settingsReportIssueRowSub ??
-                          'Sends what you choose to the maintainers, encrypted',
-                      onTap: () => goto(c, const ReportIssueScreen())),
-                  // The food log's one outbound call. Named by what it sends,
-                  // not by the feature it powers — a scan is the only thing
-                  // that triggers it and the barcode is the whole payload.
                   SetRow(LucideIcons.scanBarcode, C.domFood,
                       l?.settingsBarcodeLookupRowTitle ??
                           'Look barcodes up online',
@@ -770,6 +749,30 @@ class MoreSettingsView extends StatelessWidget {
                               'Nothing about you goes with it',
                       value: barcodeLookup ? on : off,
                       onTap: onToggleBarcodeLookup),
+                ]),
+
+                // Automation & Advanced
+                settingsGroup(c, l?.settingsGroupAdvanced ?? 'Automation & advanced', [
+                  SetRow(LucideIcons.workflow, C.indigo,
+                      l?.settingsTaskerShortcutsRowTitle ??
+                          'Tasker and Shortcuts',
+                      sub: l?.settingsTaskerShortcutsRowSub ??
+                          'Android only for events out. iOS can buzz the band '
+                              'but cannot be triggered by it',
+                      onTap: onAutomation),
+                ]),
+
+                // How a non-WHOOP wearable's numbers are drawn. Developer only (R6)
+                if (devMode) wearableSettingsGroup(c),
+
+                // Privacy & telemetry
+                settingsGroup(c, l?.settingsGroupPrivacy ?? 'Privacy', [
+                  SetRow(LucideIcons.bug, C.orange,
+                      l?.settingsCrashReportsRowTitle ?? 'Crash reports',
+                      sub: l?.settingsCrashReportsRowSub ??
+                          'Nothing is sent until you say so',
+                      value: telemetry ? on : off,
+                      onTap: onToggleTelemetry),
                   if (showHealthShare)
                     SetRow(LucideIcons.cloudUpload, C.red,
                         l?.settingsContributeHealthDataRowTitle ??
@@ -779,6 +782,15 @@ class MoreSettingsView extends StatelessWidget {
                                 'Wi-Fi and charging, to improve the algorithms',
                         value: healthShare ? on : off,
                         onTap: onToggleHealthShare),
+                ]),
+
+                // Support & about
+                settingsGroup(c, l?.settingsGroupAbout ?? 'Support & about', [
+                  SetRow(LucideIcons.messageSquareWarning, C.orange,
+                      l?.settingsReportIssueRowTitle ?? 'Report an issue',
+                      sub: l?.settingsReportIssueRowSub ??
+                          'Sends what you choose to the maintainers, encrypted',
+                      onTap: () => goto(c, const ReportIssueScreen())),
                   if (showUpdateChecks)
                     SetRow(LucideIcons.refreshCw, C.blue,
                         l?.settingsCheckForUpdatesRowTitle ??
@@ -795,30 +807,10 @@ class MoreSettingsView extends StatelessWidget {
                                         'your IP address and when you open the app'),
                         value: updateChecks ? on : off,
                         onTap: onToggleUpdateChecks),
-                ]),
-                settingsGroup(c, l?.settingsGroupAdvanced ?? 'Advanced', [
-                  SetRow(LucideIcons.workflow, C.indigo,
-                      l?.settingsTaskerShortcutsRowTitle ??
-                          'Tasker and Shortcuts',
-                      // The row states the asymmetry rather than leaving it to
-                      // the screen: someone on an iPhone should learn what they
-                      // are not getting before they tap into it.
-                      sub: l?.settingsTaskerShortcutsRowSub ??
-                          'Android only for events out. iOS can buzz the band '
-                              'but cannot be triggered by it',
-                      onTap: onAutomation),
-                ]),
-                // How a non-WHOOP wearable's numbers are drawn. Developer
-                // only while every wearable is (rule R6).
-                if (devMode) wearableSettingsGroup(c),
-                settingsGroup(c, l?.settingsGroupAbout ?? 'About', [
                   if (version.isNotEmpty)
                     SetRow(LucideIcons.info, C.n500,
                         l?.settingsVersionRowTitle ?? 'Version',
                         value: version, chevron: false, onTap: onVersionTap),
-                  // Where the licences of what this app uses are written out
-                  // in full. Open Food Facts' ODbL asks for the notice to be
-                  // reachable, not only for the credit beside the numbers.
                   SetRow(LucideIcons.scale, C.n500,
                       l?.settingsNoticesLicencesRowTitle ??
                           'Notices and licences',

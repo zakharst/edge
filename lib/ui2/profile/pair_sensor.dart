@@ -57,6 +57,7 @@ import 'package:provider/provider.dart';
 import '../../ble/accessory_setup.dart';
 import '../../ble/adapters/_registry.dart';
 import '../../ble/band_status_l10n.dart' show localizedBandStatus;
+import '../../ble/ble_friendly_error.dart';
 import '../../ble/ble_state.dart'
     show BleUnavailableException, bandStatusFor, classifyBleBlocker;
 import '../../ble/hrs_link.dart';
@@ -244,15 +245,20 @@ class _PairSensorScreenState extends State<PairSensorScreen> {
     try {
       id = await AccessorySetup.showSensorPicker([widget.entry.service]);
     } on PlatformException catch (e) {
-      failure = l?.pairSensorCouldNotPair(e.message ?? e.code) ??
-          'Could not pair that device: ${e.message ?? e.code}';
+      final friendly = friendlyBleError(e, l);
+      failure = l?.pairSensorCouldNotPair(friendly) ??
+          'Could not pair that device: $friendly';
     } catch (e) {
-      failure = l?.pairSensorCouldNotPair(e.toString()) ??
-          'Could not pair that device: $e';
+      final friendly = friendlyBleError(e, l);
+      failure = l?.pairSensorCouldNotPair(friendly) ??
+          'Could not pair that device: $friendly';
     } finally {
       await IosBleRestore.reacquireCentral();
     }
     if (!mounted) return;
+    if (failure != null) {
+      announceAccessibility(context, failure);
+    }
     setState(() {
       _scanning = false;
       _problem = failure;
@@ -295,10 +301,14 @@ class _PairSensorScreenState extends State<PairSensorScreen> {
               label: label,
             );
     } catch (e) {
-      failure = l?.pairSensorCouldNotPair(e.toString()) ??
-          'Could not pair that device: $e';
+      final friendly = friendlyBleError(e, l);
+      failure = l?.pairSensorCouldNotPair(friendly) ??
+          'Could not pair that device: $friendly';
     }
     if (!mounted) return;
+    if (failure != null) {
+      announceAccessibility(context, failure);
+    }
     setState(() {
       _busy = null;
       _problem = failure;

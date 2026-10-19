@@ -628,6 +628,37 @@ void _wiredFamilies() {
     });
   });
 
+  group('sleep score is last night, and moves with more than hours', () {
+    Map<String, dynamic>? score(void Function(Map<String, dynamic> last) edit) {
+      final days = _synthDays(30);
+      days.last['is_today'] = true;
+      edit(days.last);
+      final coach = (buildCrossDayBundle(days, const {})['sleep_coach'] as Map);
+      return (coach['score'] as Map?)?.cast<String, dynamic>();
+    }
+
+    test('no TST last night → no score', () {
+      expect(score((d) => d.remove('tst_min')), isNull);
+    });
+
+    test('a broken night scores below a calm one of the same length', () {
+      final calm = score((d) => d
+        ..['efficiency'] = 95.0
+        ..['waso_min'] = 10.0
+        ..['awakenings'] = 1.0)!;
+      final broken = score((d) => d
+        ..['efficiency'] = 75.0
+        ..['waso_min'] = 80.0
+        ..['awakenings'] = 9.0)!;
+      expect(broken['value'] as int, lessThan(calm['value'] as int));
+      final c = calm['components'] as Map;
+      expect(c['efficiency']['score'], 100);
+      expect(c['disruption']['score'], 100);
+      expect(c['consistency']['score'], isNotNull,
+          reason: 'the synthetic nights all share one bed and wake time');
+    });
+  });
+
   group('sleep performance is last night only', () {
     test('no TST last night → absent, not an older night\'s TST', () {
       final days = _synthDays(30);

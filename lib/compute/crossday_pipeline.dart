@@ -25,6 +25,7 @@ import '../data/day_label.dart';
 // isolate safety. One grammar for "a required input was missing" across both
 // pipelines rather than a second one here.
 import 'onehz_pipeline.dart' show needInputNote;
+import 'sleep_score.dart';
 
 /// Build the cross-day analytics bundle from a time-ordered (OLDEST FIRST) list
 /// of per-day records and the user profile.
@@ -402,6 +403,36 @@ Map<String, dynamic> buildCrossDayBundle(
           // the failure this whole convention exists to stop.
           note: need.present ? needInputNote('tst_min') : need.note,
         );
+  // Sleep score: last night against LAST night's need, not tonight's. Last
+  // night's need is the same model run with yesterday's strain and naps.
+  // shortcut: the debt term is today's (it already counts last night); store
+  // each day's own need if the score reads high after a long night.
+  final yesterday = (days.length >= 2 &&
+          days.last['is_today'] == true &&
+          _isNextDay('${days[days.length - 2]['date']}', '${days.last['date']}'))
+      ? days[days.length - 2]
+      : null;
+  final lastNeed = needAt(
+    dayStrain: _numOrNull(yesterday?['strain']) ?? 0.0,
+    napCreditSec: (_numOrNull(yesterday?['nap_min']) ?? 0.0) * 60.0,
+  );
+  final score = sleepScore(
+    tstMin: lastTstMin,
+    needMin: lastNeed.present ? lastNeed.value!.needSec / 60.0 : null,
+    efficiencyPct: _todayNum(days, 'efficiency'),
+    wasoMin: _todayNum(days, 'waso_min'),
+    awakenings: _todayNum(days, 'awakenings'),
+    deepMin: _todayNum(days, 'deep_min'),
+    remMin: _todayNum(days, 'rem_min'),
+    recentNights: [
+      for (final d in days)
+        if (d['onset_sec'] is num && d['wake_sec'] is num)
+          (
+            onsetSec: (d['onset_sec'] as num).toInt(),
+            wakeSec: (d['wake_sec'] as num).toInt(),
+          ),
+    ],
+  );
   // typical wake clock-minute + efficiency from recent days (medians).
   final wakeMins = <double>[
     for (final d in days)
@@ -578,6 +609,9 @@ Map<String, dynamic> buildCrossDayBundle(
       // worth up to 45 min of need.
       'strain_bonus_min': appliedStrainBonusMin,
       'performance': perf.toJson((v) => v.toJson()),
+      // Last night's 0-100 sleep score with its components; null when last
+      // night has no total sleep time or there is no need to measure it by.
+      'score': score,
       'bedtime': bedtime.toJson((v) => v.toJson()),
       'wake': wakeRec.toJson((v) => v.toJson()),
     },

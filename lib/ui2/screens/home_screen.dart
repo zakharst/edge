@@ -1880,6 +1880,17 @@ _RingState _ringOf(HomeRingKind k, HomeData d, AppLocalizations? l) {
               value: v.toStringAsFixed(1), sub: l?.homeStrainOf21 ?? 'of 21', frac: v / 21);
     case HomeRingKind.sleep:
       final v = d.sleepMin.value;
+      final score = (d.sleepScore?['value'] as num?)?.round();
+      final scoredNeed = (d.sleepScore?['need_min'] as num?)?.toDouble();
+      if (v != null && score != null && scoredNeed != null) {
+        // The score, not hours over need: meeting the need on a broken night
+        // used to read 100% every morning.
+        return _RingState(k, l?.homeRingSleep ?? 'Sleep', LucideIcons.moon,
+            C.blue,
+            value: '$score',
+            sub: '${hm(v)} · of ${hm(scoredNeed)}',
+            frac: score / 100);
+      }
       final need = d.sleepNeedMin.value;
       final scorePct = (v != null && need != null && need > 0)
           ? ((v / need) * 100).round().clamp(0, 100)
@@ -2121,6 +2132,11 @@ class HomeData {
 
   final int stepGoal;
   final Metric sleepNeedMin;
+
+  /// Last night's 0-100 sleep score (`sleep_coach.score`): `value`,
+  /// `components` and the `need_min` it was measured against. Null when the
+  /// rollup could not score last night.
+  final Map<String, dynamic>? sleepScore;
   final Metric bedtime;
   final Map<String, dynamic>? strainTarget;
 
@@ -2178,6 +2194,7 @@ class HomeData {
     this.strain = Metric.empty,
     this.stepGoal = kDefaultStepGoal,
     this.sleepNeedMin = Metric.empty,
+    this.sleepScore,
     this.bedtime = Metric.empty,
     this.strainTarget,
     this.heldOverNight,
@@ -2333,6 +2350,9 @@ class HomeData {
       // 480 and must never be shown as "your sleep need".
       sleepNeedMin: envMetric(needEnv, needSec == null ? null : needSec / 60,
           unit: 'min'),
+      sleepScore: coach is Map && coach['score'] is Map
+          ? (coach['score'] as Map).cast<String, dynamic>()
+          : null,
       bedtime: envMetric(
           bedEnv, envValue(bedEnv)?['bedtime_min_of_day'] as num?),
       strainTarget: strain is Map && strain['strain_target'] is Map

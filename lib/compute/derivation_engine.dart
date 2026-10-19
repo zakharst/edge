@@ -6863,6 +6863,13 @@ class DerivationEngine {
       'steps': sc('steps'),
       'nap_min': sc('nap_min'),
       'efficiency': sc('efficiency'),
+      // Sleep score inputs beyond hours (crossday `sleep_coach.score`).
+      'waso_min': (acctVal?['waso_sec'] as num?) == null
+          ? null
+          : (acctVal!['waso_sec'] as num) / 60.0,
+      'awakenings': sc('awakenings'),
+      'deep_min': sc('deep_min'),
+      'rem_min': sc('rem_min'),
       'onset_sec': onsetMs == null ? null : (onsetMs / 1000).round(),
       'wake_sec': offsetMs == null ? null : (offsetMs / 1000).round(),
       'tst_min': tstSec == null ? null : (tstSec / 60).round(),

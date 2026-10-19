@@ -16,7 +16,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../l10n/app_localizations.dart';
-import '../../l10n/date_text.dart';
 import '../../state/app_state.dart';
 import '../../state/units_controller.dart';
 import '../screens/home_screen.dart' show monthShortName, weekdayShortName;
@@ -320,6 +319,4 @@ class _Field extends StatelessWidget {
 /// "Thu 4 Sep" — a date a person can hold, not an ISO string. Local by
 /// construction; the app's day labels are local everywhere.
 String formatDay(DateTime d, [AppLocalizations? l]) =>
-    l?.localeName.startsWith('ru') == true
-    ? localizedDate(d, l!.localeName, pattern: 'EEE d MMM')
-    : '${weekdayShortName(d.weekday, l)} ${d.day} ${monthShortName(d.month, l)}';
+    '${weekdayShortName(d.weekday, l)} ${d.day} ${monthShortName(d.month, l)}';

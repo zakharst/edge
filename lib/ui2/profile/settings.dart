@@ -1603,18 +1603,14 @@ class _EditProfileViewState extends State<EditProfileView> {
                   _text(
                     c,
                     _height,
-                    l?.localeName.startsWith('ru') == true
-                        ? uiText(c, _u.heightLabel)
-                        : uiText(c, _u.heightLabel).toUpperCase(),
+                    uiText(c, _u.heightLabel).toUpperCase(),
                     TextInputType.number,
                   ),
                   const SizedBox(height: S.x4),
                   _text(
                     c,
                     _weight,
-                    l?.localeName.startsWith('ru') == true
-                        ? uiText(c, _u.weightLabel)
-                        : uiText(c, _u.weightLabel).toUpperCase(),
+                    uiText(c, _u.weightLabel).toUpperCase(),
                     TextInputType.number,
                   ),
                   ..._importBlock(p, c),

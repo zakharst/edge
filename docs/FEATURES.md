@@ -51,7 +51,7 @@ edit, and GPX export.
   [Sync Data](../guides/IOS_SHORTCUTS.md) for on-demand or scheduled sync
 - A smart alarm that buzzes the device on a weekly repeating schedule, with a wake
   window that catches you in light sleep
-- Languages: English, German, Spanish, French, Hindi, Russian and Chinese
+- Languages: English, German, Spanish, French, Hindi and Chinese
 
 ## Known limits
 

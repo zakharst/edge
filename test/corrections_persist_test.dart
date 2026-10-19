@@ -152,11 +152,5 @@ void main() {
       expect(find.text('Not a nap'), findsOneWidget);
       expect(find.text('Edit'), findsOneWidget);
     });
-
-    testWidgets('russian', (t) async {
-      await pump(t, ActivityKind.workout, const Locale('ru'));
-      expect(find.text('Не тренировка'), findsOneWidget);
-      expect(find.text('Сменить вид спорта'), findsOneWidget);
-    });
   });
 }

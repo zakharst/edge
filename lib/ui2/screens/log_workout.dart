@@ -42,7 +42,6 @@ import '../../data/local_repository.dart';
 import '../../health/health_export.dart';
 import '../../health/health_workout_import.dart' show rememberDeletedUuid;
 import '../../l10n/app_localizations.dart';
-import '../../l10n/date_text.dart';
 import '../../state/app_state.dart';
 import '../activity/catalogue.dart';
 import '../profile/profile.dart' show SetRow, settingsGroup;
@@ -111,9 +110,7 @@ String dayLabel(DateTime at, {DateTime? now, AppLocalizations? l}) {
   final diff = calendarDaysBetween(d, n);
   if (diff == 0) return l?.logWorkoutToday ?? 'Today';
   if (diff == 1) return l?.logWorkoutYesterday ?? 'Yesterday';
-  return l?.localeName.startsWith('ru') == true
-      ? localizedDate(d, l!.localeName, pattern: 'EEE d MMM')
-      : '${weekdayShortName(d.weekday, l)} ${d.day} ${monthShortName(d.month, l)}';
+  return '${weekdayShortName(d.weekday, l)} ${d.day} ${monthShortName(d.month, l)}';
 }
 
 

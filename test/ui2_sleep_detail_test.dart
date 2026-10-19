@@ -283,11 +283,11 @@ void main() {
     });
   }
 
-  // The lane names and totals sit beside the plot. Russian names and range
+  // The lane names and totals sit beside the plot. German names and range
   // totals are long, so on a narrow phone at large text they used to squeeze
   // the hypnogram to a sliver or overflow the row outright.
   for (final (lang, scale) in const [
-    ('ru', 1.0), ('ru', 1.3), ('ru', 3.1), ('en', 1.3),
+    ('de', 1.0), ('de', 1.3), ('de', 3.1), ('en', 1.3),
   ]) {
     testWidgets('$lang at ${scale}x on a 360pt phone keeps the hypnogram wide',
         (t) async {
@@ -307,7 +307,8 @@ void main() {
       ));
       await t.pumpAndSettle();
       expect(t.takeException(), isNull);
-      final label = lang == 'ru' ? 'Гипнограмма' : 'Hypnogram';
+      final label =
+          lookupAppLocalizations(Locale(lang)).sleepDetailHypnogramLabel;
       final plot =
           find.byWidgetPredicate((w) => w is Scrubber && w.label == label);
       expect(plot, findsOneWidget);

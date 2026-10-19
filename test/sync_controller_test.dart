@@ -546,12 +546,13 @@ void main() {
           reason: 'forceResync re-kicks the offload itself');
     }));
 
-    test('syncNow asks for a floored pull, then requests the heavy finalize',
+    test('syncNow asks for a floored pull, and finalizes only what it pulled',
         _rigCase((r, timers) async {
       r.engine.link = true;
       r.engine.foregroundSyncAllowed = false;
       await r.c.syncNow();
-      expect(r.trace, ['requestForegroundSync', 'sched.heavy']);
+      expect(r.trace, ['requestForegroundSync'],
+          reason: 'nothing pulled, nothing to re-derive');
       r.trace.clear();
       r.engine.foregroundSyncAllowed = true;
       await r.c.syncNow();
@@ -561,6 +562,15 @@ void main() {
         'sched.stored',
         'sched.heavy',
       ]);
+    }));
+
+    test('an empty pull leaves the analysis alone', _rigCase((r, timers) async {
+      r.engine.link = true;
+      r.engine.foregroundSyncAllowed = true;
+      r.engine.runSyncScript.add(SyncReport(0, 0, true));
+      await r.c.syncNow();
+      expect(r.trace, ['requestForegroundSync', 'runSync:180'],
+          reason: 'the band had nothing new, so today cannot have moved');
     }));
 
     test('syncNow while backgrounded or unlinked opens a session instead',

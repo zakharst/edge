@@ -22,7 +22,7 @@ import '../compute/derivation_engine.dart';
 import '../compute/findings.dart' show servedReadiness;
 import '../compute/hr_max.dart';
 import '../compute/inputs/canonical.dart'
-    show deviceFlagOn, withoutWearableEstimates;
+    show crossDayAsOf, deviceFlagOn, withoutWearableEstimates;
 import '../compute/manual_session.dart';
 import '../compute/onehz_pipeline.dart' show kUnknownAbsenceNote, needInputNote;
 import '../compute/profile.dart';
@@ -686,6 +686,10 @@ class LocalRepositoryImpl extends LocalRepository {
     if (a == null || b == null) return null;
     return calendarDaysBetween(a, b);
   }
+
+  @override
+  Future<Map<String, dynamic>> getInsightsAsOf(String date) async =>
+      (await crossDayAsOf(date)).cast<String, dynamic>();
 
   @override
   Future<Map<String, dynamic>> getInsights() async {

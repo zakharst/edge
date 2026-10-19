@@ -469,7 +469,13 @@ class _WhoopStatusBar extends StatelessWidget {
   final String? todayId;
   final VoidCallback? onSync;
 
-  const _WhoopStatusBar({this.todayId, this.onSync});
+  /// Home already has numbers on screen, so a one-day analysis pass
+  /// refreshes them in place: one quiet line, not the step-by-step card.
+  /// That card stays for the first numbers and for a multi-day backlog,
+  /// which takes long enough that a bare line would read as stuck.
+  final bool quietDerive;
+
+  const _WhoopStatusBar({this.todayId, this.onSync, this.quietDerive = false});
 
   @override
   Widget build(BuildContext c) {
@@ -653,6 +659,32 @@ class _WhoopStatusBar extends StatelessWidget {
     }
 
     // ── 1B. ON-DEVICE DERIVATION (CRUNCHING) STATE ─────────────────────
+    if (isDeriving && quietDerive && data.deriveProgress.totalDays <= 1) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: S.x3),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 10,
+              height: 10,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.5,
+                color: p.ink3,
+              ),
+            ),
+            const SizedBox(width: S.x2),
+            Expanded(
+              child: Text(
+                l?.homeUpdatingQuietly ?? 'Updating in the background',
+                style: F.cap.copyWith(color: p.ink3),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     if (isDeriving) {
       final progress = data.deriveProgress;
       final hasFraction = progress.fraction > 0.0;
@@ -2251,6 +2283,10 @@ class HomeData {
     final overview = await repo.getDayOverview(date);
     final strain = await repo.getDayStrain(date);
     final sleep = await repo.getDaySleepV2(date);
+    // Rebuilt from the stored nights up to [date] at read time, so a change
+    // to the score's formula reaches every past night on the next open,
+    // without a re-derive (raw is long gone for most of them).
+    final crossDay = await repo.getInsightsAsOf(date);
     final readiness = metricOf(overview['readiness']);
     // Same lookup [load] does for today, for the same reason: the ring's
     // shortfall explanation needs the stored diagnostic, and a day the
@@ -2269,8 +2305,17 @@ class HomeData {
       calories: metricOf(strain['calories']),
       caloriesTotal: metricOf(strain['calories_total']),
       sleepMin: metricOf(sleep['duration_min']),
+      sleepScore: sleepScoreOf(crossDay),
       stepGoal: (profile['step_goal'] as num?)?.toInt() ?? kDefaultStepGoal,
     );
+  }
+
+  /// The night's score out of a cross-day rollup, or null when it has none.
+  static Map<String, dynamic>? sleepScoreOf(Map crossDay) {
+    final coach = crossDay['sleep_coach'];
+    return coach is Map && coach['score'] is Map
+        ? (coach['score'] as Map).cast<String, dynamic>()
+        : null;
   }
 
   static Future<HomeData> load(LocalRepository repo, [AppLocalizations? l]) async {
@@ -2350,9 +2395,7 @@ class HomeData {
       // 480 and must never be shown as "your sleep need".
       sleepNeedMin: envMetric(needEnv, needSec == null ? null : needSec / 60,
           unit: 'min'),
-      sleepScore: coach is Map && coach['score'] is Map
-          ? (coach['score'] as Map).cast<String, dynamic>()
-          : null,
+      sleepScore: sleepScoreOf(cd),
       bedtime: envMetric(
           bedEnv, envValue(bedEnv)?['bedtime_min_of_day'] as num?),
       strainTarget: strain is Map && strain['strain_target'] is Map
@@ -2823,6 +2866,7 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
       _WhoopStatusBar(
         todayId: d.dayId,
         onSync: syncOf(c) == null ? null : () => _tapSync(syncOf(c)!),
+        quietDerive: true,
       ),
 
       if (bare) ...[

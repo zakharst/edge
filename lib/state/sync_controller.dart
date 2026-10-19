@@ -927,21 +927,29 @@ class SyncController {
   /// that just drained, a few quick taps would each come back empty, and the
   /// empty-sync detector reads three of those as a lost clock and backs the
   /// periodic pull off.
+  ///
+  /// The heavy finalize runs when this tap pulled records, or when the pull
+  /// failed part way (some may have landed). A tap that came back empty used
+  /// to re-derive today in full anyway, so every pull put the analysis card
+  /// up for numbers that could not have moved; work for data stored earlier
+  /// is already queued by whoever stored it.
   Future<void> syncNow() async {
     if (background || !engine.isConnected) return openSession();
+    var landed = 0;
     try {
       final running = _syncBurst;
       if (running != null) {
-        await running;
+        landed = (await running).records;
       } else if (await engine.requestForegroundSync()) {
-        await _kickSyncBurst(kickFirst: false);
+        landed = (await _kickSyncBurst(kickFirst: false)).records;
         _notify();
-        _scheduler.markStoredData();
+        if (landed > 0) _scheduler.markStoredData();
       }
     } catch (e) {
       _log('Sync failed: $e');
+      landed = -1;
     }
-    _scheduler.requestHeavy();
+    if (landed != 0) _scheduler.requestHeavy();
   }
 
   Future<SyncReport> syncForShortcut(ShortcutSyncTask task) async {

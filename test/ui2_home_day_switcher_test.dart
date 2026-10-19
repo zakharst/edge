@@ -68,7 +68,41 @@ Future<void> _settle(WidgetTester t, {int n = 40}) async {
   }
 }
 
+/// A past night with its own score in the rollup as of that day.
+class _ScoredRepo extends _Repo {
+  @override
+  Future<Map<String, dynamic>> getInsightsAsOf(String date) async =>
+      date == _yesterday
+          ? const {
+              'sleep_coach': {
+                'score': {'value': 63, 'need_min': 470},
+              },
+            }
+          : const {};
+}
+
 void main() {
+  testWidgets('a past day shows its own sleep score, not hours', (t) async {
+    final app = AppState.forTesting();
+    addTearDown(app.dispose);
+    app.repo = _ScoredRepo();
+
+    await t.pumpWidget(MaterialApp(
+      theme: buildTheme(Brightness.light),
+      home: ChangeNotifierProvider<AppState>.value(
+        value: app,
+        child: const Scaffold(body: HomeScreen(hour: 9)),
+      ),
+    ));
+    await _settle(t);
+    await t.tap(find.bySemanticsLabel('Previous day'));
+    await _settle(t);
+
+    expect(find.text('42'), findsOneWidget, reason: 'on the past day');
+    expect(find.text('63'), findsOneWidget);
+    expect(find.textContaining('of 7h 50m'), findsOneWidget);
+  });
+
   testWidgets('stepping to the previous day loads and shows ITS numbers',
       (t) async {
     final app = AppState.forTesting();

@@ -7338,6 +7338,10 @@
   "@homeSyncedNever": {
     "description": "Home header line when no record has ever been banked from a band."
   },
+  "homeUpdatingQuietly": "Updating in the background",
+  "@homeUpdatingQuietly": {
+    "description": "One quiet Home line while numbers already on screen are being recalculated after a sync."
+  },
   "homeSyncingTitle": "Syncing with your band",
   "@homeSyncingTitle": {
     "description": "Title shown on a bare day while records are actively arriving from the band."

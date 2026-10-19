@@ -308,13 +308,17 @@ void main() {
       expect(await rig.jobTypes(), ['derive_heavy']);
     }));
 
-    test('the pull is floored by the engine: asked, no drain, and the heavy '
-        'derive is still requested', syncCase((rig, timers) async {
+    test('the pull is floored by the engine: asked, no drain, and nothing '
+        'to re-derive', syncCase((rig, timers) async {
       await _open(rig);
+      await rig.quiesce();
+      final before = await rig.jobTypes();
       rig.engine.foregroundSyncAllowed = false;
       await rig.app.syncNow();
+      await rig.quiesce();
       expect(rig.engine.events, ['requestForegroundSync']);
-      await rig.jobQueued('derive_heavy');
+      expect(await rig.jobTypes(), before,
+          reason: 'an empty pull must not queue another analysis pass');
     }));
 
     test('a burst already in flight is awaited, not joined by a second pull: '

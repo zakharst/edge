@@ -2410,12 +2410,14 @@ class AppState extends ChangeNotifier {
   /// Confirm the HR-led fallback's proposal for [date] (Approach 2): accept the
   /// window it already computed, promoting 'auto_fallback' → 'confirmed' so the
   /// prompt stops showing. Reads the current window from the derived day.
-  Future<void> confirmSleep(String date) async {
-    if (repo == null) return;
+  /// False when there is no window to confirm, so the caller can say so
+  /// instead of looking like a dead button.
+  Future<bool> confirmSleep(String date) async {
+    if (repo == null) return false;
     final sleep = await repo!.getDaySleep(date);
     final onset = (sleep['onset_ts'] as num?)?.toInt();
     final offset = (sleep['wake_ts'] as num?)?.toInt();
-    if (onset == null || offset == null || offset <= onset) return;
+    if (onset == null || offset == null || offset <= onset) return false;
     await LocalDb.putSleepOverride(
       dayId: date,
       onsetTs: onset,
@@ -2423,6 +2425,7 @@ class AppState extends ChangeNotifier {
       source: 'confirmed',
     );
     await _reanalyzeForOverride(date);
+    return true;
   }
 
   /// Reject a day's detected main sleep entirely — "this was not sleep at

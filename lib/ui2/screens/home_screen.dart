@@ -2393,6 +2393,7 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
   /// where neither `busy` (skipped entirely on the common fast-reclaim path)
   /// nor `syncingNow` has moved yet and the button would otherwise look inert.
   bool _syncTapped = false;
+  bool _confirmingWake = false;
   Timer? _syncTapTimer;
   static const _tapGrace = Duration(seconds: 20);
 
@@ -2544,15 +2545,33 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
       cta,
       LucideIcons.sunMedium,
       C.yellow,
-      onTap: () {
-        try {
-          final targetDay = d.dayId ?? todayLabel();
-          c.read<AppState>().confirmSleep(targetDay);
-        } catch (_) {
-          // In test environments without AppState
-        }
-      },
+      busy: _confirmingWake,
+      onTap: () => _confirmWake(c, d.dayId ?? todayLabel()),
     );
+  }
+
+  /// One confirm at a time. It can wait behind a running derive for a while,
+  /// so the card spins until it lands and says so when nothing was confirmed.
+  Future<void> _confirmWake(BuildContext c, String day) async {
+    if (_confirmingWake) return;
+    final messenger = ScaffoldMessenger.maybeOf(c);
+    setState(() => _confirmingWake = true);
+    // shortcut: English-only copy; move to app_en.arb with the next l10n pass.
+    String? problem;
+    try {
+      final ok = await c.read<AppState>().confirmSleep(day);
+      if (!ok) {
+        problem = 'No wake time found for last night yet. '
+            'Sync the band and try again.';
+      }
+    } catch (e) {
+      problem = 'Could not confirm your wake time: $e';
+    } finally {
+      if (mounted) setState(() => _confirmingWake = false);
+    }
+    if (problem != null) {
+      messenger?.showSnackBar(SnackBar(content: Text(problem)));
+    }
   }
 
   Widget _bareStatusCard(BuildContext c, HomeData d, AppLocalizations? l,

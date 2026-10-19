@@ -886,6 +886,9 @@ class ActionCard extends StatelessWidget {
   final Color color;
   final VoidCallback? onTap;
 
+  /// The action is running: the CTA turns into a spinner and taps are ignored.
+  final bool busy;
+
   const ActionCard(
     this.title,
     this.meta,
@@ -894,6 +897,7 @@ class ActionCard extends StatelessWidget {
     this.color, {
     super.key,
     this.onTap,
+    this.busy = false,
   });
 
   @override
@@ -906,10 +910,22 @@ class ActionCard extends StatelessWidget {
     final badge = Container(
       padding: const EdgeInsets.symmetric(horizontal: S.x3, vertical: S.x2),
       decoration: BoxDecoration(color: p.fill(color), borderRadius: R.rSm),
-      child: Text(
-        cta,
-        style: F.cap.copyWith(color: p.inkOnFill, fontWeight: FontWeight.w600),
-      ),
+      child: busy
+          ? SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: p.inkOnFill,
+              ),
+            )
+          : Text(
+              cta,
+              style: F.cap.copyWith(
+                color: p.inkOnFill,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
     );
     final head = Row(
       children: [
@@ -940,7 +956,7 @@ class ActionCard extends StatelessWidget {
       ],
     );
     return Surface(
-      onTap: onTap,
+      onTap: busy ? null : onTap,
       semanticLabel: '$title. $meta. $cta',
       child: !wide
           ? head

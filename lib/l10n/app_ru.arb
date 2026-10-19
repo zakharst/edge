@@ -7515,16 +7515,5 @@
         "type": "String"
       }
     }
-  },
-  "homeAwakeConfirmTitle": "Проснулись? Записано {duration} сна",
-  "@homeAwakeConfirmTitle": {
-    "placeholders": {
-      "duration": {
-        "type": "String"
-      }
-    }
-  },
-  "homeAwakeGenericTitle": "Проснулись? Ночь распознана",
-  "homeAwakeConfirmBody": "Нажмите, если уже не спите, чтобы сразу получить итоговую оценку восстановления.",
-  "homeAwakeConfirmAction": "Я не сплю"
+  }
 }

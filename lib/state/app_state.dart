@@ -1647,6 +1647,7 @@ class AppState extends ChangeNotifier {
     // them to a catch-up pull over the existing live connection instead.
     IosBgTask.foregroundPull = foregroundCatchUp;
     IosShortcutSync.attachForeground(syncForShortcut, () => engine);
+    IosBleRestore.reconnectOnWake = _sync.reconnectOnRestoreWake;
     taskerBridge; // force init: register the method channel handler
     // A paired sensor's live beats, into the same trace as the band's. Touches
     // no radio — `HrsLink.reading` is a plain notifier whose identity survives
@@ -1770,6 +1771,9 @@ class AppState extends ChangeNotifier {
     if (IosShortcutSync.foregroundSync == syncForShortcut) {
       IosShortcutSync.foregroundSync = null;
       IosShortcutSync.foregroundEngine = null;
+    }
+    if (IosBleRestore.reconnectOnWake == _sync.reconnectOnRestoreWake) {
+      IosBleRestore.reconnectOnWake = null;
     }
     _sync.cancelQuietTimer();
     engine.cancelAdapterMonitoring();

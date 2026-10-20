@@ -95,6 +95,14 @@ class SyncController {
   bool _reconnecting = false;
   DateTime? _attemptStartedAt;
   int _reconnectGeneration = 0;
+
+  /// Ends the backoff the reconnect loop is parked in, so an iOS restore wake
+  /// can run the next attempt now. See [reconnectOnRestoreWake].
+  Completer<void>? _backoffCut;
+
+  /// Completes when the reconnect loop's current (or next) attempt has an
+  /// answer, connected or not. Created by [reconnectOnRestoreWake].
+  Completer<void>? _attemptSettled;
   Timer? _reconnectSupervisor;
   Timer? _backfillTimer;
   BandLease? _foregroundLease;
@@ -747,7 +755,16 @@ class SyncController {
             connected = false;
           }
         } else {
-          await Future.delayed(engine.reconnectDelay(attempt));
+          // A Timer, not Future.delayed: an iOS restore wake must be able to
+          // end this wait early. A suspended iOS process never fires it, so
+          // the wake is the only thing that moves a backgrounded loop on.
+          final cut = _backoffCut = Completer<void>();
+          final backoff = Timer(engine.reconnectDelay(attempt), () {
+            if (!cut.isCompleted) cut.complete();
+          });
+          await cut.future;
+          backoff.cancel();
+          if (identical(_backoffCut, cut)) _backoffCut = null;
           if (!_keepAlive) break;
           await _ensureForegroundLease();
           connected = await engine.connectToRemoteId(paired!.remoteId,
@@ -824,6 +841,10 @@ class SyncController {
           }
         } catch (e) {
           _log('Reconnect attempt $attempt failed: $e — retrying.');
+        } finally {
+          final settled = _attemptSettled;
+          _attemptSettled = null;
+          if (settled != null && !settled.isCompleted) settled.complete();
         }
       }
     } catch (e) {
@@ -855,6 +876,35 @@ class SyncController {
         engine.clearReconnecting();
       }
     }
+  }
+
+  /// iOS restore wake while the reconnect loop wants the link: the native
+  /// restore central just saw the band, so run the loop's next attempt now
+  /// instead of leaving the wake to the headless drain. That drain always
+  /// skips here (the loop holds foreground intent), and its syncDone parks the
+  /// native side idle with no pending connect, while the loop itself sits in a
+  /// backoff timer the suspended process never fires. Nothing then watched the
+  /// band until the app was opened again (the night of 2026-10-20).
+  ///
+  /// Returns false when no loop is running, leaving the wake to the headless
+  /// drain. Otherwise signals [done] (syncDone) once the attempt has an answer
+  /// and, when the link is still down, hands the band straight back to the
+  /// pending connect, so the next time it is in reach wakes us again.
+  Future<bool> reconnectOnRestoreWake(Future<void> Function() done) async {
+    if (!_reconnecting || !_keepAlive || paired == null || engine.isConnected) {
+      return false;
+    }
+    _log('[RECONNECT] iOS restore wake: the band is in reach — attempting now '
+        'instead of waiting out the backoff.');
+    final settled = _attemptSettled ??= Completer<void>();
+    final cut = _backoffCut;
+    if (cut != null && !cut.isCompleted) cut.complete();
+    // Bounded by the ~30 s the native side buys with its background task: one
+    // connect attempt times out at 15 s.
+    await settled.future.timeout(const Duration(seconds: 25), onTimeout: () {});
+    await done();
+    if (_keepAlive && !engine.isConnected) await _armRecovery();
+    return true;
   }
 
   /// Pull anything the band flashed that we don't have yet, over the CURRENT

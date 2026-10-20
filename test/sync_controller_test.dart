@@ -27,7 +27,7 @@ import 'package:openstrap_edge/sync/shortcut_sync_task.dart';
 import 'support/app_state_derive_harness.dart'
     show deriveDbSetUp, deriveDbTearDown, until;
 import 'support/app_state_sync_harness.dart'
-    show SyncTimers, kBackfillEvery, kRemoteId, kSerial, kSuperviseEvery;
+    show FakeTimer, SyncTimers, kBackfillEvery, kRemoteId, kSerial, kSuperviseEvery;
 
 const _db = 'sync_controller.db';
 
@@ -141,8 +141,12 @@ class _Engine implements BleEngine {
   @override
   Duration reconnectDelay(int attempt) {
     trace.add('backoff:$attempt');
-    return Duration.zero;
+    return backoff;
   }
+
+  /// What every backoff waits. Zero keeps the loop spinning on real timers; a
+  /// long one parks it on a hand-fired timer, like a suspended iOS process.
+  Duration backoff = Duration.zero;
 
   @override
   void markReconnecting() => trace.add('markReconnecting');
@@ -668,6 +672,57 @@ void main() {
       expect(r.engine.link, isTrue, reason: 'loop B owned the reconnect');
       expect(r.logs.where((l) => l.contains('superseded')), hasLength(1));
     }));
+
+    group('an iOS restore wake while the loop is parked in its backoff', () {
+      // The night of 2026-10-20: the link dropped backgrounded, two attempts
+      // failed and the loop parked in its backoff. iOS then suspends the
+      // process, so that timer never fires. The native restore central DID see
+      // the band again and woke us, but the headless drain skipped (the loop
+      // holds foreground intent) and syncDone parked native idle, so nothing
+      // watched the band until the user opened the app in the morning.
+      Future<FakeTimer> parked(_Rig r, SyncTimers timers) async {
+        await r.openAndSettle();
+        r.engine.backoff = const Duration(hours: 1);
+        r.engine.link = false;
+        r.c.onLinkDropped();
+        await until(() => timers.activeOneShot(const Duration(hours: 1)).isNotEmpty);
+        return timers.activeOneShot(const Duration(hours: 1)).single;
+      }
+
+      test('takes the wake: connects now, without the backoff firing, then '
+          'tells native it is done', _rigCase((r, timers) async {
+        final backoff = await parked(r, timers);
+        var done = 0;
+        final took = await r.c.reconnectOnRestoreWake(() async => done++);
+        expect(took, isTrue);
+        expect(done, 1);
+        expect(r.engine.count('connect'), 1);
+        expect(r.engine.link, isTrue);
+        expect(backoff.cancelled, isTrue, reason: 'the parked timer is let go');
+        await r.loggedWithin('Reconnected — live on; draining backlog in background.');
+      }));
+
+      test('a failed attempt still ends the wake, and the loop parks again',
+          _rigCase((r, timers) async {
+        await parked(r, timers);
+        r.engine.connectScript.add(false);
+        var done = 0;
+        expect(await r.c.reconnectOnRestoreWake(() async => done++), isTrue);
+        expect(done, 1);
+        expect(r.engine.link, isFalse);
+        await until(() => r.engine.count('backoff') == 2);
+        expect(timers.activeOneShot(const Duration(hours: 1)), hasLength(1));
+      }));
+
+      test('no loop running: not ours, the headless drain gets the wake',
+          _rigCase((r, timers) async {
+        await r.openAndSettle();
+        var done = 0;
+        expect(await r.c.reconnectOnRestoreWake(() async => done++), isFalse);
+        expect(done, 0);
+        expect(r.engine.count('connect'), 0);
+      }));
+    });
 
     test('the supervisor starts a loop when none runs, and does nothing once disposed',
         _rigCase((r, timers) async {

@@ -24,6 +24,11 @@ class IosBleRestore {
   /// band, so we skip it — the foreground session is already draining.
   static bool foregroundActive = false;
 
+  /// The foreground reconnect loop's claim on a wake (set by AppState, see
+  /// SyncController.reconnectOnRestoreWake). True = it took the wake and has
+  /// already called the `done` it was given.
+  static Future<bool> Function(Future<void> Function() done)? reconnectOnWake;
+
   /// Register the wake handler and tell native Flutter is ready. Call once at startup.
   static Future<void> init() async {
     if (!Platform.isIOS) return;
@@ -33,6 +38,8 @@ class IosBleRestore {
         await _done();
         return null;
       }
+      final reconnect = reconnectOnWake;
+      if (reconnect != null && await reconnect(_done)) return null;
       // Shared gate with the BGProcessingTask/BGAppRefreshTask entry points
       // (HeadlessSyncGate): if another headless sync is mid-flight, skip this
       // wake — matching the old private-_busy semantics (no syncDone signal;

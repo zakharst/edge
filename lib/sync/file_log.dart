@@ -12,6 +12,8 @@
 // the last few lines of a diagnostics log, which is an acceptable trade.
 
 import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 class FileLog {
@@ -38,7 +40,20 @@ class FileLog {
     }
   }
 
-  static Future<void> write(String line) async {
+  /// The write in flight. Every write chains onto it: callers fire [write]
+  /// unawaited, and overlapping appends to the same file lost and spliced
+  /// lines (half a line glued onto the next one, the rest gone).
+  static Future<void> _tail = Future.value();
+
+  /// Appends [line], prefixed with the local wall-clock time it was logged.
+  /// Without the time the log could say what happened overnight but never
+  /// when, which is the question every field report starts with.
+  static Future<void> write(String line) {
+    final stamped = '${DateTime.now().toIso8601String()} $line\n';
+    return _tail = _tail.then((_) => _append(stamped));
+  }
+
+  static Future<void> _append(String text) async {
     await _ensure();
     final f = _file;
     if (f == null) return;
@@ -46,7 +61,7 @@ class FileLog {
       if (_writesSinceCheck++ % _sizeCheckEvery == 0) {
         await _rotateIfNeeded(f);
       }
-      await f.writeAsString('$line\n', mode: FileMode.append);
+      await f.writeAsString(text, mode: FileMode.append);
     } catch (_) {}
   }
 
@@ -59,6 +74,13 @@ class FileLog {
       if (await old.exists()) await old.delete();
       await f.rename('${f.path}.1');
     } catch (_) {}
+  }
+
+  @visibleForTesting
+  static void useFileForTest(File f) {
+    _init = true;
+    _file = f;
+    _writesSinceCheck = 0;
   }
 
   static Future<String?> path() async {

@@ -280,6 +280,11 @@ class BleRestoreManager: NSObject {
           self.channel?.invokeMethod("wake", arguments: nil)
         }
         result(nil)
+      case "debugState":
+        // Field diagnostics for a failed foreground connect: whether THIS central
+        // still holds (or is bringing up) a link to the band. A link it holds
+        // keeps the radio connection up after flutter_blue_plus lets go.
+        result(self.debugState())
       case "syncDone":
         // Dart finished the headless drain. Go idle (no re-arm) until the next explicit
         // arm from Dart — prevents a reconnect-drain loop with no timer/cooldown.
@@ -347,6 +352,21 @@ class BleRestoreManager: NSObject {
       central.connect(p, options: nil)  // no timeout → persists, relaunches us when reachable
       NSLog("[ble-restore] armed pending connect \(tag)")
     }
+  }
+
+  private func debugState() -> String {
+    guard let central = central else { return "central=none" }
+    let names = ["disconnected", "connecting", "connected", "disconnecting"]
+    var parts = ["central=\(central.state.rawValue)",
+                 "app=\(UIApplication.shared.applicationState.rawValue)"]
+    for (uuid, s) in arms {
+      let link = central.retrievePeripherals(withIdentifiers: [uuid]).first
+        .map { names.indices.contains($0.state.rawValue) ? names[$0.state.rawValue] : "\($0.state.rawValue)" }
+        ?? "unknown"
+      parts.append("\(uuid.uuidString.prefix(8)):link=\(link) pending=\(s.peripheral != nil) "
+        + "ownsBand=\(s.appOwnsBand) handedOff=\(s.handedOff) idle=\(s.idleAfterSync)")
+    }
+    return parts.joined(separator: " ")
   }
 
   private func cancelPending(_ uuid: UUID? = nil) {

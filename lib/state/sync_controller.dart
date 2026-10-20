@@ -616,6 +616,7 @@ class SyncController {
       if (!await engine.connectToRemoteId(band.remoteId,
           generationHint: band.generation)) {
         _log('Session start: could not reach the band.');
+        await _logRestoreState();
         return;
       }
       await engine.getBattery();
@@ -770,6 +771,7 @@ class SyncController {
           connected = await engine.connectToRemoteId(paired!.remoteId,
               generationHint: paired!.generation);
         }
+        if (!connected) await _logRestoreState();
         if (connected) {
           // Reclaim the band from the iOS restore central so it stops competing.
           if (Platform.isIOS) {
@@ -876,6 +878,14 @@ class SyncController {
         engine.clearReconnecting();
       }
     }
+  }
+
+  /// After a failed connect: what the iOS restore central holds. A morning
+  /// of discovery timeouts that only a Bluetooth off/on cleared (2026-10-20)
+  /// left no trace of whether that central still kept the radio link up.
+  Future<void> _logRestoreState() async {
+    final s = await IosBleRestore.debugState();
+    if (s != null) _log('[ble-restore] after a failed connect: $s');
   }
 
   /// iOS restore wake while the reconnect loop wants the link: the native

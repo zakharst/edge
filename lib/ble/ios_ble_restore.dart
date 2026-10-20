@@ -106,6 +106,18 @@ class IosBleRestore {
     } catch (_) {}
   }
 
+  /// One line of the native restore central's view of each band (link state,
+  /// pending connect, ownership flags) for the sync log. Null off iOS or when
+  /// native does not answer.
+  static Future<String?> debugState() async {
+    if (!Platform.isIOS) return null;
+    try {
+      return await _ch.invokeMethod<String>('debugState');
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Stop restoration (sign-out / unpair).
   static Future<void> disarm() async {
     if (!Platform.isIOS) return;

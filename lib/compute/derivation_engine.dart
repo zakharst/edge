@@ -1810,7 +1810,12 @@ import 'vendor_sleep.dart';
 // store `skin_temp_ambient_r` and the illness watch leaves out WHOOP 4 nights
 // whose skin temp tracks ambient (|r| >= 0.8, or unmeasured). One-shot,
 // raw-free: days derived before v106 drop naps overlapping the next night.
-const int kAlgoVersion = 113;
+// 113 → 114 (honest recovery): analytics @ 483ca4e restores the readiness
+// weights to OpenStrap's own HRV 0.40 / RHR 0.30 / RR 0.20 / temp 0.10
+// (autonomic 0.70). v113's 0.607/0.265/0.073/0.055 had no source; WHOOP's
+// recovery is computed server-side. The Home cut-offs 26/37/61 were derived
+// from these weights at σ 0.65 (see `readinessBand`), so they agree again.
+const int kAlgoVersion = 114;
 /// The sibling SHAs this version was derived against, asserted against
 /// pubspec.yaml in test/db_serve_version_and_reads_test.dart.
 ///
@@ -1993,7 +1998,9 @@ const int kAlgoVersion = 113;
 // REPIN @ c0effea: analytics main, #79 + #86 (rmssd gate), for v105.
 // REPIN @ f44875b: current analytics main plus the Edge MOD readiness weights,
 // Next-Gen MVP APIs, and calculator hardening, for v113.
-const String kAnalyticsPin = 'f44875b54e7ef9d1918144c078ac70043674b63a';
+// REPIN @ 483ca4e: analytics `chore/honest-recovery`, readiness weights back
+// to OpenStrap's 0.40/0.30/0.20/0.10, for v114.
+const String kAnalyticsPin = '483ca4e996e20b4b690517d6241bb24d059490d4';
 // Repinned to analytics main's tip, which carries BOTH PR #72 (hrv_freq
 // Welch gap guard) and PR #73 (overreachingConjunction rhr quantum guard) —
 // the two independent kAlgoVersion bumps above (93 and 94). Verified both

@@ -2,7 +2,7 @@
  "day_result": [
   {
    "day_id": "2026-07-13",
-   "algo_version": 113,
+   "algo_version": 114,
    "payload_json": {
     "date": "2026-07-13",
     "day_confidence": 0.6,
@@ -187,8 +187,8 @@
      },
      "readiness_composite": {
       "value": {
-       "score": 74.425904,
-       "composite_z": 1.068224,
+       "score": 72.958852,
+       "composite_z": 0.992536,
        "calibration": {
         "status": "calibrating",
         "nights": 0
@@ -204,21 +204,21 @@
       "drivers": [
        {
         "label": "RHR",
-        "contribution": 1.510153,
+        "contribution": 1.272893,
         "detail": "oriented robust-z (median+MAD)=3.273154"
        },
        {
         "label": "HRV",
-        "contribution": -0.487234,
+        "contribution": -0.410684,
         "detail": "oriented robust-z (median+MAD)=-1.056045"
        },
        {
         "label": "RR",
-        "contribution": 0.045304,
+        "contribution": 0.130327,
         "detail": "oriented robust-z (median+MAD)=0.586472"
        }
       ],
-      "note": "GLASS-BOX readiness: disclosed research weights autonomic (HRV+RHR, mean of their z) 0.872 > RR 0.073 > temp 0.055, renormalized over present inputs. Drivers are definitional within the formula (correction, not inferred cause). calibrating:have=0,need=14. Refused: temp: no settled fraction measured for this night — an ungated nightly mean cannot tell skin from a warming strap."
+      "note": "GLASS-BOX readiness: disclosed weights autonomic (HRV+RHR, mean of their z) 0.70 > RR 0.20 > temp 0.10, renormalized over present inputs. Drivers are definitional within the formula (correction, not inferred cause). calibrating:have=0,need=14. Refused: temp: no settled fraction measured for this night — an ungated nightly mean cannot tell skin from a warming strap."
      },
      "strain": {
       "value": "—",
@@ -23009,8 +23009,8 @@
      "rhr_nocturnal": 48.08833333333333,
      "rmssd": 31.68095766979699,
      "rmssd_whole": 32.12768524038331,
-     "readiness": 74.42590439110191,
-     "readiness_z": 1.0682241096376488,
+     "readiness": 72.95885235383324,
+     "readiness_z": 0.9925359230330693,
      "strain": null,
      "max_hr_used": 187.7,
      "ln_rmssd": 3.4557157959652387,
@@ -25073,14 +25073,14 @@
    "finalized": 0,
    "rhr": 48.08833333333333,
    "rmssd": 31.68095766979699,
-   "readiness": 74.42590439110191,
+   "readiness": 72.95885235383324,
    "skipped": 0,
    "partial": 0,
-   "payload_sha256": "0b4682b992609023fceb3e7f6da33b430b61522ad803f5e6674b00634b840047"
+   "payload_sha256": "123df037199b6fbdfe0cb1298838389c45534d672ba2df685d019a3e2b93e047"
   },
   {
    "day_id": "2026-07-14",
-   "algo_version": 113,
+   "algo_version": 114,
    "payload_json": {
     "date": "2026-07-14",
     "day_confidence": 0.6,
@@ -25265,8 +25265,8 @@
      },
      "readiness_composite": {
       "value": {
-       "score": 74.425904,
-       "composite_z": 1.068224,
+       "score": 72.958852,
+       "composite_z": 0.992536,
        "calibration": {
         "status": "calibrating",
         "nights": 1
@@ -25282,21 +25282,21 @@
       "drivers": [
        {
         "label": "RHR",
-        "contribution": 1.510153,
+        "contribution": 1.272893,
         "detail": "oriented robust-z (median+MAD)=3.273154"
        },
        {
         "label": "HRV",
-        "contribution": -0.487234,
+        "contribution": -0.410684,
         "detail": "oriented robust-z (median+MAD)=-1.056045"
        },
        {
         "label": "RR",
-        "contribution": 0.045304,
+        "contribution": 0.130327,
         "detail": "oriented robust-z (median+MAD)=0.586472"
        }
       ],
-      "note": "GLASS-BOX readiness: disclosed research weights autonomic (HRV+RHR, mean of their z) 0.872 > RR 0.073 > temp 0.055, renormalized over present inputs. Drivers are definitional within the formula (correction, not inferred cause). calibrating:have=1,need=14. Refused: temp: no settled fraction measured for this night — an ungated nightly mean cannot tell skin from a warming strap."
+      "note": "GLASS-BOX readiness: disclosed weights autonomic (HRV+RHR, mean of their z) 0.70 > RR 0.20 > temp 0.10, renormalized over present inputs. Drivers are definitional within the formula (correction, not inferred cause). calibrating:have=1,need=14. Refused: temp: no settled fraction measured for this night — an ungated nightly mean cannot tell skin from a warming strap."
      },
      "strain": {
       "value": "—",
@@ -47907,8 +47907,8 @@
      "rhr_nocturnal": 48.08833333333333,
      "rmssd": 31.68095766979699,
      "rmssd_whole": 32.12768524038331,
-     "readiness": 74.42590439110191,
-     "readiness_z": 1.0682241096376488,
+     "readiness": 72.95885235383324,
+     "readiness_z": 0.9925359230330693,
      "strain": null,
      "max_hr_used": 187.7,
      "ln_rmssd": 3.4557157959652387,
@@ -49939,14 +49939,14 @@
    "finalized": 0,
    "rhr": 48.08833333333333,
    "rmssd": 31.68095766979699,
-   "readiness": 74.42590439110191,
+   "readiness": 72.95885235383324,
    "skipped": 0,
    "partial": 0,
-   "payload_sha256": "345fcb65685f9dd55915718859447e67527ed11047033b67740a1f4e341c9ece"
+   "payload_sha256": "56e0e7b112441f73b1849430ffdf15fb10beeced9ef19d505ffb9359afb45262"
   },
   {
    "day_id": "2026-07-15",
-   "algo_version": 113,
+   "algo_version": 114,
    "payload_json": {
     "date": "2026-07-15",
     "day_confidence": 0.6,
@@ -50131,8 +50131,8 @@
      },
      "readiness_composite": {
       "value": {
-       "score": 61.327709,
-       "composite_z": 0.461108,
+       "score": 61.793776,
+       "composite_z": 0.480804,
        "calibration": {
         "status": "calibrating",
         "nights": 2
@@ -50148,21 +50148,21 @@
       "drivers": [
        {
         "label": "RHR",
-        "contribution": 0.903038,
+        "contribution": 0.761161,
         "detail": "oriented robust-z (median+MAD)=1.957272"
        },
        {
         "label": "HRV",
-        "contribution": -0.487234,
+        "contribution": -0.410684,
         "detail": "oriented robust-z (median+MAD)=-1.056045"
        },
        {
         "label": "RR",
-        "contribution": 0.045304,
+        "contribution": 0.130327,
         "detail": "oriented robust-z (median+MAD)=0.586472"
        }
       ],
-      "note": "GLASS-BOX readiness: disclosed research weights autonomic (HRV+RHR, mean of their z) 0.872 > RR 0.073 > temp 0.055, renormalized over present inputs. Drivers are definitional within the formula (correction, not inferred cause). calibrating:have=2,need=14. Refused: temp: no settled fraction measured for this night — an ungated nightly mean cannot tell skin from a warming strap."
+      "note": "GLASS-BOX readiness: disclosed weights autonomic (HRV+RHR, mean of their z) 0.70 > RR 0.20 > temp 0.10, renormalized over present inputs. Drivers are definitional within the formula (correction, not inferred cause). calibrating:have=2,need=14. Refused: temp: no settled fraction measured for this night — an ungated nightly mean cannot tell skin from a warming strap."
      },
      "strain": {
       "value": "—",
@@ -71389,8 +71389,8 @@
      "rhr_nocturnal": 48.08833333333333,
      "rmssd": 31.68095766979699,
      "rmssd_whole": 32.12768524038331,
-     "readiness": 61.32770883460448,
-     "readiness_z": 0.4611084079183781,
+     "readiness": 61.79377627786914,
+     "readiness_z": 0.4808042249096016,
      "strain": null,
      "max_hr_used": 187.7,
      "ln_rmssd": 3.4557157959652387,
@@ -73227,10 +73227,10 @@
    "finalized": 0,
    "rhr": 48.08833333333333,
    "rmssd": 31.68095766979699,
-   "readiness": 61.32770883460448,
+   "readiness": 61.79377627786914,
    "skipped": 0,
    "partial": 0,
-   "payload_sha256": "22fa6482c2b401fee6cfa4f6d8255169fecc60296f97a85a19add8134ee97614"
+   "payload_sha256": "3d0fc39b9ecb2646dec22203f8d82e2b3b035486921a383e012bdca3a8a6fb9f"
   }
  ],
  "metric_series": [
@@ -73347,12 +73347,12 @@
   {
    "date": "2026-07-13",
    "key": "readiness",
-   "value": 74.42590439110191
+   "value": 72.95885235383324
   },
   {
    "date": "2026-07-13",
    "key": "readiness_z",
-   "value": 1.0682241096376488
+   "value": 0.9925359230330693
   },
   {
    "date": "2026-07-13",
@@ -73557,12 +73557,12 @@
   {
    "date": "2026-07-14",
    "key": "readiness",
-   "value": 74.42590439110191
+   "value": 72.95885235383324
   },
   {
    "date": "2026-07-14",
    "key": "readiness_z",
-   "value": 1.0682241096376488
+   "value": 0.9925359230330693
   },
   {
    "date": "2026-07-14",
@@ -73767,12 +73767,12 @@
   {
    "date": "2026-07-15",
    "key": "readiness",
-   "value": 61.32770883460448
+   "value": 61.79377627786914
   },
   {
    "date": "2026-07-15",
    "key": "readiness_z",
-   "value": 0.4611084079183781
+   "value": 0.4808042249096016
   },
   {
    "date": "2026-07-15",
@@ -73868,7 +73868,7 @@
  "metric_series_version": [
   {
    "date": "2026-07-13",
-   "algo_version": 113,
+   "algo_version": 114,
    "source": "band",
    "device_family": "gen5",
    "coverage_devices": "",
@@ -73876,7 +73876,7 @@
   },
   {
    "date": "2026-07-14",
-   "algo_version": 113,
+   "algo_version": 114,
    "source": "band",
    "device_family": "gen5",
    "coverage_devices": "",
@@ -73884,7 +73884,7 @@
   },
   {
    "date": "2026-07-15",
-   "algo_version": 113,
+   "algo_version": 114,
    "source": "band",
    "device_family": "gen5",
    "coverage_devices": "",
@@ -73894,7 +73894,7 @@
  "wake_day_features": [
   {
    "day_id": "2026-07-13",
-   "algo_version": 113,
+   "algo_version": 114,
    "payload_json": {
     "day_id": "2026-07-13",
     "active_min": 90,
@@ -75102,7 +75102,7 @@
   },
   {
    "day_id": "2026-07-14",
-   "algo_version": 113,
+   "algo_version": 114,
    "payload_json": {
     "day_id": "2026-07-14",
     "active_min": 240,
@@ -76310,7 +76310,7 @@
   },
   {
    "day_id": "2026-07-15",
-   "algo_version": 113,
+   "algo_version": 114,
    "payload_json": {
     "day_id": "2026-07-15",
     "active_min": 40,
@@ -77502,7 +77502,7 @@
    "date": "2026-07-13",
    "rhr": 48.08833333333333,
    "rmssd": 31.68095766979699,
-   "readiness": 74.42590439110191,
+   "readiness": 72.95885235383324,
    "resp_rate": 13.51304972588547,
    "skin_temp_z": 3.8090587513754603,
    "trimp": 267.9104825050325,
@@ -77510,6 +77510,10 @@
    "steps": 18240.0,
    "nap_min": 0.0,
    "efficiency": 91.7,
+   "waso_min": 37.2,
+   "awakenings": 3.0,
+   "deep_min": 24.0,
+   "rem_min": 57.0,
    "onset_sec": 1783878292,
    "wake_sec": 1783905329,
    "tst_min": 413,
@@ -77712,7 +77716,7 @@
    "date": "2026-07-14",
    "rhr": 48.08833333333333,
    "rmssd": 31.68095766979699,
-   "readiness": 74.42590439110191,
+   "readiness": 72.95885235383324,
    "resp_rate": 13.51304972588547,
    "skin_temp_z": 2.5820748428079483,
    "trimp": 260.0235516950477,
@@ -77720,6 +77724,10 @@
    "steps": 17640.0,
    "nap_min": 45.0,
    "efficiency": 91.7,
+   "waso_min": 37.2,
+   "awakenings": 3.0,
+   "deep_min": 26.0,
+   "rem_min": 57.0,
    "onset_sec": 1783964692,
    "wake_sec": 1783991729,
    "tst_min": 413,
@@ -77922,7 +77930,7 @@
    "date": "2026-07-15",
    "rhr": 48.08833333333333,
    "rmssd": 31.68095766979699,
-   "readiness": 61.32770883460448,
+   "readiness": 61.79377627786914,
    "resp_rate": 13.51304972588547,
    "skin_temp_z": 2.083348400888466,
    "trimp": 256.0693413232808,
@@ -77930,6 +77938,10 @@
    "steps": 17640.0,
    "nap_min": 0.0,
    "efficiency": 91.7,
+   "waso_min": 37.2,
+   "awakenings": 3.0,
+   "deep_min": 24.0,
+   "rem_min": 57.0,
    "onset_sec": 1784051092,
    "wake_sec": 1784078129,
    "tst_min": 413,
@@ -78330,6 +78342,7 @@
     ],
     "note": "need_baseline:have=0,need=1"
    },
+   "score": null,
    "bedtime": {
     "value": "—",
     "confidence": 0.0,

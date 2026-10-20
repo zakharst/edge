@@ -1257,7 +1257,7 @@ Map<String, Widget> _stateCases() => {
       'status_title_only': const StatusCard('Location is off',
           '', fix: 'Allow location'),
       'deep_dive_no_preview': const DeepDiveCard(
-          'Sleep debt', '2h 14m', 'owed', 'See the fortnight', C.indigo),
+          'Short over 7 nights', '1h 24m', 'below reference', 'See the week', C.indigo),
       'goal_trajectory_gaining': const GoalTrajectory(
           'Weight', '71.2 kg', '76 kg', '0.25 kg per week', .34, C.teal,
           rateDown: false),

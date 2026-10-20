@@ -567,7 +567,7 @@ class LocalRepositoryImpl extends LocalRepository {
       'daily': daily,
       'sleep': sleepBundle == null
           ? const {}
-          : _sleepSummary(sleepBundle, needMin: _sleepNeedMin(cd)),
+          : _sleepSummary(sleepBundle, needMin: _sleepRefLastNightMin(cd)),
       if (sleepBundle != null && rhrEnv != null)
         'nocturnal': _nocturnal(
           sleepBundle,
@@ -729,15 +729,16 @@ class LocalRepositoryImpl extends LocalRepository {
     return total == null ? null : (total / 60).round();
   }
 
-  /// Tonight's LEARNED sleep need, in minutes, or null.
+  /// LAST night's sleep reference, in minutes, or null.
   ///
-  /// `sleep_coach.need` is the only sleep need this app has: `crossday_pipeline`
-  /// estimates it from the user's own undisturbed nights and emits an ABSENT
-  /// metric until enough of them exist — there is no 8 h default anywhere on
-  /// the compute side, deliberately. The 480 that used to stand in for it here
-  /// reached the home widget, the Watch and the Sleep screen as a denominator.
-  int? _sleepNeedMin(Map<String, dynamic>? crossDay) {
-    final sec = _sub(crossDay, 'sleep_coach.need.value')?['need_sec'] as num?;
+  /// `sleep_coach.reference_last_night` is max(7 h AASM/SRS floor, p75 of the
+  /// user's free nights) minus the nap before that night, the same
+  /// denominator the Home ring's sleep performance divides by. It is absent
+  /// until the rollup's last row is today. Tonight's `need` (with today's nap)
+  /// is a different night and is not used for last night's sleep.
+  int? _sleepRefLastNightMin(Map<String, dynamic>? crossDay) {
+    final sec = _sub(crossDay, 'sleep_coach.reference_last_night.value')?[
+        'need_sec'] as num?;
     return sec == null ? null : (sec / 60).round();
   }
 
@@ -754,7 +755,7 @@ class LocalRepositoryImpl extends LocalRepository {
         'ESTIMATE',
         unit: 'min',
       ),
-      // Sleep need, ONLY when it was learned (see [_sleepNeedMin]). Absent means
+      // Last night's sleep reference (see [_sleepRefLastNightMin]). Absent means
       // the key is not written at all, so `TodayData.sleepNeed` is empty and
       // `WidgetService.push` writes the -1 sentinel every native reader gates
       // its sleep ring on (`needMin > 0` in OpenStrapWidget.swift,
@@ -1060,7 +1061,11 @@ class LocalRepositoryImpl extends LocalRepository {
       return v == null ? null : (v / 60).round();
     }
 
-    final needMin = _sleepNeedMin(await _crossDay());
+    // Today's rollup carries only today's night reference; a past night gets
+    // none rather than today's.
+    final needMin = date == _todayLocalLabel()
+        ? _sleepRefLastNightMin(await _crossDay())
+        : null;
     final sleepConf = _sub(b, 'sleep.accounting')?['confidence'] as num?;
     // Sleep periods (main + naps) for the periods screen. The main period is
     // enriched HERE with the hypnogram + stage minutes: derivation builds the
@@ -1129,16 +1134,12 @@ class LocalRepositoryImpl extends LocalRepository {
       // a general daytime heart metric. Pure re-exposure of the same bundle
       // field getDayHeart already read; no new computation.
       'spo2': b['spo2'],
-      // Sleep need, and the debt against it — both only when the need was
-      // actually learned (`sleep_coach.need`, see [_sleepNeedMin]; it is the
-      // current personal estimate, and the artifact behind it is refused once
-      // it is more than a week old). There is no 8 h default: it made the gauge
-      // "always read", which is the point, since what it read was a population
-      // figure presented as this user's own. Absent keys leave the gauge in its
-      // honest empty state.
+      // This night's sleep reference and how far short of it the night fell,
+      // max(0, reference - sleep). A one-night shortfall, not a debt: nothing
+      // here accrues or is owed. Absent keys leave the gauge empty.
       'need_min': ?needMin,
       if (needMin != null)
-        'debt_min': ((needMin - (tst / 60)).clamp(0, needMin)).round(),
+        'shortfall_min': ((needMin - (tst / 60)).clamp(0, needMin)).round(),
       'regularity':
           null, // needs ≥several nights (honest null → "Need N nights")
       // Sleep periods (main + naps) for the periods screen. The main period is

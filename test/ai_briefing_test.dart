@@ -108,7 +108,7 @@ void main() {
           'efficiency': 0.91, // 0..1 from the store → *100 in the snapshot
           'deep_min': 78,
           'rem_min': 96,
-          'debt_min': 35,
+          'shortfall_min': 35,
         },
       );
       final inp = await collectBriefingInputs(repo, BriefingPeriod.morning);
@@ -118,6 +118,10 @@ void main() {
       expect(inp['sleep_min'], 445);
       expect(inp['sleep_efficiency_pct'], 91);
       expect(inp['deep_min'], 78);
+      // One night short of its own reference, named as a shortfall: there is
+      // no sleep debt in this app.
+      expect(inp['sleep_shortfall_min'], 35);
+      expect(inp.containsKey('sleep_debt_min'), isFalse);
       // Evening-only metrics never leak into a morning snapshot.
       expect(inp.containsKey('strain_0_21'), isFalse);
       expect(inp.containsKey('steps'), isFalse);

@@ -120,26 +120,43 @@ void main() {
       expect(written['sleep_need_min'], -1);
     });
 
-    test('a LEARNED sleep need is published as itself', () async {
-      await LocalDb.putBaseline(
-        'crossday',
-        jsonEncode({
-          'algo_version': kAlgoVersion,
-          'built_for_day': todayLabel(),
-          'sleep_coach': {
-            'need': {
-              'value': {'need_sec': 462 * 60},
-              'confidence': 0.7,
-              'tier': 'ESTIMATE',
+    // Tonight's reference (with today's nap) and last night's differ; the
+    // ring is LAST night's sleep, so its denominator is last night's own
+    // reference, the same one the Home ring divides by.
+    Future<void> putCoach() => LocalDb.putBaseline(
+          'crossday',
+          jsonEncode({
+            'algo_version': kAlgoVersion,
+            'built_for_day': todayLabel(),
+            'sleep_coach': {
+              'need': {
+                'value': {'need_sec': 462 * 60, 'basis': 'free_nights'},
+                'confidence': 0.7,
+                'tier': 'ESTIMATE',
+              },
+              'reference_last_night': {
+                'value': {'need_sec': 450 * 60, 'basis': 'free_nights'},
+                'confidence': 0.7,
+                'tier': 'ESTIMATE',
+              },
             },
-          },
-        }),
-      );
+          }),
+        );
 
+    test('the widget ring divides by last night\'s own sleep reference',
+        () async {
+      await putCoach();
       await WidgetService.push(TodayData.fromJson(await repo.getToday()));
-      // 462, the value `crossday_pipeline` computed — the only sleep need this
-      // app has.
-      expect(written['sleep_need_min'], 462);
+      expect(written['sleep_need_min'], 450);
+    });
+
+    test('the day sleep read carries a shortfall against last night\'s '
+        'reference, never a debt', () async {
+      await putCoach();
+      final night = await repo.getDaySleep(todayLabel());
+      expect(night['need_min'], 450);
+      expect(night['shortfall_min'], 13);
+      expect(night.containsKey('debt_min'), isFalse);
     });
 
     test('today hrv and sleeping-hr baselines leave tonight out, like the day '

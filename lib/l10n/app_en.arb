@@ -6506,11 +6506,11 @@
   "@healthTimeAsleep": {
     "description": "Trends tab sleep trend card label"
   },
-  "healthVsNeed": "vs your {need} need",
-  "@healthVsNeed": {
-    "description": "Trend card comparison label against the computed sleep need",
+  "healthVsReference": "vs your {ref} reference",
+  "@healthVsReference": {
+    "description": "Trend card comparison label against last night's sleep reference: max(7 h, p75 of free nights) minus naps; not a measured need",
     "placeholders": {
-      "need": {
+      "ref": {
         "type": "String"
       }
     }
@@ -6692,14 +6692,6 @@
   "healthBlurbEfficiency": "Asleep as a share of time in bed",
   "@healthBlurbEfficiency": {
     "description": "Explore catalogue one-line description for sleep efficiency"
-  },
-  "healthBlurbDeep": "Heart-rate flatness inside NREM",
-  "@healthBlurbDeep": {
-    "description": "Explore catalogue one-line description for deep sleep"
-  },
-  "healthBlurbRem": "Staged from beat variability and movement",
-  "@healthBlurbRem": {
-    "description": "Explore catalogue one-line description for REM sleep"
   },
   "healthBlurbNapMin": "Sleep detected outside the main night",
   "@healthBlurbNapMin": {
@@ -7760,14 +7752,14 @@
       }
     }
   },
-  "wellnessDebtBody": "You are {debt} down against your own need, and tonight's is {need}.",
-  "@wellnessDebtBody": {
-    "description": "Sleep recommendation body stating sleep debt and tonight's need",
+  "wellnessShortfallBody": "The last 7 nights came up {short} short of their reference, and tonight's is {ref}.",
+  "@wellnessShortfallBody": {
+    "description": "Sleep recommendation body: the measured 7-night sleep shortfall and tonight's sleep reference",
     "placeholders": {
-      "debt": {
+      "short": {
         "type": "String"
       },
-      "need": {
+      "ref": {
         "type": "String"
       }
     }
@@ -7788,29 +7780,29 @@
   "@wellnessNoDriversBody": {
     "description": "Status card body explaining readiness drivers need more nights of data"
   },
-  "wellnessSleepNeedTonight": "Sleep need tonight",
-  "@wellnessSleepNeedTonight": {
-    "description": "Section title for tonight's sleep need"
+  "wellnessSleepReferenceTonight": "Sleep reference tonight",
+  "@wellnessSleepReferenceTonight": {
+    "description": "Section title for tonight's sleep reference: max(7 h, p75 of free nights) minus naps; not a measured need"
   },
-  "wellnessNoSleepNeedTitle": "No sleep need yet",
-  "@wellnessNoSleepNeedTitle": {
-    "description": "Status card title when no sleep need estimate exists"
+  "wellnessNoSleepReferenceTitle": "No sleep reference yet",
+  "@wellnessNoSleepReferenceTitle": {
+    "description": "Status card title when no sleep reference exists"
   },
-  "wellnessNoSleepNeedBody": "Nothing recorded says why there is no need for tonight.",
-  "@wellnessNoSleepNeedBody": {
-    "description": "Status card fallback body when there is no reason recorded for missing sleep need"
+  "wellnessNoSleepReferenceBody": "Nothing recorded says why there is no reference for tonight.",
+  "@wellnessNoSleepReferenceBody": {
+    "description": "Status card fallback body when there is no reason recorded for a missing sleep reference"
   },
-  "wellnessTonightsNeed": "Tonight's need",
-  "@wellnessTonightsNeed": {
-    "description": "Metric row label for tonight's sleep need duration"
+  "wellnessTonightsReference": "Tonight's reference",
+  "@wellnessTonightsReference": {
+    "description": "Metric row label for tonight's sleep reference duration"
   },
-  "wellnessSleepDebt": "Sleep debt",
-  "@wellnessSleepDebt": {
-    "description": "Metric row label for accumulated sleep debt"
+  "wellnessPopulationReference": "This is the 7 h population reference (AASM/SRS) until a weekend night is recorded.",
+  "@wellnessPopulationReference": {
+    "description": "Caption under the sleep reference when no free (weekend) night exists yet and the 7 h consensus floor is used"
   },
-  "wellnessAddedForStrain": "Added for strain",
-  "@wellnessAddedForStrain": {
-    "description": "Metric row label for minutes added to sleep need for strain"
+  "wellnessShortfall7": "Short over 7 nights",
+  "@wellnessShortfall7": {
+    "description": "Metric row label: total hours the last 7 nights fell below their own sleep reference"
   },
   "wellnessCreditedFromNaps": "Credited from naps",
   "@wellnessCreditedFromNaps": {
@@ -8360,13 +8352,58 @@
   "@sleepDetailWatched": {
     "description": "Inline metric label: time the band actually recorded."
   },
-  "sleepDetailAsleepOfThat": "ASLEEP OF THAT",
-  "@sleepDetailAsleepOfThat": {
-    "description": "Inline metric label for asleep percentage when a 'watched' window is also shown."
+  "sleepDetailMeasuresSection": "The night in numbers",
+  "@sleepDetailMeasuresSection": {
+    "description": "Sleep screen section title: measured rows for one night (efficiency, awake time, regularity, shortfall)"
   },
-  "sleepDetailAsleep": "ASLEEP",
-  "@sleepDetailAsleep": {
-    "description": "Inline metric label for asleep percentage (efficiency)."
+  "sleepDetailEfficiency": "Efficiency",
+  "@sleepDetailEfficiency": {
+    "description": "Metric row label: sleep efficiency, total sleep over time in bed"
+  },
+  "sleepDetailEfficiencySub": "Total sleep over time in bed",
+  "@sleepDetailEfficiencySub": {
+    "description": "Explains the efficiency row on a fully observed night"
+  },
+  "sleepDetailEfficiencyWatchedSub": "Total sleep over the time we watched",
+  "@sleepDetailEfficiencyWatchedSub": {
+    "description": "Explains the efficiency row on a night with unobserved time"
+  },
+  "sleepDetailWaso": "Awake after sleep onset",
+  "@sleepDetailWaso": {
+    "description": "Metric row label: minutes awake after first falling asleep (WASO)"
+  },
+  "sleepDetailWakeupsSub": "{count, plural, =1{At least 1 wake-up} other{At least {count} wake-ups}} of 5 min or more",
+  "@sleepDetailWakeupsSub": {
+    "description": "Under the WASO row: sustained wake runs, a floor because shorter arousals are invisible to a wrist",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sleepDetailSri": "Regularity (SRI)",
+  "@sleepDetailSri": {
+    "description": "Metric row label: Phillips Sleep Regularity Index"
+  },
+  "sleepDetailSriSub": "Same state at the same clock time, day to day",
+  "@sleepDetailSriSub": {
+    "description": "Explains what the Sleep Regularity Index compares"
+  },
+  "sleepDetailStillCollecting": "Still collecting",
+  "@sleepDetailStillCollecting": {
+    "description": "Row value while fewer than 3 nights exist"
+  },
+  "sleepDetailShortfall7": "Short over 7 nights",
+  "@sleepDetailShortfall7": {
+    "description": "Metric row label: total time the last 7 nights fell below their own sleep reference"
+  },
+  "sleepDetailShortfallSub": "Against each night's own reference",
+  "@sleepDetailShortfallSub": {
+    "description": "Explains the shortfall row"
+  },
+  "sleepDetailStagesEstimate": "Estimated from movement and pulse; low accuracy.",
+  "@sleepDetailStagesEstimate": {
+    "description": "Caption above the sleep stage totals: stages are a low-accuracy wrist estimate"
   },
   "sleepDetailWatchedExplain": "We watched {watched} of your {inBed} in bed; the rest is not a measurement. Asleep, and the stage shares below, are out of the time we watched.",
   "@sleepDetailWatchedExplain": {
@@ -8782,24 +8819,28 @@
   "@sleepDetailSkinTemp": {
     "description": "Chart lane legend label for skin temperature."
   },
-  "sleepDetailSleepNeedNotEstablished": "Sleep need not established",
-  "@sleepDetailSleepNeedNotEstablished": {
-    "description": "Status card title when sleep need has not yet been established."
+  "sleepDetailSleepReferenceNotEstablished": "Sleep reference not established",
+  "@sleepDetailSleepReferenceNotEstablished": {
+    "description": "Status card title when there is no sleep reference or bedtime"
   },
-  "sleepDetailYourNeedIs": "Your need is {need}",
-  "@sleepDetailYourNeedIs": {
-    "description": "Reason fragment stating the user's computed sleep need.",
+  "sleepDetailYourReferenceIs": "Your reference is {ref}",
+  "@sleepDetailYourReferenceIs": {
+    "description": "Tonight's sleep reference: max(7 h, p75 of free nights) minus naps; not a measured need",
     "placeholders": {
-      "need": {
+      "ref": {
         "type": "String"
       }
     }
   },
-  "sleepDetailYouAreDown": "you are {debt} down",
-  "@sleepDetailYouAreDown": {
-    "description": "Reason fragment stating how far behind the user's sleep debt is.",
+  "sleepDetailPopulationFloor": "the 7 h population floor (AASM/SRS) until a weekend night is recorded",
+  "@sleepDetailPopulationFloor": {
+    "description": "In parentheses after the reference when no free night exists yet"
+  },
+  "sleepDetailShortOver7": "{short} short over the last 7 nights",
+  "@sleepDetailShortOver7": {
+    "description": "Measured 7-night sleep shortfall against each night's reference",
     "placeholders": {
-      "debt": {
+      "short": {
         "type": "String"
       }
     }
@@ -15275,7 +15316,7 @@
   },
   "sleepTabPlanTitle": "Your sleep plan",
   "@sleepTabPlanTitle": {
-    "description": "Sleep tab section: sleep need, debt and target bedtime."
+    "description": "Sleep tab section: sleep reference, 7-night shortfall and target bedtime."
   },
   "sleepTabMoreTitle": "Alarm and body clock",
   "@sleepTabMoreTitle": {

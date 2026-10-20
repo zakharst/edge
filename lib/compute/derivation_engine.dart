@@ -1810,7 +1810,18 @@ import 'vendor_sleep.dart';
 // store `skin_temp_ambient_r` and the illness watch leaves out WHOOP 4 nights
 // whose skin temp tracks ambient (|r| >= 0.8, or unmeasured). One-shot,
 // raw-free: days derived before v106 drop naps overlapping the next night.
-const int kAlgoVersion = 113;
+// 113 -> 114 (honest sleep): analytics feat/honest-sleep @ 80fe1fa. The sleep
+// reference is max(7 h, p75 of free-night sleep) minus today's nap; 7 h is
+// the AASM/SRS adult floor (Watson et al. 2015, Sleep 38(6)), used alone and
+// labelled population-based until free nights exist. No strain bonus, no
+// clamps: `sleep_coach.strain_bonus_min` is gone, `nap_credit_min` stays.
+// `sleep_coach.shortfall` is the 7-night sum of max(0, reference - sleep),
+// absent under 3 nights. `sleep_coach.performance` is last night's sleep over
+// LAST night's own reference (`reference_last_night`). The weighted 0-100
+// `sleep_coach.score` and its crossday row inputs (`waso_min`, `awakenings`,
+// `deep_min`, `rem_min`) are removed; SleepNeedCalculator is gone from
+// analytics. `sleep_debt` is unchanged and no longer shown as a debt.
+const int kAlgoVersion = 114;
 /// The sibling SHAs this version was derived against, asserted against
 /// pubspec.yaml in test/db_serve_version_and_reads_test.dart.
 ///
@@ -1993,7 +2004,10 @@ const int kAlgoVersion = 113;
 // REPIN @ c0effea: analytics main, #79 + #86 (rmssd gate), for v105.
 // REPIN @ f44875b: current analytics main plus the Edge MOD readiness weights,
 // Next-Gen MVP APIs, and calculator hardening, for v113.
-const String kAnalyticsPin = 'f44875b54e7ef9d1918144c078ac70043674b63a';
+// REPIN @ 80fe1fa: analytics feat/honest-sleep (f44875b + fc3a7c8 biological
+// age + the honest sleep reference/shortfall, SleepNeedCalculator removed),
+// for v114.
+const String kAnalyticsPin = '80fe1fa74862bb2d739429ce0fc6bd57f0dc8148';
 // Repinned to analytics main's tip, which carries BOTH PR #72 (hrv_freq
 // Welch gap guard) and PR #73 (overreachingConjunction rhr quantum guard) —
 // the two independent kAlgoVersion bumps above (93 and 94). Verified both
@@ -6863,13 +6877,6 @@ class DerivationEngine {
       'steps': sc('steps'),
       'nap_min': sc('nap_min'),
       'efficiency': sc('efficiency'),
-      // Sleep score inputs beyond hours (crossday `sleep_coach.score`).
-      'waso_min': (acctVal?['waso_sec'] as num?) == null
-          ? null
-          : (acctVal!['waso_sec'] as num) / 60.0,
-      'awakenings': sc('awakenings'),
-      'deep_min': sc('deep_min'),
-      'rem_min': sc('rem_min'),
       'onset_sec': onsetMs == null ? null : (onsetMs / 1000).round(),
       'wake_sec': offsetMs == null ? null : (offsetMs / 1000).round(),
       'tst_min': tstSec == null ? null : (tstSec / 60).round(),

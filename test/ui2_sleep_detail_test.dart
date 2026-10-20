@@ -8,6 +8,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:openstrap_edge/data/local_repository.dart';
 import 'package:openstrap_edge/l10n/app_localizations.dart';
 import 'package:openstrap_edge/models/metric.dart';
 import 'package:openstrap_edge/ui2/screens/screens.dart';
@@ -357,7 +358,94 @@ void main() {
   testWidgets('a fully observed night says nothing about watching', (t) async {
     await _pump(t, SleepData(day: '2026-05-20', night: _night()));
     expect(find.text('WATCHED'), findsNothing);
-    expect(find.text('ASLEEP OF THAT'), findsOneWidget);
+    // Efficiency has its own row now; the answer card does not repeat it.
+    expect(find.text('ASLEEP OF THAT'), findsNothing);
+    expect(find.text('Efficiency'), findsOneWidget);
+  });
+
+  // ── the measured night, one row each, no composite ────────────────────────
+
+  testWidgets('the night is efficiency, awake time, regularity and shortfall',
+      (t) async {
+    await _pump(
+      t,
+      SleepData(
+        day: '2026-05-20',
+        night: _night(),
+        awakenings: 3,
+        regularity: const Metric(
+            value: 78.4, confidence: .6, tier: MetricTier.estimate),
+        shortfall: const Metric(
+            value: 84, unit: 'min', confidence: .6, tier: MetricTier.estimate),
+      ),
+    );
+    expect(find.text('Efficiency'), findsOneWidget);
+    expect(find.text('91%'), findsOneWidget);
+    expect(find.text('Awake after sleep onset'), findsOneWidget);
+    expect(find.text('20m'), findsWidgets);
+    expect(find.textContaining('3 wake-ups of 5 min or more'), findsOneWidget);
+    expect(find.text('Regularity (SRI)'), findsOneWidget);
+    expect(find.text('78'), findsOneWidget);
+    expect(find.text('Short over 7 nights'), findsOneWidget);
+    expect(find.text('1h 24m'), findsWidgets);
+  });
+
+  testWidgets('under three nights, regularity and shortfall are collecting',
+      (t) async {
+    await _pump(
+      t,
+      SleepData(
+        day: '2026-05-20',
+        night: _night(),
+        regularity: const Metric(note: 'need_baseline:have=2,need=3'),
+        shortfall: const Metric(note: 'need_baseline:have=2,need=3'),
+      ),
+    );
+    expect(find.text('Regularity (SRI)'), findsOneWidget);
+    expect(find.text('Still collecting'), findsNWidgets(2));
+  });
+
+  testWidgets('stages say they are a low-accuracy estimate', (t) async {
+    await _pump(t, SleepData(day: '2026-05-20', night: _night()));
+    expect(
+        find.text('Estimated from movement and pulse; low accuracy.'),
+        findsOneWidget);
+  });
+
+  group('SleepData.load', () {
+    test('reads the reference, the 7-night shortfall and the SRI', () async {
+      final d = await SleepData.load(_LoadRepo(const {
+        'regularity': {
+          'value': {'sri': 81.2, 'days': 5, 'cases': 2000}
+        },
+        'sleep_coach': {
+          'need': {
+            'value': {'need_sec': 25200.0, 'basis': 'population_floor'}
+          },
+          'shortfall': {
+            'value': {'shortfall_hours': 1.5, 'nights': 5}
+          },
+        },
+        // The p75-minus-median pseudo-debt is not read as a deficit.
+        'sleep_debt': {
+          'value': {'debt_hours': 9.0}
+        },
+      }));
+      expect(d.need.value, 420);
+      expect(d.needPopulation, isTrue);
+      expect(d.shortfall.value, 90);
+      expect(d.regularity.value, closeTo(81.2, 1e-9));
+    });
+
+    test('an SRI over fewer than three nights is not shown', () async {
+      final d = await SleepData.load(_LoadRepo(const {
+        'regularity': {
+          'value': {'sri': 95.0, 'days': 2, 'cases': 800}
+        },
+      }));
+      expect(d.regularity.value, isNull);
+      expect(d.regularity.note, 'need_baseline:have=2,need=3');
+    });
   });
 
   // ── SLP-02 · settling time, forced windows only ───────────────────────────
@@ -412,15 +500,33 @@ void main() {
         night: _night(),
         need: const Metric(
             value: 462, unit: 'min', confidence: .7, tier: MetricTier.estimate),
-        debt: const Metric(
+        shortfall: const Metric(
             value: 22, unit: 'min', confidence: .7, tier: MetricTier.estimate),
         bedtime:
             const Metric(value: 1360, confidence: .7, tier: MetricTier.estimate),
       ),
     );
     expect(find.text('lights out'), findsOneWidget);
-    expect(find.textContaining('Your need is 7h 42m'), findsOneWidget);
-    expect(find.textContaining('22m down'), findsOneWidget);
+    expect(find.textContaining('Your reference is 7h 42m'), findsOneWidget);
+    expect(find.textContaining('22m short over the last 7 nights'),
+        findsOneWidget);
+    expect(find.textContaining('need'), findsNothing);
+    expect(find.textContaining('population floor'), findsNothing);
+  });
+
+  testWidgets('a reference with no free nights says it is the 7 h floor',
+      (t) async {
+    await _pump(
+      t,
+      SleepData(
+        day: '2026-05-20',
+        night: _night(),
+        need: const Metric(
+            value: 420, unit: 'min', confidence: .3, tier: MetricTier.estimate),
+        needPopulation: true,
+      ),
+    );
+    expect(find.textContaining('population floor'), findsOneWidget);
   });
 
   group('correctedSleepWindow', () {
@@ -572,4 +678,35 @@ void main() {
     expect(find.text('Marked as not sleep'), findsOneWidget);
     expect(find.text('I was asleep'), findsNothing);
   });
+}
+
+/// Just enough repository for [SleepData.load]: one night on one day, and the
+/// cross-day rollup under test.
+class _LoadRepo extends LocalRepository {
+  _LoadRepo(this.insights);
+  final Map<String, dynamic> insights;
+
+  @override
+  Future<Map<String, dynamic>> getToday() async => const {
+        'status': {'today_day': '2026-05-20'}
+      };
+  @override
+  Future<List<String>> availableDays() async => const ['2026-05-20'];
+  @override
+  Future<Map<String, dynamic>> getDaySleepV2(String date) async => _night();
+  @override
+  Future<List<Map<String, Object?>>> getDeviceNights(String date) async =>
+      const [];
+  @override
+  Future<Map<String, dynamic>> getDayTimeline(String date) async => const {};
+  @override
+  Future<Map<String, dynamic>> getInsights() async => insights;
+  @override
+  Future<Map<String, dynamic>> getChart(String metric,
+          {int? from, int? to, Set<String> signals = const {}}) async =>
+      const {'points': []};
+  @override
+  Future<List<Map<String, dynamic>>> sleepWindows(
+          {int days = 60, String? before}) async =>
+      const [];
 }

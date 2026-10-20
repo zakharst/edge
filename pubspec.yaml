@@ -506,7 +506,10 @@ dependencies:
       # Edge MOD analytics @ f44875b: current OpenStrap analytics main plus the
       # readiness research weights and additive stress, biological-age,
       # sleep-need, journal and rep-counter APIs used by the MVP cards.
-      ref: f44875b54e7ef9d1918144c078ac70043674b63a
+      # Edge MOD analytics @ 80fe1fa (feat/honest-sleep): the sleep reference
+      # (7 h AASM/SRS floor or free-night p75) and 7-night shortfall replace
+      # the invented sleep need; SleepNeedCalculator removed.
+      ref: 80fe1fa74862bb2d739429ce0fc6bd57f0dc8148
 
   # BLE — flutter_blue_plus is the maintained cross-platform GATT client.
   flutter_blue_plus: ^1.36.8

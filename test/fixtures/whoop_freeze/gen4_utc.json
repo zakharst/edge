@@ -2,7 +2,7 @@
  "day_result": [
   {
    "day_id": "2026-07-13",
-   "algo_version": 113,
+   "algo_version": 114,
    "payload_json": {
     "date": "2026-07-13",
     "day_confidence": 0.6,
@@ -24902,7 +24902,7 @@
   },
   {
    "day_id": "2026-07-14",
-   "algo_version": 113,
+   "algo_version": 114,
    "payload_json": {
     "date": "2026-07-14",
     "day_confidence": 0.6,
@@ -49595,7 +49595,7 @@
   },
   {
    "day_id": "2026-07-15",
-   "algo_version": 113,
+   "algo_version": 114,
    "payload_json": {
     "date": "2026-07-15",
     "day_confidence": 0.6,
@@ -73355,7 +73355,7 @@
  "metric_series_version": [
   {
    "date": "2026-07-13",
-   "algo_version": 113,
+   "algo_version": 114,
    "source": "band",
    "device_family": "gen4",
    "coverage_devices": "",
@@ -73363,7 +73363,7 @@
   },
   {
    "date": "2026-07-14",
-   "algo_version": 113,
+   "algo_version": 114,
    "source": "band",
    "device_family": "gen4",
    "coverage_devices": "",
@@ -73371,7 +73371,7 @@
   },
   {
    "date": "2026-07-15",
-   "algo_version": 113,
+   "algo_version": 114,
    "source": "band",
    "device_family": "gen4",
    "coverage_devices": "",
@@ -73381,7 +73381,7 @@
  "wake_day_features": [
   {
    "day_id": "2026-07-13",
-   "algo_version": 113,
+   "algo_version": 114,
    "payload_json": {
     "day_id": "2026-07-13",
     "active_min": 90,
@@ -74589,7 +74589,7 @@
   },
   {
    "day_id": "2026-07-14",
-   "algo_version": 113,
+   "algo_version": 114,
    "payload_json": {
     "day_id": "2026-07-14",
     "active_min": 239,
@@ -75797,7 +75797,7 @@
   },
   {
    "day_id": "2026-07-15",
-   "algo_version": 113,
+   "algo_version": 114,
    "payload_json": {
     "day_id": "2026-07-15",
     "active_min": 40,
@@ -77799,47 +77799,85 @@
   },
   "sleep_coach": {
    "need": {
+    "value": {
+     "need_sec": 25200.0,
+     "basis": "population_floor"
+    },
+    "confidence": 0.3,
+    "tier": "ESTIMATE",
+    "inputs_used": [
+     "adult_floor_7h",
+     "naps"
+    ],
+    "note": "population reference until free nights exist: the 7 h AASM/SRS floor (Watson 2015) minus today's nap sleep"
+   },
+   "nap_credit_min": null,
+   "reference_last_night": {
     "value": "—",
     "confidence": 0.0,
     "tier": "ESTIMATE",
     "inputs_used": [
-     "osd_hours"
-    ],
-    "note": "need_baseline:have=0,need=1"
+     "tst",
+     "sleep_reference"
+    ]
    },
-   "nap_credit_min": null,
-   "strain_bonus_min": null,
    "performance": {
     "value": "—",
     "confidence": 0.0,
     "tier": "ESTIMATE",
     "inputs_used": [
      "tst",
-     "sleep_need"
+     "sleep_reference"
     ],
-    "note": "need_baseline:have=0,need=1"
+    "note": "need_input:name=tst_min"
+   },
+   "shortfall": {
+    "value": {
+     "shortfall_hours": 0.233333,
+     "nights_hours": [
+      0.116667,
+      0.116667,
+      0.0
+     ],
+     "nights": 3,
+     "dates": [
+      "2026-07-13",
+      "2026-07-14",
+      "2026-07-15"
+     ]
+    },
+    "confidence": 0.428571,
+    "tier": "ESTIMATE",
+    "inputs_used": [
+     "tst",
+     "sleep_reference"
+    ],
+    "note": "sum over 3 nights of max(0, reference − total sleep); a long night does not offset a short one"
    },
    "bedtime": {
-    "value": "—",
-    "confidence": 0.0,
+    "value": {
+     "bedtime_min_of_day": 1387.4680661577609
+    },
+    "confidence": 0.6,
     "tier": "ESTIMATE",
     "inputs_used": [
      "sleep_need",
      "wake_time",
      "efficiency"
-    ],
-    "note": "need_baseline:have=0,need=1"
+    ]
    },
    "wake": {
-    "value": "—",
-    "confidence": 0.0,
+    "value": {
+     "wake_min_of_day": 405.48333333333335
+    },
+    "confidence": 0.55,
     "tier": "ESTIMATE",
     "inputs_used": [
      "sleep_need",
      "bedtime",
      "efficiency"
     ],
-    "note": "need_baseline:have=0,need=1"
+    "note": "wake = bedtime + the time in bed the need and your efficiency imply"
    }
   },
   "strain_coach": {

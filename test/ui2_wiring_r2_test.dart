@@ -264,6 +264,23 @@ void main() {
       expect(d.need.value, isNull);
     });
 
+    // Last night's sleep is compared with LAST night's reference (yesterday's
+    // naps), not with tonight's, which already subtracts today's nap.
+    test("the sleep card's reference is last night's, not tonight's",
+        () async {
+      final d = await HealthData.load(_FakeRepo(insights: const {
+        'sleep_coach': {
+          'need': {
+            'value': {'need_sec': 25200.0}
+          },
+          'reference_last_night': {
+            'value': {'need_sec': 27720.0}
+          },
+        },
+      }));
+      expect(d.need.value, 462);
+    });
+
     // The HRV and resting HR cards take their band from the pipeline's own
     // baseline, read off getDayHeart, never from the chart. The chart below
     // is flat at 50, so a priorTo band would say "Normal"; only the baseline
@@ -346,7 +363,7 @@ void main() {
       expect(find.text('· +20m from your usual 6h 40m'), findsOneWidget);
     });
 
-    testWidgets('captioned "vs your need", the delta IS vs the need',
+    testWidgets('captioned "vs your reference", the delta IS vs it',
         (t) async {
       // The bug: the caption changed and the subtraction did not, so the user
       // read 20m — the distance from their own average — under the words "vs
@@ -358,7 +375,8 @@ void main() {
                   value: 462, unit: 'min', confidence: .7, tier: MetricTier.estimate)));
       expect(find.text('42m'), findsOneWidget);
       expect(find.text('20m'), findsNothing);
-      expect(find.text('vs your 7h 42m need'), findsOneWidget);
+      expect(find.text('vs your 7h 42m reference'), findsOneWidget);
+      expect(find.textContaining('need'), findsNothing);
     });
 
     testWidgets('under two weeks it abstains and says how many days it has',

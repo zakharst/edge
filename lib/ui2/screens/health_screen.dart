@@ -63,6 +63,8 @@ class HealthData {
 
   /// Derived days INSIDE THE LAST 30 CALENDAR DAYS — see [load].
   final int daysWithData;
+
+  /// Last night's sleep reference, minutes (`sleep_coach.reference_last_night`).
   final Metric need;
 
   /// Non-null when the cross-day rollup was withheld — see [staleInsightsCard].
@@ -158,8 +160,10 @@ class HealthData {
       charts[k] = pointsOf(await repo.getChart(k));
     }
 
+    // LAST night's sleep reference (yesterday's naps), the one the newest
+    // night is compared with. Tonight's (`need`) already subtracts today's nap.
     final coach = cd['sleep_coach'];
-    final needEnv = coach is Map ? coach['need'] : null;
+    final needEnv = coach is Map ? coach['reference_last_night'] : null;
     final needSec = envValue(needEnv)?['need_sec'] as num?;
 
     // The last 30 CALENDAR days, not the newest 30 rows. `availableDays()` is
@@ -370,6 +374,9 @@ class _Cat {
 ///   `stress` and `brv` below are the charted forms of two of the three.
 /// - Body clock, zones, Nerd stats. Each already has a door at the same depth
 ///   as this one; adding a second is navigation debt.
+/// - Deep and REM minutes. A 1 Hz movement-and-pulse stage estimate has low
+///   accuracy; it is shown only on the detailed sleep screen, captioned as
+///   such, and is not offered here as a measure of its own.
 const _catalogue = <_Cat>[
   _Cat('Heart & rhythm', [
     _CatRow('resting_hr', 'rhr', 'The lowest sustained rate of the night'),
@@ -383,8 +390,6 @@ const _catalogue = <_Cat>[
   _Cat('Sleep', [
     _CatRow('sleep', 'tst_min', 'Time asleep, from motion and beat timing'),
     _CatRow('efficiency', 'efficiency', 'Asleep as a share of time in bed'),
-    _CatRow('deep', 'deep_min', 'Heart-rate flatness inside NREM'),
-    _CatRow('rem', 'rem_min', 'Staged from beat variability and movement'),
     _CatRow('nap_min', 'nap_min', 'Sleep detected outside the main night'),
   ]),
   _Cat('Breathing', [
@@ -429,8 +434,6 @@ String _rowBlurb(AppLocalizations? l, String key, String blurb) =>
       'hrr' => l?.healthBlurbHrr ?? blurb,
       'sleep' => l?.healthBlurbSleep ?? blurb,
       'efficiency' => l?.healthBlurbEfficiency ?? blurb,
-      'deep' => l?.healthBlurbDeep ?? blurb,
-      'rem' => l?.healthBlurbRem ?? blurb,
       'nap_min' => l?.healthBlurbNapMin ?? blurb,
       'resp_rate' => l?.healthBlurbRespRate ?? blurb,
       'brv' => l?.healthBlurbBrv ?? blurb,
@@ -1028,9 +1031,9 @@ class _HealthScreenState extends State<HealthScreen> with RevisionReload {
       final asOf = behind <= 0
           ? ''
           : (l?.healthAsOf(axisDay(pts.last.t)) ?? ' · as of ${axisDay(pts.last.t)}');
-      // [against] is the sleep need. It is a different question from "is this
-      // usual for you" and stays as the small print: the debt is the more
-      // useful of the two numbers on a sleep card.
+      // [against] is the sleep reference. It is a different question from "is
+      // this usual for you" and stays as the small print: the distance to the
+      // reference is the more useful of the two numbers on a sleep card.
       final toNeed = against == null ? null : s.last - against;
       final needLine = toNeed == null
           ? null
@@ -1072,12 +1075,13 @@ class _HealthScreenState extends State<HealthScreen> with RevisionReload {
       if (d.need.value == null)
         trend('sleep', l?.healthTimeAsleep ?? 'Time asleep', '', C.blue)
       else
-        // `need` here is `crossday.sleep_coach.need` — the COMPUTED need. It is
-        // never `sleep.need_min`, which is a hardcoded 480.
+        // `need` here is `crossday.sleep_coach.reference_last_night`: max(7 h,
+        // p75 of free nights) minus yesterday's naps. A reference, not a
+        // measured need, and never `sleep.need_min` (a hardcoded 480).
         trend('sleep', l?.healthTimeAsleep ?? 'Time asleep', '', C.blue,
             against: d.need.value!.toDouble(),
-            againstLabel: l?.healthVsNeed(hm(d.need.value)) ??
-                'vs your ${hm(d.need.value)} need'),
+            againstLabel: l?.healthVsReference(hm(d.need.value)) ??
+                'vs your ${hm(d.need.value)} reference'),
 
       // Body clock (natural bedtime, weekend shift, consistency) moved to
       // the Sleep tab, beside the night it is about.

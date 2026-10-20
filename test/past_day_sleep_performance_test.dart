@@ -1,6 +1,6 @@
-// The score lived only in today's rollup, so a past day on Home showed hours
-// and a formula change never reached the nights already on the phone. It is
-// rebuilt at read time from the stored nights up to that day.
+// A past day on Home shows that night's own sleep performance, rebuilt at read
+// time from the stored nights up to that day, so a change to the reference
+// reaches every night already on the phone.
 
 import 'dart:convert';
 
@@ -14,18 +14,14 @@ import 'package:openstrap_edge/ui2/screens/home_screen.dart';
 
 import 'support/app_state_derive_harness.dart';
 
-const _db = 'openstrap_past_day_sleep_score_test.db';
+const _db = 'openstrap_past_day_sleep_performance_test.db';
 
-Map<String, dynamic> _night(int day, {double tst = 480, double waso = 10}) {
+Map<String, dynamic> _night(int day, {double tst = 480}) {
   final onset = DateTime(2026, 10, day - 1, 23).millisecondsSinceEpoch ~/ 1000;
   return {
     'date': '2026-10-${day.toString().padLeft(2, '0')}',
     'tst_min': tst,
     'efficiency': 95.0,
-    'waso_min': waso,
-    'awakenings': 1.0,
-    'deep_min': 100.0,
-    'rem_min': 120.0,
     'onset_sec': onset,
     'wake_sec': onset + 8 * 3600,
     'strain': 0.0,
@@ -33,15 +29,14 @@ Map<String, dynamic> _night(int day, {double tst = 480, double waso = 10}) {
   };
 }
 
-Future<int?> _scoreOn(String date) async =>
-    (HomeData.sleepScoreOf(await crossDayAsOf(date))?['value'] as num?)
-        ?.toInt();
+Future<double?> _perfOn(String date) async =>
+    HomeData.sleepPerfOf(await crossDayAsOf(date)).value?.toDouble();
 
 void main() {
   setUpAll(() => deriveDbSetUp(_db));
   tearDownAll(() => deriveDbTearDown(_db));
 
-  test('each past night is scored on its own data', () async {
+  test('each past night is measured on its own data', () async {
     await LocalDb.putBaseline(
       'crossday_input',
       jsonEncode({
@@ -52,17 +47,17 @@ void main() {
           _night(10),
           _night(11),
           _night(12),
-          _night(13, tst: 300, waso: 80),
+          _night(13, tst: 300),
           _night(14),
         ],
       }),
     );
 
-    final good = await _scoreOn('2026-10-12');
-    final broken = await _scoreOn('2026-10-13');
-    expect(good, isNotNull);
-    expect(broken, isNotNull);
-    expect(broken!, lessThan(good!),
-        reason: "the 13th's short, broken night is scored, not today's");
+    final full = await _perfOn('2026-10-12');
+    final short = await _perfOn('2026-10-13');
+    // Saturday the 10th and Sunday the 11th are the free nights: 8 h each, so
+    // the reference is 8 h and the 13th's 5 h is 62.5 % of it.
+    expect(full, closeTo(100.0, 1e-6));
+    expect(short, closeTo(62.5, 1e-6));
   });
 }

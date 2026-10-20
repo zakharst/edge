@@ -25,7 +25,6 @@ import '../data/day_label.dart';
 // isolate safety. One grammar for "a required input was missing" across both
 // pipelines rather than a second one here.
 import 'onehz_pipeline.dart' show needInputNote;
-import 'sleep_score.dart';
 
 /// Build the cross-day analytics bundle from a time-ordered (OLDEST FIRST) list
 /// of per-day records and the user profile.
@@ -296,143 +295,98 @@ Map<String, dynamic> buildCrossDayBundle(
   // ── circadian rhythm: nonparametric battery + 24 h cosinor ────────────────
   final circadian = _crossDayCircadian(days);
 
-  // ── SLEEP COACH: need (baseline + debt + strain − naps) + performance +
-  //    recommended bedtime + cycle-aligned wake (all forward-looking for tonight).
-  // baseline need = the personal OSD (from sleepDebt) when known, else 8 h.
+  // ── SLEEP COACH: a sleep REFERENCE for tonight, last night against its own
+  //    reference, how far the last 7 nights fell short, and a bedtime/wake.
+  //
+  // reference = max(7 h, p75 of free nights) − the nap sleep of the day before
+  // the night (coaching.dart `sleepNeed`, still under its old name so the
+  // stored `need_sec` key keeps parsing). 7 h is the AASM/SRS consensus floor
+  // (Watson et al. 2015, Sleep 38(6)); with no free night yet it is the whole
+  // reference and the envelope says so (`basis: population_floor`). It is how
+  // long this user sleeps when nothing wakes them, not a measured need.
+  //
+  // GONE: the strain bonus ((strain/21)·45 min), the debt term and the
+  // 7-9.5 h / 6-11 h clamps. None had a published method. `sleep_debt` above
+  // is still published as what it is (p75 minus median, ~0 by construction),
+  // but nothing here feeds it in as a debt; [shortfall] below is the measured
+  // replacement.
   final osdH = sleepDebt.present ? sleepDebt.value!.osdHours : null;
-  // Personal optimal sleep duration, floored/capped to a physiological band:
-  // the OSD estimate is noisy with few nights and can read implausibly low
-  // (e.g. 5.6 h), which would push the recommended bedtime far too late. Adults
-  // need ~7-9.5 h, so clamp into that range.
-  //
-  // NO 8 h DEFAULT. It used to substitute the population mean when there was no
-  // personal estimate, and every number built on it — tonight's need, the
-  // recommended bedtime, the cycle-aligned wake time and sleep performance —
-  // was then a population figure presented as the user's own, with nothing on
-  // screen saying so. Absent input yields an absent metric; the coach fills in
-  // once enough nights exist to estimate an OSD.
-  final double? baselineNeedSec =
-      osdH == null ? null : (osdH.clamp(7.0, 9.5)) * 3600.0;
-  final debtSec =
-      (sleepDebt.present ? (sleepDebt.value!.debtHours ?? 0.0) : 0.0) * 3600.0;
-  const noOsd = ana.Metric<ana.SleepNeed>.absent(
-    tier: ana.Tier.estimate,
-    inputs_used: ['osd_hours'],
-    note: 'need_baseline:have=0,need=1',
-  );
-  ana.Metric<ana.SleepNeed> needAt({
-    required double dayStrain,
-    required double napCreditSec,
-  }) =>
-      baselineNeedSec == null
-          ? noOsd
-          : ana.sleepNeed(
-              baselineNeedSec: baselineNeedSec,
-              sleepDebtSec: debtSec < 0 ? 0.0 : debtSec,
-              dayStrain: dayStrain,
-              napCreditSec: napCreditSec,
-            );
-  // TODAY's strain only. `_lastNum` walked backward to the last non-null, so a
-  // day whose strain compute abstained built tonight's bonus out of an EARLIER
-  // day's workout — imputation (AGENTS §3.3), and invisible, since the number
-  // lands inside `need_sec` with nothing surfacing it.
-  //
-  // Unlike the nap credit below, 0 here is NOT the cautious direction: strain is
-  // ADDED (up to 45 min via sleepNeed's strainBonusSec), so abstaining removes
-  // sleep from the recommendation rather than adding it. It is still right, on
-  // two grounds that are not "it's safe":
-  //   - Carrying yesterday forward is not a safety margin either. It inflates
-  //     need only when yesterday happened to be harder than today, and deflates
-  //     it when yesterday was a rest day — noise around the true value, not a
-  //     conservative bound, and forbidden regardless.
-  //   - Strain is a same-day ACCUMULATING quantity that starts at 0 and only
-  //     rises. Before today logs anything, 0 is where it genuinely sits, not a
-  //     substituted default. The bonus grows as the day's real strain arrives.
-  // Because that direction is not the cautious one, the substitution is not
-  // allowed to be silent: `strain_bonus_min` below reports what the bonus
-  // actually added, and stays NULL (never 0) when today produced no reading —
-  // which is the case where up to 45 min of need went missing.
-  final todayStrainNum = _todayNum(days, 'strain');
-  final todayStrain = todayStrainNum ?? 0.0;
+  final freeNightP75Sec = osdH == null ? null : osdH * 3600.0;
+  ana.Metric<ana.SleepNeed> referenceWith(double napCreditSec) => ana.sleepNeed(
+        freeNightP75Sec: freeNightP75Sec,
+        napCreditSec: napCreditSec,
+      );
   // TODAY's naps only, and minutes ASLEEP (the analytics detector reports TST
-  // and in-bed separately now). No reading means NO credit — that leaves the
-  // recommendation slightly high, which is the safe direction; reaching back a
-  // day to find a number would be the unsafe one.
+  // and in-bed separately). No reading means NO credit — that leaves the
+  // reference slightly high, which is the safe direction; reaching back a day
+  // to find a number would be the unsafe one.
   final todayNapMin = _todayNum(days, 'nap_min');
-  final todayNapSec = (todayNapMin ?? 0.0) * 60.0;
-  final need = needAt(dayStrain: todayStrain, napCreditSec: todayNapSec);
-  // What the credit ACTUALLY changed. `sleepNeed` clamps to [6 h, 11 h] AFTER
-  // subtracting, so a large credit against a low baseline is only partly
-  // realized — a 3 h nap does not remove 3 h of need. Disclosing the raw nap
-  // minutes would state a reduction the number above never took.
-  final needNoNap = needAt(dayStrain: todayStrain, napCreditSec: 0.0);
-  final appliedNapCreditMin = (todayNapMin == null ||
-          !need.present ||
-          !needNoNap.present)
+  final need = referenceWith((todayNapMin ?? 0.0) * 60.0);
+  // What the credit ACTUALLY changed. The reference floors at 0 after the
+  // subtraction, so a nap longer than the reference is only partly realized;
+  // disclosing the raw nap minutes would state a reduction never taken.
+  final needNoNap = referenceWith(0.0);
+  final appliedNapCreditMin = todayNapMin == null
       ? null
       : ((needNoNap.value!.needSec - need.value!.needSec) / 60).round();
-  // What the strain bonus ACTUALLY added, measured the same way `nap_credit_min`
-  // measures the nap: re-run at the real operating point with the strain zeroed
-  // and diff. The [6 h, 11 h] clamp applies AFTER adding, so against a high
-  // baseline + debt the bonus is only partly realized — disclosing the raw
-  // (strain/21)*45 would state an increase `need_sec` never took.
-  //
-  // Null when today produced no strain reading. That is the ONE case that
-  // matters most here: a confident 0 says "you rested today", while null says
-  // "we could not measure today's strain, so tonight's need is short by up to
-  // 45 min". Collapsing the two would re-hide exactly what the today-scoping
-  // fix above exposed.
-  final needNoStrain = needAt(dayStrain: 0.0, napCreditSec: todayNapSec);
-  final appliedStrainBonusMin = (todayStrainNum == null ||
-          !need.present ||
-          !needNoStrain.present)
-      ? null
-      : ((need.value!.needSec - needNoStrain.value!.needSec) / 60).round();
-  // last night's TST (sec) for performance. Today's row carries the main sleep
-  // that ended this morning; `_lastNum` reached back to an older night when
-  // last night had none, and scored that as last night's performance.
+  // The nap that counts against a night is the one on the day BEFORE it: the
+  // night a row carries ended that row's morning. Null when the day before has
+  // no row of its own (a gap), and then no credit.
+  double? napBefore(int i) =>
+      (i > 0 && _isNextDay('${days[i - 1]['date']}', '${days[i]['date']}'))
+          ? _numOrNull(days[i - 1]['nap_min'])
+          : null;
+  // Last night against LAST night's reference: yesterday's naps, not today's.
+  // Today's row carries the main sleep that ended this morning; `_lastNum`
+  // reached back to an older night when last night had none, and scored that
+  // as last night's performance.
+  final lastNightRef = (days.isNotEmpty && days.last['is_today'] == true)
+      ? referenceWith((napBefore(days.length - 1) ?? 0.0) * 60.0)
+      : const ana.Metric<ana.SleepNeed>.absent(
+          tier: ana.Tier.estimate,
+          inputs_used: ['tst', 'sleep_reference'],
+        );
   final lastTstMin = _todayNum(days, 'tst_min');
-  final perf = (need.present && lastTstMin != null)
-      ? ana.sleepPerformance(lastTstMin * 60.0, need.value!.needSec)
+  final perf = (lastNightRef.present && lastTstMin != null)
+      ? ana.sleepPerformance(lastTstMin * 60.0, lastNightRef.value!.needSec)
       : ana.Metric<ana.SleepPerformance>.absent(
           tier: ana.Tier.estimate,
-          inputs_used: const ['tst', 'sleep_need'],
-          // Name the input that is actually missing. When it is the need
-          // itself, carry the need's own reason forward rather than restating
-          // it as "no sleep need" — that would name a sibling metric, which is
-          // the failure this whole convention exists to stop.
-          note: need.present ? needInputNote('tst_min') : need.note,
+          inputs_used: const ['tst', 'sleep_reference'],
+          note: needInputNote('tst_min'),
         );
-  // Sleep score: last night against LAST night's need, not tonight's. Last
-  // night's need is the same model run with yesterday's strain and naps.
-  // shortcut: the debt term is today's (it already counts last night); store
-  // each day's own need if the score reads high after a long night.
-  final yesterday = (days.length >= 2 &&
-          days.last['is_today'] == true &&
-          _isNextDay('${days[days.length - 2]['date']}', '${days.last['date']}'))
-      ? days[days.length - 2]
-      : null;
-  final lastNeed = needAt(
-    dayStrain: _numOrNull(yesterday?['strain']) ?? 0.0,
-    napCreditSec: (_numOrNull(yesterday?['nap_min']) ?? 0.0) * 60.0,
-  );
-  final score = sleepScore(
-    tstMin: lastTstMin,
-    needMin: lastNeed.present ? lastNeed.value!.needSec / 60.0 : null,
-    efficiencyPct: _todayNum(days, 'efficiency'),
-    wasoMin: _todayNum(days, 'waso_min'),
-    awakenings: _todayNum(days, 'awakenings'),
-    deepMin: _todayNum(days, 'deep_min'),
-    remMin: _todayNum(days, 'rem_min'),
-    recentNights: [
-      for (final d in days)
-        if (d['onset_sec'] is num && d['wake_sec'] is num)
-          (
-            onsetSec: (d['onset_sec'] as num).toInt(),
-            wakeSec: (d['wake_sec'] as num).toInt(),
-          ),
-    ],
-  );
+  // Shortfall: Σ max(0, reference − TST) over the nights in the last 7
+  // calendar days that HAVE a total sleep time, each against its own night's
+  // reference (the nap of the day before it). A missing night is left out,
+  // not scored as zero sleep, and a night still draining (`unsettled`) is a
+  // truncated reading, not a short night.
+  // shortcut: every night in the window uses TODAY's free-night p75 as its
+  // base; store each night's own reference if the p75 moves enough within a
+  // week to matter.
+  final shortTstH = <double>[];
+  final shortRefH = <double>[];
+  final shortDates = <String>[];
+  final anchor = days.isEmpty
+      ? null
+      : DateTime.tryParse('${days.last['date']}T00:00:00Z');
+  for (var i = 0; i < n && anchor != null; i++) {
+    final tst = settled(i, _numOrNull(days[i]['tst_min']));
+    final dt = DateTime.tryParse('${days[i]['date']}T00:00:00Z');
+    if (tst == null || dt == null) continue;
+    final back = anchor.difference(dt).inDays;
+    if (back < 0 || back > 6) continue;
+    shortTstH.add(tst / 60.0);
+    shortRefH.add(
+        referenceWith((napBefore(i) ?? 0.0) * 60.0).value!.needSec / 3600.0);
+    shortDates.add('${days[i]['date']}');
+  }
+  final shortfall =
+      ana.sleepShortfall(tstH: shortTstH, referenceH: shortRefH);
+  final shortfallJson = shortfall.toJson((v) => v.toJson());
+  // The curve's x axis. The analytics never sees a date, so the nights are
+  // named here, parallel to `nights_hours`.
+  if (shortfallJson['value'] is Map) {
+    (shortfallJson['value'] as Map)['dates'] = shortDates;
+  }
   // typical wake clock-minute + efficiency from recent days (medians).
   final wakeMins = <double>[
     for (final d in days)
@@ -595,23 +549,23 @@ Map<String, dynamic> buildCrossDayBundle(
     'brv': brv.toJson((v) => v.toJson()),
     // ── Coaching + fitness (forward-looking, today) ──
     'sleep_coach': <String, dynamic>{
+      // Tonight's sleep REFERENCE (see the coach block above), under the old
+      // key so every reader keeps parsing `need.value.need_sec`.
       'need': need.toJson((v) => v.toJson()),
       // Minutes the nap credit ACTUALLY removed from `need` — not the raw nap
-      // minutes, which the clamp can partly swallow. Lets the card show the
-      // adjustment instead of applying it invisibly. Null means today produced
-      // no nap reading, which is different from a confident zero: the UI must
-      // not render "−0m" for "we do not know".
+      // minutes, which the 0 floor can partly swallow. Null means today
+      // produced no nap reading, which is different from a confident zero:
+      // the UI must not render "−0m" for "we do not know".
       'nap_credit_min': appliedNapCreditMin,
-      // Minutes the strain bonus ACTUALLY added to `need`, same measure-what-
-      // was-applied rule as `nap_credit_min` (the clamp can swallow part of it).
-      // Null means today produced no strain reading — NOT a rest day. The UI
-      // must not render "+0m" for "we do not know", and the missing bonus is
-      // worth up to 45 min of need.
-      'strain_bonus_min': appliedStrainBonusMin,
+      // Last night's own reference (yesterday's naps), the denominator of
+      // `performance`, so a screen can print "of 7h 30m" against the right
+      // night.
+      'reference_last_night': lastNightRef.toJson((v) => v.toJson()),
+      // Last night's TST over its reference, capped at 100 %.
       'performance': perf.toJson((v) => v.toJson()),
-      // Last night's 0-100 sleep score with its components; null when last
-      // night has no total sleep time or there is no need to measure it by.
-      'score': score,
+      // Σ max(0, reference − TST) over the last 7 nights, with the per-night
+      // series and its dates; absent under 3 nights.
+      'shortfall': shortfallJson,
       'bedtime': bedtime.toJson((v) => v.toJson()),
       'wake': wakeRec.toJson((v) => v.toJson()),
     },

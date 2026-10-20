@@ -195,7 +195,7 @@ void main() {
     }
     expect((cells['resting_hr']!['value'] as num) - _days.last.nightHrNadir,
         inInclusiveRange(-6, 6));
-    expect(cls('strain'), 'estimated');
+    expect(cls('strain'), 'unavailable');
     expect(cls('calories'), 'device');
     for (final row in kColmiNightRows) {
       expect(cls(row), 'unavailable', reason: row);

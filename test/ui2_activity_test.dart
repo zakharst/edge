@@ -819,7 +819,7 @@ void main() {
               curve: curve,
               strain: 16.8,
               zoneMin: const [212, 96, 41, 18, 4],
-              maxHrUsed: 190,
+              strainMaxHr: 190,
               peakHr: 171,
               wornMin: 743,
               // Under the floor, so the "not comparable to a full day" card is
@@ -846,7 +846,7 @@ void main() {
               curve: curve,
               strain: 16.8,
               zoneMin: const [212, 96, 41, 18, 4],
-              maxHrUsed: 190,
+              strainMaxHr: 190,
               peakHr: 171,
               wornMin: 743,
               coveragePct: 51,

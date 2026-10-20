@@ -119,7 +119,7 @@ void main() {
       'readiness': 'estimated',
       'irregular_rhythm': 'unavailable',
       'steps': 'device',
-      'strain': 'estimated',
+      'strain': 'unavailable',
       'calories': 'estimated',
       'movement': 'estimated',
       'auto_workouts': 'unavailable',
@@ -183,9 +183,8 @@ void main() {
           reason: d);
     }
     expect(v('movement'), lessThan(0.1));
-    expect(cells['strain']!['method'], 'hr_5min');
-    expect(v('strain'), inInclusiveRange(4, 15),
-        reason: 'a 40-minute run at 150 bpm');
+    // WHOOP's strain formula needs 1 Hz HR; this column is minutes apart.
+    expect(cells['strain']!['value'], isNull);
     expect(v('calories'), inInclusiveRange(200, 1500));
 
     // Skin temperature: ours is the deviation off the ring's own nights in
@@ -430,7 +429,8 @@ void main() {
       expect(of(k).method, isNot(anyOf('hr_5min_rest', 'steps_5min')),
           reason: k);
     }
-    expect(of('strain').cls, 'estimated');
+    // No strain off the ring's column at all (WHOOP's formula needs 1 Hz).
+    expect(of('strain').cls, 'unavailable');
   });
 
   test('daytime rest counts only runs that end in the day, 20 min to 3 h', () {
@@ -517,7 +517,8 @@ void main() {
     await DerivationEngine().runDays(_profile, {_dayId}, force: true);
     final full = _payload((await LocalDb.dayResult(_dayId))!)
         .cast<String, dynamic>();
-    expect((full['scalars'] as Map)['strain'], isNotNull);
+    // A ring's 5-minute HR scores no strain (WHOOP's formula needs 1 Hz).
+    expect((full['scalars'] as Map)['strain'], isNull);
     final shown = withoutWearableEstimates(full);
     final scalars = shown['scalars'] as Map;
     // Estimated on the ring's column: strain, calories, stages.

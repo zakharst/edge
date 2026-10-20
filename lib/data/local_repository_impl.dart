@@ -26,7 +26,6 @@ import '../compute/inputs/canonical.dart'
 import '../compute/manual_session.dart';
 import '../compute/onehz_pipeline.dart' show kUnknownAbsenceNote, needInputNote;
 import '../compute/profile.dart';
-import '../compute/quiet_level.dart';
 import 'package:openstrap_protocol/openstrap_protocol.dart' as proto;
 import 'package:openstrap_analytics/onehz.dart' as ana;
 
@@ -1677,6 +1676,9 @@ class LocalRepositoryImpl extends LocalRepository {
         'min': (hrStats?['min'] as num?)?.toInt(),
       },
       'max_hr_used': maxHrUsed,
+      // The ceiling STRAIN was scored on (WHOOP regression or lifetime held
+      // max); `max_hr_used` above stays the zones/TRIMP/calorie one.
+      'strain_max_hr': _scalar(b, 'strain_max_hr'),
       // TS-04 — which two numbers THIS day's zone bars were binned on:
       // 'karvonen' (observed ceiling + measured resting HR), 'observed'
       // (measured ceiling, resting-HR history still too short) or 'tanaka'
@@ -3043,9 +3045,6 @@ class LocalRepositoryImpl extends LocalRepository {
     // row, every import, every raw replay) — is a refusal, not gen4 by default.
     final deviceFamily = (existing?['device_family'] as String?) ??
         await _windowDeviceFamily(startTs, endTs);
-    final quiet = await personalQuietLevelBefore(
-        dayLabelOf(DateTime.fromMillisecondsSinceEpoch(startTs * 1000)));
-
     final stats = computeManualSessionStats(
       hrTs: hrTs,
       hrBpm: hrBpm,
@@ -3057,10 +3056,9 @@ class LocalRepositoryImpl extends LocalRepository {
       // calorie anchor; the two are named separately because they can now be
       // different ceilings.
       zoneSet: _zoneSetFor(deviceFamily, await _zoneAnchors()),
-      // The quiet level of the session's OWN local day (its start), so the
-      // bout is priced on the baseline that day's strain was.
-      quietHrr: quiet.value?.hrr,
-      quietSettled: quiet.value?.settled ?? true,
+      // The all-time guarded ceiling, the lifetime max the day's strain HRmax
+      // is raised to (the day reads it per strap family, before that day).
+      lifetimeHrCeilingBpm: (await LocalDb.observedHrCeiling())?.bpm,
     );
 
     final row = buildManualSessionRow(
@@ -3179,9 +3177,6 @@ class LocalRepositoryImpl extends LocalRepository {
           _profileMaxHr(row['device_family'] as String?)?.toDouble();
       final restingHrForSession =
           await _recentRestingHr() ?? profile.restingHrManual?.toDouble();
-      // Same rule as the save path: the session's own local day's level.
-      final quiet = await personalQuietLevelBefore(
-          dayLabelOf(DateTime.fromMillisecondsSinceEpoch(startTs * 1000)));
       final stats = computeManualSessionStats(
         hrTs: [for (final e in hrRows) (e['rec_ts'] as num).toInt()],
         hrBpm: hrBpm,
@@ -3190,8 +3185,7 @@ class LocalRepositoryImpl extends LocalRepository {
         restingHr: restingHrForSession,
         zoneSet: _zoneSetFor(
             row['device_family'] as String?, await _zoneAnchors()),
-        quietHrr: quiet.value?.hrr,
-        quietSettled: quiet.value?.settled ?? true,
+        lifetimeHrCeilingBpm: (await LocalDb.observedHrCeiling())?.bpm,
       );
       // The peak is smoothed inside `computeManualSessionStats` now — one
       // definition for the manual save, this re-score and the workout list

@@ -79,7 +79,9 @@ void main() {
     expect(g('rhr'), (method: 'hr_1min', family: 'hr_1min', cls: 'ours'));
     expect(g('deep_min'), (method: 'device', family: 'device', cls: 'device'));
     expect(g('dyn_p90'), (method: 'hr_1min', family: 'hr_1min', cls: 'ours'));
-    expect(seriesMethodFor('ultrahuman')!('strain').cls, 'estimated');
+    expect(seriesMethodFor('ultrahuman')!('calories').cls, 'estimated');
+    // Strain needs 1 Hz HR (WHOOP's formula caps a sample at 3 s).
+    expect(seriesMethodFor('ultrahuman')!('strain').cls, 'unavailable');
     expect(seriesMethodFor('miband234')!('rhr').method, 'hr_1min');
     // Efficiency and wake-ups are off the device's stages only on a night it
     // staged; on our HR-led night they are ours off its HR.

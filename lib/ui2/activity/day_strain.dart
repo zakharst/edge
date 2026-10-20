@@ -55,9 +55,9 @@ class DayStrainData {
   /// Five zone minutes, or null when the day banked no split.
   final List<int>? zoneMin;
 
-  /// The HR ceiling the pipeline integrated against — `max_hr_used`, the same
-  /// number the maths saw.
-  final num? maxHrUsed;
+  /// The HR ceiling strain was scored against: `strain_max_hr`, WHOOP's
+  /// regression or the band's lifetime held max, the same number the maths saw.
+  final num? strainMaxHr;
 
   /// TS-04 — which anchors THIS day's zone bars were binned on: 'karvonen'
   /// (observed ceiling + measured resting HR), 'observed' (measured ceiling
@@ -81,7 +81,7 @@ class DayStrainData {
     this.curve = const [],
     this.strain,
     this.zoneMin,
-    this.maxHrUsed,
+    this.strainMaxHr,
     this.zoneSource,
     this.zoneMaxHr,
     this.zoneLowerBpm,
@@ -146,7 +146,7 @@ class DayStrainData {
       curve: grid,
       strain: (s['strain'] as num?)?.toDouble(),
       zoneMin: zoneMin,
-      maxHrUsed: s['max_hr_used'] as num?,
+      strainMaxHr: s['strain_max_hr'] as num?,
       zoneSource: s['zone_source'] as String?,
       zoneMaxHr: s['zone_max_hr'] as num?,
       zoneLowerBpm: switch (s['zone_lower_bpm']) {
@@ -268,8 +268,8 @@ class _DayStrainDetailState extends State<DayStrainDetail> {
                   (l?.dayStrainNoReasonBody ??
                       'Nothing recorded says why this day produced no strain.')
               : (l?.dayStrainScoredNoTraceBody(s.toStringAsFixed(1)) ??
-                  'The day strain is ${s.toStringAsFixed(1)}. The waking minutes '
-                      'it was built from are not stored for this day.'),
+                  'The day strain is ${s.toStringAsFixed(1)}. The heart rate it was '
+                      'built from is no longer stored for this day.'),
           fix: (s == null && !saw)
               ? (l?.dayStrainWearBandFix ?? 'Wear the band through the day')
               : '',
@@ -292,7 +292,7 @@ class _DayStrainDetailState extends State<DayStrainDetail> {
             xLabels: const ['00:00', '12:00', '24:00'],
             series: d.curve,
             footnote: l?.dayStrainChartFootnote(drawn) ??
-                'Effort above your usual waking pace. It can ease later if you slow back toward that pace. From $drawn recorded waking minutes.',
+                'It only adds up: every second above 30% of your heart-rate reserve raises it, and the steep parts are where the effort was. From $drawn recorded minutes.',
             child: CustomPaint(
               size: Size.infinite,
               painter: LineChart(d.curve, p.on(C.purple),
@@ -364,26 +364,26 @@ class _DayStrainDetailState extends State<DayStrainDetail> {
 
   // ── the inputs, named ──────────────────────────────────────────────────────
   Widget _inputs(P p, AppLocalizations? l, DayStrainData d) {
-    final max = d.maxHrUsed;
+    final max = d.strainMaxHr;
+    final zoneMax = d.zoneMaxHr;
     return Surface(
       elevation: 0,
       color: p.card2,
       child: Text(
         [
           l?.dayStrainInputsBase ??
-              'How hard your heart worked while awake, by minutes in each heart-rate zone, on a 0–21 scale.',
+              "WHOOP's strain formula over your second-by-second heart rate for the whole day, sleep included, on a 0 to 21 scale. Seconds under 30% of your heart-rate reserve add nothing.",
           if (max != null)
             l?.dayStrainInputsMaxHr(max.round()) ??
-                'It was integrated against an assumed maximum of '
-                    '${max.round()} bpm — estimated from your age and your strap, '
-                    'not measured.',
-          // Said out loud because the zone bar above can now be banded on a
-          // MEASURED ceiling while this number is still the age estimate, and
-          // two different ceilings on one screen with nothing saying so is
-          // exactly the defect TS-03a removed.
-          if (max != null && d.zoneSource != null && d.zoneSource != 'tanaka')
+                'Your maximum is taken as ${max.round()} bpm: WHOOP\'s estimate '
+                    'from your age and sex, or the highest heart rate the band '
+                    'has held if that is higher.',
+          // Said out loud because the zone bar above is banded on its own
+          // ceiling, and two different ceilings on one screen with nothing
+          // saying so is exactly the defect TS-03a removed.
+          if (max != null && zoneMax != null && zoneMax.round() != max.round())
             l?.dayStrainInputsMeasuredCeilingNote ??
-                'The zone bar uses your measured maximum. Strain does not, so the strain scores you have already seen stay the same.',
+                'The zone bar is set on its own maximum, so its edges do not follow this one.',
           l?.dayStrainInputsRhrAnchor ??
               'The other anchor is your resting heart rate from the night before, '
                   'so a night the band missed moves the whole day.',

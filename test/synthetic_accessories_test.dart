@@ -88,7 +88,8 @@ void main() {
     expect(before['hrv'],
         allOf(containsPair('class', 'unavailable'),
             containsPair('reason', Why.neverBeats.name)));
-    final strainBefore = (await _scalars())['strain'] as num;
+    // The watch's day is minutes-apart HR: no WHOOP strain, before or after.
+    expect((await _scalars())['strain'], isNull);
 
     await LocalDb.upsertDevice(id: _strap, adapterId: 'ble_hrs');
     final start = SyntheticDay.sec(DateTime(2026, 10, 4, 12));
@@ -126,8 +127,9 @@ void main() {
         allOf(containsPair('class', 'ours'), containsPair('method', 'rr_strap')));
     expect(c['hrv']!['value'] as num, closeTo(rmssd, rmssd * 0.15),
         reason: 'the RMSSD of the beats the strap sent');
-    expect(c['strain']!['value'] as num, greaterThan(strainBefore),
-        reason: "the session's 150 bpm is the strap's, at 1 Hz");
+    // The day stays the watch's, so it still has no strain; the strap's 1 Hz
+    // session is scored on its own row.
+    expect(c['strain']!['value'], isNull);
     // The watch's own rows still decide the rest of the day.
     expect(c['resting_hr']!['method'], 'hr_1min');
     // Stored as made: the beat-only numbers are the strap's, the recovery

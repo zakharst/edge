@@ -65,7 +65,12 @@ import 'inputs/garmin_inputs.dart'
 import 'inputs/oura_inputs.dart' show kOuraFamily, ouraStrapOwnsNight;
 import 'inputs/ultrahuman_inputs.dart' show ultrahumanDayBlock;
 import 'hr_max.dart'
-    show estimatedMaxHr, kHrFloorBpm, smoothedMaxHr, smoothedMinHr;
+    show
+        estimatedMaxHr,
+        kHrFloorBpm,
+        smoothedMaxHr,
+        smoothedMinHr,
+        whoopStrainMaxHr;
 import 'movement_floor_policy.dart' as mfp;
 import 'sleep_profile_policy.dart';
 import 'derive_prepare.dart';
@@ -1810,7 +1815,17 @@ import 'vendor_sleep.dart';
 // store `skin_temp_ambient_r` and the illness watch leaves out WHOOP 4 nights
 // whose skin temp tracks ambient (|r| >= 0.8, or unmeasured). One-shot,
 // raw-free: days derived before v106 drop naps overlapping the next night.
-const int kAlgoVersion = 113;
+// 113 → 114 (WHOOP strain): headline day strain is WHOOP's client formula
+// (Android 5.471.0, analytics `whoopStrain`) over the whole day's 1 Hz HR:
+// 25th-percentile smoothing over ±30 samples cut at 30 s gaps, HRR against
+// max HR + 3 with nothing under 0.30, 16/(e^((1-x)/0.15)+1) per second with dt
+// capped at 3 s, raw = sum/691200 through WHOOP's 211-row table. HRmax is
+// WHOOP's regression (age, sex; fitness taken as collegiate) raised to the
+// lifetime held max, stored as `strain_max_hr`. No quiet-level dependency, so
+// strain is there from day one; wearable families abstain (`hr_1hz`).
+// `trimp_net`/`quiet_hrr`, zones and calories are unchanged. Days whose raw is
+// pruned keep their stored strain. Repin kAnalyticsPin with the analytics merge.
+const int kAlgoVersion = 114;
 /// The sibling SHAs this version was derived against, asserted against
 /// pubspec.yaml in test/db_serve_version_and_reads_test.dart.
 ///
@@ -3689,10 +3704,9 @@ class DerivationEngine {
           // fallback.
           : [
               ...rawPriority,
-              ...{for (final iv in coverage) iv.deviceId}
-                  .difference(rawPriority.toSet())
-                  .toList()
-                ..sort(),
+              ...{
+                for (final iv in coverage) iv.deviceId,
+              }.difference(rawPriority.toSet()).toList()..sort(),
             ];
       // Rule R6: a flag-off device ranked for (or covering) this signal owns
       // nothing; its windows fall through to the next flag-on device. Nor
@@ -3737,10 +3751,9 @@ class DerivationEngine {
         ? const <String>[]
         : await flagOnOrPrimary([
             ...rawSparse,
-            ...{for (final iv in sparseCoverage) iv.deviceId}
-                .difference(rawSparse.toSet())
-                .toList()
-              ..sort(),
+            ...{
+              for (final iv in sparseCoverage) iv.deviceId,
+            }.difference(rawSparse.toSet()).toList()..sort(),
           ]);
     final sparsePriority = ranked.isNotEmpty ? ranked : [activeId];
     if (ranked.isNotEmpty) priority[InputSignal.hrSparse] = sparsePriority;
@@ -4634,10 +4647,10 @@ class DerivationEngine {
       if (ana.personalQuietWakingHrr(after(day)).present) day,
   ];
 
-  /// Whether [bundle] (day [date], about to be persisted) MAY be owed a strain
-  /// re-score — deliberately an OVER-approximation, with no counting.
+  /// Whether [bundle] (day [date], about to be persisted) MAY be owed a
+  /// `trimp_net` re-score — deliberately an OVER-approximation, with no counting.
   ///
-  /// Owed when strain abstained ON THE QUIET LEVEL (the `need_baseline` rung,
+  /// Owed when `trimp_net` abstained ON THE QUIET LEVEL (the `need_baseline` rung,
   /// last in the gate order, so no other input was missing) and ANY earlier
   /// day could have changed that: one whose raw is not finalized yet (a sweep
   /// derives newest-first and concurrently, so it may simply not be done) or
@@ -4699,11 +4712,13 @@ class DerivationEngine {
   Future<bool> debugQuietLevelUnreachable(String date) =>
       _quietLevelUnreachable(date);
 
-  /// Strain abstained for want of a quiet-waking level and nothing else.
+  /// `trimp_net` abstained for want of a quiet-waking level and nothing else.
+  /// (Headline strain is WHOOP's formula and never waits on the level; the
+  /// CTL/ATL load still does.)
   @visibleForTesting
   static bool quietBlocked(Map<String, dynamic> bundle) {
-    if ((bundle['scalars'] as Map?)?['strain'] != null) return false;
-    final note = (bundle['absent_notes'] as Map?)?['strain'];
+    if ((bundle['scalars'] as Map?)?['trimp_net'] != null) return false;
+    final note = (bundle['absent_notes'] as Map?)?['trimp_net'];
     return note is String && note.startsWith('need_baseline:');
   }
 
@@ -5622,8 +5637,17 @@ class DerivationEngine {
         dynHistoryDays: dynHistory.length,
         // Per method family like every other baseline: a wearable's day is
         // priced on its own resolution's levels (a band's: unchanged).
-        quietHrrHistory: history.valuesBefore('quiet_hrr', day.date,
-            family: _baselineFamily('quiet_hrr', daySub.deviceFamily)),
+        quietHrrHistory: history.valuesBefore(
+          'quiet_hrr',
+          day.date,
+          family: _baselineFamily('quiet_hrr', daySub.deviceFamily),
+        ),
+        // Same read as `_attachHistory`'s `observed_hr_ceiling_bpm`.
+        observedHrCeilingBpm: history.maxBefore(
+          'hr_ceiling_bpm',
+          day.date,
+          family: methodFamily(daySub.deviceFamily),
+        ),
         savedSessions: savedSessions,
         wristOffSpans: wristOffSpans,
         chargingSpans: chargingSpans,
@@ -7353,6 +7377,9 @@ class DerivationEngine {
     /// [_BaselineHistoryCache.valuesBefore]). Fewer than three valid values
     /// and strain abstains.
     List<double> quietHrrHistory = const [],
+
+    /// Highest HR held on an earlier day; raises strain's HRmax.
+    double? observedHrCeilingBpm,
   }) {
     final wake = _buildWakeDayFeatures(
       daySub,
@@ -7367,6 +7394,7 @@ class DerivationEngine {
       dynFloorG: dynFloorG,
       stepSpans: stepSpans,
       quietHrrHistory: quietHrrHistory,
+      observedHrCeilingBpm: observedHrCeilingBpm,
     );
     // ACTIVE ENERGY WORKOUT-GAP CREDIT. `wake['calories']` above is built
     // ENTIRELY from `daySub.hr` — the day's own continuous 1 Hz trace — and
@@ -7488,6 +7516,9 @@ class DerivationEngine {
     // a training-load (CTL/ATL) read wants instead of gross TRIMP.
     scMap?['quiet_hrr'] = (wake['quiet_hrr'] as num?)?.toDouble();
     scMap?['trimp_net'] = (wake['trimp_net'] as num?)?.toDouble();
+    // The HRmax that strain was scored against (WHOOP regression or the
+    // lifetime held max), erased with it.
+    scMap?['strain_max_hr'] = (wake['strain_max_hr'] as num?)?.toDouble();
     final calories = (wake['calories'] as num?)?.toDouble();
     if (calories != null) scMap?['calories'] = calories;
     final steps = (wake['steps'] as num?)?.toDouble();
@@ -8006,6 +8037,7 @@ class DerivationEngine {
     List<List<int>> stepSpans = const [],
     int tonightSleepOnsetSec = 0,
     List<double> quietHrrHistory = const [],
+    double? observedHrCeilingBpm,
   }) {
     final activeMin = _activeMinutes(daySub, sleepOnsetSec, sleepOffsetSec);
     final wear = _wearBlock(
@@ -8046,10 +8078,16 @@ class DerivationEngine {
     // say which strap measured this day.
     final hrMax = estimatedMaxHr(profile.ageYears, daySub.deviceFamily);
     final rhrForTrimp = restingHr ?? profile.restingHrManual?.toDouble();
-    // THIS user's quiet-waking level, from PRIOR days only — the same list the
-    // pure pipeline got, through the same analytics call, so both halves price
-    // the day identically.
+    // THIS user's quiet-waking level, from PRIOR days only. It prices
+    // `trimp_net` (the CTL/ATL load), no longer the headline strain.
     final quiet = ana.personalQuietWakingHrr(quietHrrHistory);
+    // Strain's ceiling: WHOOP's regression raised to the lifetime held max —
+    // the same call, on the same inputs, as the pure pipeline's.
+    final strainMaxHr = whoopStrainMaxHr(
+      profile.ageYears,
+      sex,
+      lifetimeObservedBpm: observedHrCeilingBpm,
+    );
     // TODAY's own quiet level — persisted for LATER days' baselines only. It
     // never scores today (that would subtract today's own living from itself).
     // Below `quietHrrTraitMinMinutes` wake minutes the day measured that
@@ -8078,19 +8116,33 @@ class DerivationEngine {
         // We know the age; we do not know what measured the HR, so we
         // have no ceiling to band it against.
         : ana.unknownFamilyNote(daySub.deviceFamily);
-    String? strainAbsent = perMin.isEmpty
-        ? needInputNote('wake_hr')
-        : hrMax == null
-        ? ceilingAbsent
-            : dayHrValid.isEmpty
+    String? strainAbsent = dayHrValid.isEmpty
         ? needInputNote('hr_samples')
-                : rhrForTrimp == null
-        ? needInputNote('resting_hr')
-                    : sex == null
+        // WHOOP's formula caps a sample at 3 s; a wearable's minutes-apart
+        // readings would score near 0, so it abstains (see the pipeline).
+        : isWearableFamily(daySub.deviceFamily)
+        ? needInputNote('hr_1hz')
+        : profile.ageYears == null
+        ? needInputNote('age')
+        : sex == null
         ? needInputNote('sex')
-        : !quiet.present
-        ? (quiet.note ?? kUnknownAbsenceNote)
+        : rhrForTrimp == null
+        ? needInputNote('resting_hr')
         : null;
+    // HEADLINE STRAIN: WHOOP's client formula over the whole day's 1 Hz HR,
+    // off-skin zeros included (it drops them itself, keeping the gaps).
+    final whoop = strainAbsent != null
+        ? null
+        : ana.whoopStrain(
+            [for (final h in daySub.hr) h.toDouble()],
+            daySub.tsSec,
+            restingHr: rhrForTrimp,
+            maxHr: strainMaxHr,
+          );
+    if (whoop != null) strain = whoop.strain;
+    // Every named input was there and the scorer still abstained (too few
+    // valid samples, or a resting HR at or above the ceiling).
+    strainAbsent ??= whoop == null ? ana.whoopStrainAbsentNote : null;
     // `wakeDayEnergy`'s own gates, named. It returns a bare null, so the reason
     // has to be reconstructed from the same inputs it reads — in its order.
     final caloriesAbsent = perMin.isEmpty
@@ -8130,6 +8182,7 @@ class DerivationEngine {
           rhrForTrimp != null &&
           sex != null &&
           quiet.present) {
+        // `trimp_net` only — the CTL/ATL load above the quiet level.
         // Same sex normalisation the calorie path uses. This read `sex == 'f'`
         // alone, so a profile stored as 'female' (which the profile screen can
         // write) got female calorie coefficients and MALE TRIMP off the same
@@ -8147,15 +8200,6 @@ class DerivationEngine {
           quietHrr: quiet.value!.hrr,
           sex: sexEnum,
         );
-        // The same map `strainScoreFromSeries` applies to the same NetTrimp —
-        // one pass, and the persisted `trimp_net` and `strain` cannot come
-        // from two different accumulations. (The calibrating confidence lives
-        // on the pipeline's envelope; this half writes a bare scalar.)
-        if (net != null) strain = ana.strainFromNetTrimp(net.net);
-        // Every named input was there and the scorer still abstained. We do not
-        // know why; saying so is the honest floor, and it is what the rule
-        // "never a guessed cause" leaves when there is no cause to name.
-        strainAbsent ??= strain == null ? kUnknownAbsenceNote : null;
       }
       // NO ZONES HERE. The day's `zones` are the pure pipeline's, binned on
       // the same `trainingZones` set as `zone_timeline`/`zone_source` beside
@@ -8236,6 +8280,7 @@ class DerivationEngine {
       'active_min': activeMin,
       'movement_min': movementMin,
       'strain': strain,
+      'strain_max_hr': whoop?.maxHrUsed,
       'quiet_hrr': quietToday,
       'trimp_net': net?.net,
       // Machine-readable reason `strain` is null (see `strainAbsent`). Null
@@ -8247,6 +8292,16 @@ class DerivationEngine {
       // seam attaches to the value it hands a screen — see the note there.
       'absent_notes': <String, String>{
         if (strain == null) 'strain': strainAbsent ?? kUnknownAbsenceNote,
+        // Only when the quiet level was the one input missing: the marker the
+        // re-score pass (`quietBlocked`) keys on.
+        if (net == null &&
+            perMin.isNotEmpty &&
+            hrMax != null &&
+            dayHrValid.isNotEmpty &&
+            rhrForTrimp != null &&
+            sex != null &&
+            !quiet.present)
+          'trimp_net': quiet.note ?? kUnknownAbsenceNote,
         if (hrMax == null && ceilingAbsent != null)
           'max_hr_used': ceilingAbsent,
         if (calories == null) 'calories': caloriesAbsent ?? kUnknownAbsenceNote,
@@ -9551,6 +9606,7 @@ class DerivationEngine {
       sessions: inp.savedSessions,
       tonightSleepOnsetSec: inp.tonightSleepOnsetSec,
       quietHrrHistory: inp.quietHrrHistory,
+      observedHrCeilingBpm: inp.observedHrCeilingBpm,
     );
 
     bundlePatch['daytime_hrv'] = _daytimeHrv(daySub, onset, offset,
@@ -10296,8 +10352,13 @@ class _DayBlocksInput {
   final int dynHistoryDays;
 
   /// Prior days' `quiet_hrr` (strictly before [date]) — the same window the
-  /// pure pipeline was handed, so both halves price strain on one level.
+  /// pure pipeline was handed, so both halves price `trimp_net` on one level.
   final List<double> quietHrrHistory;
+
+  /// The highest HR held on any day strictly before [date] — the same figure
+  /// the pure pipeline was handed (`observed_hr_ceiling_bpm`), the lifetime
+  /// max that raises strain's WHOOP HRmax.
+  final double? observedHrCeilingBpm;
 
   final List<Map<String, dynamic>> savedSessions;
 
@@ -10353,6 +10414,7 @@ class _DayBlocksInput {
     required this.dynFloorG,
     required this.dynHistoryDays,
     this.quietHrrHistory = const [],
+    this.observedHrCeilingBpm,
     required this.savedSessions,
     this.napEdits = const [],
     required this.wristOffSpans,

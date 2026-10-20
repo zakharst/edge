@@ -32,7 +32,7 @@ import 'dart:convert';
 
 import 'package:openstrap_analytics/onehz.dart' as ana;
 
-import 'hr_max.dart' show smoothedMaxHr;
+import 'hr_max.dart' show smoothedMaxHr, whoopStrainMaxHr;
 import 'profile.dart';
 
 /// Shortest window we accept. Below a minute the 1 Hz substrate cannot say
@@ -295,9 +295,13 @@ double? strainFromPerMinuteHr(
 /// [restingHr] is the nightly/user RHR; [profile] supplies age/weight/sex.
 ///
 /// Uses the SAME published methods as the day-level derivation so a manual
-/// session and the day it sits in are on one scale: `ana.strainScoreFromSeries`
-/// against [quietHrr] (the session day's level) for strain, `ana.Calories.estimateBoutCalories`
-/// (Keytel 2005) for kcal. A missing anchor makes the dependent metric null.
+/// session and the day it sits in are on one scale: `ana.whoopStrain` over
+/// the window's own 1 Hz HR for strain (the day floor compares the two),
+/// `ana.Calories.estimateBoutCalories` (Keytel 2005) for kcal. A missing
+/// anchor makes the dependent metric null.
+///
+/// [lifetimeHrCeilingBpm] is the highest HR held on any earlier day; it raises
+/// strain's WHOOP HRmax exactly as it does for the day.
 ///
 /// [hrMax] is THE ceiling for this window — `estimatedMaxHr(age, family)`,
 /// resolved by the caller, which is the only layer that knows which strap
@@ -314,8 +318,7 @@ ManualSessionStats computeManualSessionStats({
   required double? hrMax,
   double? restingHr,
   ana.HeartRateZoneSet? zoneSet,
-  double? quietHrr,
-  bool quietSettled = true,
+  double? lifetimeHrCeilingBpm,
 }) {
   if (hrTs.isEmpty || hrTs.length != hrBpm.length) {
     return const ManualSessionStats();
@@ -337,7 +340,6 @@ ManualSessionStats computeManualSessionStats({
   if (worn.isEmpty) return const ManualSessionStats();
 
   final avg = worn.reduce((a, b) => a + b) / worn.length;
-  final perMin = hrPerMinute(wornTs, worn);
 
   final age = profile.ageYears?.toDouble();
   // THE peak, spike-suppressed, at the point every save goes through (#127).
@@ -351,12 +353,16 @@ ManualSessionStats computeManualSessionStats({
   final weightKg = profile.weightKg;
   final sex = profile.sex?.toLowerCase();
 
-  final strain = strainFromPerMinuteHr(perMin,
-      profile: profile,
-      restingHr: restingHr,
-      hrMax: hrMax,
-      quietHrr: quietHrr,
-      quietSettled: quietSettled);
+  // A null [hrMax] is a strap we cannot name; strain abstains with the rest.
+  final strain = hrMax == null
+      ? null
+      : ana.whoopStrain(
+          [for (final v in worn) v.toDouble()],
+          wornTs,
+          restingHr: restingHr,
+          maxHr: whoopStrainMaxHr(profile.ageYears, sex,
+              lifetimeObservedBpm: lifetimeHrCeilingBpm),
+        )?.strain;
 
   double? calories;
   if (profile.hasCalorieAnchors &&

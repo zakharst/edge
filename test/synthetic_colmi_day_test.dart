@@ -103,7 +103,7 @@ void main() {
       'readiness': 'estimated',
       'irregular_rhythm': 'unavailable',
       'steps': 'device',
-      'strain': 'estimated',
+      'strain': 'unavailable',
       'calories': 'device',
       'movement': 'unavailable',
       'auto_workouts': 'unavailable',
@@ -162,9 +162,8 @@ void main() {
 
     // Estimated only where the ring gives nothing: it gives calories, so
     // those are its own (PLAN §3b: never C when V exists).
-    expect(cells['strain']!['method'], 'hr_5min');
-    expect(v('strain'), inInclusiveRange(4, 15),
-        reason: 'a 40-minute run at 150 bpm');
+    // WHOOP's strain formula needs 1 Hz HR; this column is minutes apart.
+    expect(cells['strain']!['value'], isNull);
     expect(cells['calories']!['method'], 'device');
     expect(cells['calories']!.containsKey('band'), isFalse);
     expect((v('calories') - _truth.stepsOn(_truth.day) / 20).abs(),

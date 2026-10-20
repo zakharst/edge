@@ -24,6 +24,8 @@ import 'dart:math' as math;
 
 import 'package:openstrap_analytics/onehz.dart' as ana;
 
+import 'profile.dart' show workoutSex;
+
 // ── THE app's HR ceiling for zones / TRIMP / calories ────────────────────────
 //
 // There used to be five of these. `220 − age` at local_repository_impl.dart,
@@ -65,6 +67,31 @@ import 'package:openstrap_analytics/onehz.dart' as ana;
 double? estimatedMaxHr(num? age, String? deviceFamily) {
   if (age == null || age <= 0) return null;
   return 208.0 - 0.7 * age.toDouble();
+}
+
+/// The HRmax STRAIN is priced on, and only strain: WHOOP's own regression
+/// (`ana.whoopMaxHrEstimate`) raised to [lifetimeObservedBpm] when the band has
+/// held higher, which is what WHOOP's profile max does (g.k). Zones and
+/// calories stay on [estimatedMaxHr]; this is the WHOOP formula's input, not a
+/// second app-wide ceiling.
+///
+/// Null without an age or a sex: both are terms of the regression.
+double? whoopStrainMaxHr(num? age, String? sex, {double? lifetimeObservedBpm}) {
+  if (age == null || age <= 0 || sex == null) return null;
+  final est = ana.whoopMaxHrEstimate(
+    age.toDouble(),
+    sex: switch (workoutSex(sex)) {
+      'male' => ana.WhoopBiologicalSex.male,
+      'female' => ana.WhoopBiologicalSex.female,
+      _ => ana.WhoopBiologicalSex.nonBinary,
+    },
+    // shortcut: the profile has no WHOOP fitness level, so every user gets
+    // `collegiate` (term 0.0, the highest estimate); add the field to the
+    // profile if strain should read it.
+    fitness: ana.WhoopFitnessLevel.collegiate,
+  );
+  final seen = lifetimeObservedBpm;
+  return seen != null && seen.isFinite && seen > est ? seen : est;
 }
 
 /// THE zone set every surface bands on — day zones, the day zone timeline and a

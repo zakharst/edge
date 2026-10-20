@@ -200,6 +200,9 @@ const _inputWhy = {
       'Too few half-hour stretches of clean breathing through the night to '
           'compare against each other.',
   'accel_1hz': 'No motion was recorded alongside the heart rate.',
+  'hr_1hz':
+      'This needs second-by-second heart rate, and this device records it '
+          'minutes apart.',
   // NOT a wait-and-it-fills absence: an imported day has no raw behind it to
   // re-derive from, so the copy must not imply that wearing the band will
   // backfill it. 284 of whoop-5's 287 days are this.

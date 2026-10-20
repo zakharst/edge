@@ -16,7 +16,8 @@
 /// method's mean absolute error against the 1 Hz value on that family's
 /// profile, in the row's own unit, rounded up. An average over days, not a
 /// per-day bound: the UI words it "on average", and single days can sit
-/// further off (5-min strain is outside ±1.5 on 1 day in 24). Readiness is
+/// further off. Strain carries none: it needs 1 Hz HR and abstains on these
+/// families. Readiness is
 /// banded only as the rhr-only partial score against the same partial score
 /// at 1 Hz, never against the full composite, and its text says so. The
 /// validation test fails when a method's error passes its band, when it is
@@ -36,8 +37,6 @@ final Map<String, num> kMethodBand = {
     '$family/nadir_dip/$hr': 1,
     // 0.02 / 0.18 bpm.
     '$family/baselines_load_illness/$hr': 1,
-    // 0.15 / 0.43.
-    '$family/strain/$hr': hr == 'hr_1min' ? 0.3 : 0.6,
     // 4.1 / 2.7 kcal. Not Colmi's: our estimate serves there only on a day
     // the ring stored no calories, and no low-resolution profile has such a
     // day, so its error is unmeasured and shows no band.

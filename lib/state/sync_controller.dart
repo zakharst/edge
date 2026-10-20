@@ -1119,8 +1119,28 @@ class SyncController {
       ? null
       : DateTime.fromMillisecondsSinceEpoch(lastRecTs! * 1000);
 
+  /// [lastRecTs] when the current transfer started (the first batch of a
+  /// quiet-to-active edge): the near end of the gap being filled.
+  int? _drainFromTs;
+
+  /// How much of the gap the current transfer has filled, 0..1: data edge
+  /// moved since the transfer started, over the gap from there to now. Null
+  /// when there is no edge yet or the gap is under 5 minutes (a routine
+  /// top-up has nothing worth a progress bar). A band that was offline all
+  /// night drains hours of records, and a bare spinner over that read as a
+  /// hang (2026-10-20).
+  double? get drainFraction {
+    final from = _drainFromTs;
+    final at = lastRecTs;
+    if (from == null || at == null) return null;
+    final gap = DateTime.now().millisecondsSinceEpoch ~/ 1000 - from;
+    if (gap < 300) return null;
+    return ((at - from) / gap).clamp(0.0, 1.0);
+  }
+
   void markSyncActivity() {
     final now = DateTime.now().millisecondsSinceEpoch;
+    if (!_syncActivity.isActive(now)) _drainFromTs = lastRecTs;
     _syncActivity.mark(now);
     _syncQuietTimer?.cancel();
     _syncQuietTimer = Timer(

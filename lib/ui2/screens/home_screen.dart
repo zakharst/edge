@@ -395,6 +395,9 @@ class _StatusBarData {
   final int syncDrainBatches;
   final DeriveProgress deriveProgress;
   final DateTime? lastRecordAt;
+
+  /// Whole percent of the gap the current transfer has filled, or null.
+  final int? drainPercent;
   final double? batteryPct;
   final bool isCharging;
   final double? batteryPackPct;
@@ -411,6 +414,7 @@ class _StatusBarData {
     this.syncDrainBatches = 0,
     this.deriveProgress = DeriveProgress.idle,
     this.lastRecordAt,
+    this.drainPercent,
     this.batteryPct,
     required this.isCharging,
     this.batteryPackPct,
@@ -432,6 +436,7 @@ class _StatusBarData {
           syncDrainBatches == other.syncDrainBatches &&
           deriveProgress == other.deriveProgress &&
           lastRecordAt == other.lastRecordAt &&
+          drainPercent == other.drainPercent &&
           batteryPct == other.batteryPct &&
           isCharging == other.isCharging &&
           batteryPackPct == other.batteryPackPct &&
@@ -450,6 +455,7 @@ class _StatusBarData {
         syncDrainBatches,
         deriveProgress,
         lastRecordAt,
+        drainPercent,
         batteryPct,
         isCharging,
         batteryPackPct,
@@ -494,6 +500,10 @@ class _WhoopStatusBar extends StatelessWidget {
             syncDrainBatches: a.syncDrainBatches,
             deriveProgress: a.deriveProgress,
             lastRecordAt: a.lastRecordAt,
+            // Whole percent, so the bar does not rebuild on every record.
+            drainPercent: a.drainFraction == null
+                ? null
+                : (a.drainFraction! * 100).round(),
             batteryPct: a.device.batteryPct,
             isCharging: a.device.charging ?? false,
             batteryPackPct: a.device.batteryPackPct,
@@ -523,6 +533,7 @@ class _WhoopStatusBar extends StatelessWidget {
                   syncDrainBatches: data.syncDrainBatches,
                   deriveProgress: progress,
                   lastRecordAt: data.lastRecordAt,
+                  drainPercent: data.drainPercent,
                   batteryPct: data.batteryPct,
                   isCharging: data.isCharging,
                   batteryPackPct: data.batteryPackPct,
@@ -561,6 +572,10 @@ class _WhoopStatusBar extends StatelessWidget {
       final formattedRecords = records > 0
           ? NumberFormat.decimalPattern().format(records)
           : null;
+      // How far the data now reaches, and how much of the gap that is: a long
+      // overnight backlog takes minutes, and a bar that only spins reads as a
+      // hang.
+      final percent = data.drainPercent;
 
       return Container(
         margin: const EdgeInsets.only(bottom: S.x3),
@@ -625,11 +640,19 @@ class _WhoopStatusBar extends StatelessWidget {
             ClipRRect(
               borderRadius: R.rSm,
               child: LinearProgressIndicator(
+                value: percent == null ? null : percent / 100,
                 minHeight: 4,
                 backgroundColor: p.on(C.blue).withValues(alpha: 0.15),
                 color: p.on(C.blue),
               ),
             ),
+            if (percent != null) ...[
+              const SizedBox(height: S.x2),
+              Text(
+                '${syncedThroughLabel(lastRecordAt, todayId, l)} · $percent%',
+                style: F.cap.copyWith(color: p.ink, fontWeight: FontWeight.w600),
+              ),
+            ],
             const SizedBox(height: S.x2),
             Row(
               children: [

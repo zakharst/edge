@@ -272,6 +272,30 @@ void main() {
   setUp(() => deriveDbSetUp(_db));
   tearDown(() => deriveDbTearDown(_db));
 
+  group('how far a drain has come', () {
+    int nowSec() => DateTime.now().millisecondsSinceEpoch ~/ 1000;
+
+    test('the gap is measured from where the data stood when the transfer '
+        'started, to now', _rigCase((r, timers) async {
+      final start = nowSec() - 6 * 3600;
+      r.c.lastRecTs = start;
+      r.c.markSyncActivity();
+      r.c.lastRecTs = start + 3 * 3600;
+      expect(r.c.drainFraction, closeTo(0.5, 0.01));
+      r.c.markSyncActivity(); // a later batch inside the window keeps the start
+      r.c.lastRecTs = start + 6 * 3600;
+      expect(r.c.drainFraction, closeTo(1.0, 0.01));
+    }));
+
+    test('no fraction for a gap of a few minutes, or with no data yet',
+        _rigCase((r, timers) async {
+      expect(r.c.drainFraction, isNull);
+      r.c.lastRecTs = nowSec() - 120;
+      r.c.markSyncActivity();
+      expect(r.c.drainFraction, isNull);
+    }));
+  });
+
   group('openSession and the busy early return', () {
     test('the foreground flip lands before the busy return, with the nudge',
         _rigCase((r, timers) async {

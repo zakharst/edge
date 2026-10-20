@@ -4969,6 +4969,7 @@ class AppState extends ChangeNotifier {
   int get syncDrainRecords => _sync.syncDrainRecords;
   int get syncDrainBatches => _sync.syncDrainBatches;
   DateTime? get lastRecordAt => _sync.lastRecordAt;
+  double? get drainFraction => _sync.drainFraction;
 
   /// A derive job is running RIGHT NOW — the backlog just landed and the
   /// pipeline is computing what it means. Surfaced so a screen sitting on

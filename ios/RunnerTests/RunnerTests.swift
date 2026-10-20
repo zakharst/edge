@@ -2,6 +2,7 @@ import Flutter
 import UIKit
 import XCTest
 import AppIntents
+import CoreBluetooth
 @testable import Runner
 
 @MainActor
@@ -164,4 +165,41 @@ class RunnerTests: XCTestCase {
     }
   }
 
+}
+
+/// Stands in for a CBPeripheral in flutter_blue_plus's connected map: the plugin only reads
+/// `state` from it on this path, and CBPeripheral itself can't be constructed in a test.
+private final class FakePeripheral: NSObject {
+  @objc let state: Int
+  init(state: CBPeripheralState) { self.state = state.rawValue }
+}
+
+/// The vendored flutter_blue_plus_darwin patch (third_party/flutter_blue_plus_darwin): an entry
+/// whose link is gone must not keep answering "already connected" until Bluetooth is toggled.
+class FbpStaleConnectionTests: XCTestCase {
+  private func plugin(with peripheral: FakePeripheral) throws -> (NSObject, NSMutableDictionary) {
+    let cls = try XCTUnwrap(NSClassFromString("FlutterBluePlusPlugin") as? NSObject.Type)
+    let plugin = cls.init()
+    let map = NSMutableDictionary(dictionary: ["BAND": peripheral])
+    plugin.setValue(map, forKey: "connectedPeripherals")
+    return (plugin, map)
+  }
+
+  private func connected(_ plugin: NSObject) -> AnyObject? {
+    plugin.perform(NSSelectorFromString("getConnectedPeripheral:"), with: "BAND")?
+      .takeUnretainedValue()
+  }
+
+  func testAnEntryWhoseLinkIsGoneIsDroppedNotReported() throws {
+    let (plugin, map) = try plugin(with: FakePeripheral(state: .disconnected))
+    XCTAssertNil(connected(plugin))
+    XCTAssertNil(map["BAND"])
+  }
+
+  func testALiveEntryStays() throws {
+    let live = FakePeripheral(state: .connected)
+    let (plugin, map) = try plugin(with: live)
+    XCTAssertTrue(connected(plugin) === live)
+    XCTAssertTrue(map["BAND"] as AnyObject === live)
+  }
 }

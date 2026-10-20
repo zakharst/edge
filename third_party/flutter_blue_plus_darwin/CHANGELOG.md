@@ -1,3 +1,8 @@
+## 7.0.3+edge.1 (vendored in openstrap edge)
+* edge patch: getConnectedPeripheral drops an entry whose CBPeripheral.state is not connected.
+  A restored "connected" peripheral could outlive its link (no didDisconnectPeripheral when
+  another central of the app owned and dropped it), leaving connect() a no-op until a BT toggle.
+
 ## 4.0.1
 * fix unrecognized selector sent to instance (regression from 4.0.0)
 

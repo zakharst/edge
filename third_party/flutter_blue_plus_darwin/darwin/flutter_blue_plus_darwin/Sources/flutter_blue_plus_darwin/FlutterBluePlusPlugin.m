@@ -833,7 +833,17 @@ typedef NS_ENUM(NSUInteger, LogLevel) {
 
 - (CBPeripheral *)getConnectedPeripheral:(NSString *)remoteId
 {
-    return [self.connectedPeripherals objectForKey:remoteId];
+    CBPeripheral *peripheral = [self.connectedPeripherals objectForKey:remoteId];
+    // edge patch: a peripheral restored as "connected" while another central of this app
+    // held the link never gets didDisconnectPeripheral here when that central drops it.
+    // Left in the map, it makes every later connect answer "already connected" and every
+    // GATT call hit a dead link until Bluetooth is toggled. CoreBluetooth's own state wins.
+    if (peripheral != nil && peripheral.state != CBPeripheralStateConnected) {
+        Log(LDEBUG, @"dropping stale connected entry for %@", remoteId);
+        [self.connectedPeripherals removeObjectForKey:remoteId];
+        return nil;
+    }
+    return peripheral;
 }
 
 

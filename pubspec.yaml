@@ -657,6 +657,13 @@ dependencies:
 # (the siblings aren't checked out in CI, so a committed path override fails
 # `flutter pub get` with exit 66).
 
+# flutter_blue_plus_darwin is vendored with one patch (see third_party/flutter_blue_plus_darwin/
+# CHANGELOG.md, "edge patch"). Drop this override once upstream trusts CBPeripheral.state.
+# A local pubspec_overrides.yaml REPLACES this block: repeat the entry there.
+dependency_overrides:
+  flutter_blue_plus_darwin:
+    path: third_party/flutter_blue_plus_darwin
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

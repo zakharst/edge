@@ -628,33 +628,25 @@ void _wiredFamilies() {
     });
   });
 
-  group('sleep reference: measured nights and a published floor, nothing else',
-      () {
+  // The sleep reference is the AASM/SRS consensus alone: adults should sleep
+  // 7 h or more per night (Watson et al. 2015, doi:10.5665/sleep.4716). Free
+  // nights, naps and strain do not move it; performance and shortfall are
+  // arithmetic on that one published number.
+  group('sleep reference: the AASM/SRS 7 h per night, nothing else', () {
     Map<String, dynamic> coachOf(List<Map<String, dynamic>> days) =>
         (buildCrossDayBundle(days, const {})['sleep_coach'] as Map)
             .cast<String, dynamic>();
     num? needSec(Map<String, dynamic> coach) =>
         ((coach['need'] as Map)['value'] as Map?)?['need_sec'] as num?;
 
-    test('today\'s strain no longer moves the reference', () {
-      final rest = _synthDays(30)..last['is_today'] = true;
-      rest.last['strain'] = 0.0;
-      final hard = _synthDays(30)..last['is_today'] = true;
-      hard.last['strain'] = 21.0;
-      expect(needSec(coachOf(hard)), needSec(coachOf(rest)));
-      expect(needSec(coachOf(hard)), isNotNull);
-    });
-
-    test('no strain bonus key and no composite score in the coach', () {
+    test('is 7 h, labelled the recommended adult minimum', () {
       final days = _synthDays(30)..last['is_today'] = true;
-      days.last['strain'] = 15.0;
-      final coach = coachOf(days);
-      expect(coach.containsKey('strain_bonus_min'), isFalse);
-      expect(coach.containsKey('score'), isFalse);
-      expect(coach.containsKey('nap_credit_min'), isTrue);
+      final need = coachOf(days)['need'] as Map;
+      expect((need['value'] as Map)['need_sec'], 25200);
+      expect((need['value'] as Map)['basis'], 'aasm_srs_adult_minimum');
     });
 
-    test('it is the p75 of free nights, with no 9.5 h ceiling', () {
+    test('long free nights do not move it', () {
       final days = _synthDays(28)..last['is_today'] = true;
       for (final d in days) {
         final wd = DateTime.parse(d['date'] as String).weekday;
@@ -662,32 +654,29 @@ void _wiredFamilies() {
           d['tst_min'] = 10 * 60;
         }
       }
-      expect(needSec(coachOf(days)), closeTo(10 * 3600, 1e-6));
+      expect(needSec(coachOf(days)), 25200);
     });
 
-    test('free nights under 7 h are lifted to the 7 h floor', () {
-      final days = _synthDays(28)..last['is_today'] = true;
-      for (final d in days) {
-        d['tst_min'] = 6 * 60;
-      }
-      expect(needSec(coachOf(days)), closeTo(7 * 3600, 1e-6));
-    });
-
-    test('no free night yet: the 7 h population reference, marked as such', () {
-      // 2024-01-01..03 is Monday-Wednesday: three nights, none of them free.
-      final days = _synthDays(3)..last['is_today'] = true;
-      final need = coachOf(days)['need'] as Map;
-      expect((need['value'] as Map)['need_sec'], closeTo(7 * 3600, 1e-6));
-      expect((need['value'] as Map)['basis'], 'population_floor');
-    });
-
-    test('today\'s nap sleep comes off tonight\'s reference in full', () {
+    test('today\'s nap does not come off it', () {
       final days = _synthDays(30)..last['is_today'] = true;
-      final before = needSec(coachOf(days))!;
       days.last['nap_min'] = 60.0;
+      expect(needSec(coachOf(days)), 25200);
+    });
+
+    test('today\'s strain does not move it', () {
+      final hard = _synthDays(30)..last['is_today'] = true;
+      hard.last['strain'] = 21.0;
+      expect(needSec(coachOf(hard)), 25200);
+    });
+
+    test('no nap credit, no second reference, no strain bonus, no score', () {
+      final days = _synthDays(30)..last['is_today'] = true;
+      days.last['strain'] = 15.0;
       final coach = coachOf(days);
-      expect(needSec(coach), closeTo(before - 3600, 1e-6));
-      expect(coach['nap_credit_min'], 60);
+      expect(coach.containsKey('nap_credit_min'), isFalse);
+      expect(coach.containsKey('reference_last_night'), isFalse);
+      expect(coach.containsKey('strain_bonus_min'), isFalse);
+      expect(coach.containsKey('score'), isFalse);
     });
   });
 
@@ -697,8 +686,7 @@ void _wiredFamilies() {
                 ['shortfall'] as Map)
             .cast<String, dynamic>();
 
-    // Every night 6 h: free-night p75 is 6 h, so each night's reference is the
-    // 7 h floor and each night is 1 h short.
+    // Every night 6 h against 7 h: each night is 1 h short.
     List<Map<String, dynamic>> sixHourNights(int n) {
       final days = _synthDays(n)..last['is_today'] = true;
       for (final d in days) {
@@ -707,7 +695,7 @@ void _wiredFamilies() {
       return days;
     }
 
-    test('sums reference minus sleep over the last 7 calendar nights', () {
+    test('sums max(0, 7 h - sleep) over the last 7 calendar nights', () {
       final v = shortfallOf(sixHourNights(30))['value'] as Map;
       expect(v['shortfall_hours'], closeTo(7.0, 1e-6));
       expect(v['nights'], 7);
@@ -722,14 +710,12 @@ void _wiredFamilies() {
       expect(v['shortfall_hours'], closeTo(6.0, 1e-6));
     });
 
-    test('the nap of the day before a night comes off that night', () {
+    test('a nap the day before does not cancel a short night', () {
       final days = sixHourNights(30);
-      // The night stored on days[-2] follows the day days[-3]: a 60 min nap
-      // there makes that night's reference 6 h, so it was not short at all.
       days[days.length - 3]['nap_min'] = 60.0;
       final v = shortfallOf(days)['value'] as Map;
-      expect(v['shortfall_hours'], closeTo(6.0, 1e-6));
-      expect((v['nights_hours'] as List)[5], closeTo(0.0, 1e-6));
+      expect(v['shortfall_hours'], closeTo(7.0, 1e-6));
+      expect((v['nights_hours'] as List)[5], closeTo(1.0, 1e-6));
     });
 
     test('under 3 nights it refuses', () {
@@ -747,29 +733,31 @@ void _wiredFamilies() {
       expect((coach['performance'] as Map)['value'], '—');
     });
 
-    test('TST last night → scored', () {
+    test('no today row → absent', () {
       final days = _synthDays(30);
-      days.last['is_today'] = true;
       final coach = (buildCrossDayBundle(days, const {})['sleep_coach'] as Map);
-      expect((coach['performance'] as Map)['value'], isA<Map>());
+      expect((coach['performance'] as Map)['value'], '—');
     });
 
-    test('it divides by LAST night\'s reference, not tonight\'s', () {
+    test('is last night\'s sleep over 7 h, naps on either side ignored', () {
       final days = _synthDays(30);
       days.last['is_today'] = true;
-      for (final d in days) {
-        d['tst_min'] = 6 * 60;
-      }
-      // Yesterday's 60 min nap made last night's reference 6 h, so 6 h of
-      // sleep is 100 %. Today's nap belongs to tonight and must not move it.
+      days.last['tst_min'] = 6 * 60;
       days[days.length - 2]['nap_min'] = 60.0;
       days.last['nap_min'] = 120.0;
       final coach = (buildCrossDayBundle(days, const {})['sleep_coach'] as Map);
+      // 6 h / 7 h = 85.71 %.
       expect(((coach['performance'] as Map)['value'] as Map)['pct'],
-          closeTo(100.0, 1e-6));
-      expect(
-          ((coach['reference_last_night'] as Map)['value'] as Map)['need_sec'],
-          closeTo(6 * 3600, 1e-6));
+          closeTo(600 / 7, 1e-6));
+    });
+
+    test('a night past 7 h reads above 100 %, not capped', () {
+      final days = _synthDays(30);
+      days.last['is_today'] = true;
+      days.last['tst_min'] = 8 * 60;
+      final coach = (buildCrossDayBundle(days, const {})['sleep_coach'] as Map);
+      expect(((coach['performance'] as Map)['value'] as Map)['pct'],
+          closeTo(800 / 7, 1e-6));
     });
   });
 

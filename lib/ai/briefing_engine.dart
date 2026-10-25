@@ -142,7 +142,7 @@ Future<Map<String, dynamic>> collectBriefingInputs(
       final eff = _num(ds['efficiency']);
       take('sleep_efficiency_pct',
           eff == null ? null : (eff <= 1 ? eff * 100 : eff), round: 0);
-      take('sleep_debt_min', ds['debt_min'], round: 0);
+      take('sleep_shortfall_min', ds['shortfall_min'], round: 0);
       take('deep_min', ds['deep_min'], round: 0);
       take('rem_min', ds['rem_min'], round: 0);
       take('awake_min', ds['awake_min'], round: 0);

@@ -1935,39 +1935,34 @@ _RingState _ringOf(HomeRingKind k, HomeData d, AppLocalizations? l) {
               value: v.toStringAsFixed(1), sub: l?.homeStrainOf21 ?? 'of 21', frac: v / 21);
     case HomeRingKind.sleep:
       final v = d.sleepMin.value;
-      final score = (d.sleepScore?['value'] as num?)?.round();
-      final scoredNeed = (d.sleepScore?['need_min'] as num?)?.toDouble();
-      if (v != null && score != null && scoredNeed != null) {
-        // The score, not hours over need: meeting the need on a broken night
-        // used to read 100% every morning.
+      final pct = d.sleepPerfPct.value?.round();
+      final ref = d.sleepNeedMin.value;
+      if (v != null && pct != null) {
+        // Sleep performance: last night's total sleep over the 7 h adult
+        // minimum (AASM/SRS). Above 100 % when the night ran longer; the ring
+        // itself only fills to full. No composite: the old 0-100 score had
+        // invented weights and a deep + REM term from a stager that cannot
+        // tell them apart.
         return _RingState(k, l?.homeRingSleep ?? 'Sleep', LucideIcons.moon,
             C.blue,
-            value: '$score',
-            sub: '${hm(v)} · of ${hm(scoredNeed)}',
-            frac: score / 100);
+            value: '$pct%',
+            sub: ref == null
+                ? hm(v)
+                : '${hm(v)} · ${l?.homeOfSpan(hm(ref)) ?? 'of ${hm(ref)}'}',
+            frac: (pct / 100).clamp(0.0, 1.0));
       }
-      final need = d.sleepNeedMin.value;
-      final scorePct = (v != null && need != null && need > 0)
-          ? ((v / need) * 100).round().clamp(0, 100)
-          : null;
       return v == null
           ? _gap(k, l?.homeRingSleep ?? 'Sleep', LucideIcons.moon, C.blue,
               d.sleepMin, l?.homeRingNoSleep ?? 'No sleep', l,
               fallbackWhy: l?.homeSleepGapFallback ??
                   'No night long enough to score was recorded.')
-          : _RingState(k,
-              scorePct == null
-                  ? (l?.homeRingSleep ?? 'Sleep')
-                  : '${l?.homeRingSleep ?? 'Sleep'} · $scorePct%',
-              LucideIcons.moon,
+          // Hours with no percentage: tonight's reference is not last night's,
+          // so dividing by it would measure the wrong night.
+          : _RingState(k, l?.homeRingSleep ?? 'Sleep', LucideIcons.moon,
               C.blue,
               value: hm(v),
-              sub: need == null
-                  ? (l?.homeSleepNoTarget ?? 'No target yet')
-                  : (scorePct != null
-                      ? '$scorePct% · of ${hm(need)}'
-                      : (l?.homeOfSpan(hm(need)) ?? 'of ${hm(need)}')),
-              frac: need == null || need <= 0 ? null : (v / need).clamp(0.0, 1.0));
+              sub: l?.homeSleepNoTarget ?? 'No target yet',
+              frac: null);
   }
 }
 
@@ -2186,12 +2181,14 @@ class HomeData {
   final Metric strain;
 
   final int stepGoal;
+  /// The sleep reference (`sleep_coach.need`, kept under its old key): the
+  /// AASM/SRS recommended minimum for adults, 7 h per night. A population
+  /// recommendation, not a measured personal need.
   final Metric sleepNeedMin;
 
-  /// Last night's 0-100 sleep score (`sleep_coach.score`): `value`,
-  /// `components` and the `need_min` it was measured against. Null when the
-  /// rollup could not score last night.
-  final Map<String, dynamic>? sleepScore;
+  /// Last night's sleep performance, % (`sleep_coach.performance`): total
+  /// sleep over [sleepNeedMin]. Not capped at 100.
+  final Metric sleepPerfPct;
   final Metric bedtime;
   final Map<String, dynamic>? strainTarget;
 
@@ -2249,7 +2246,7 @@ class HomeData {
     this.strain = Metric.empty,
     this.stepGoal = kDefaultStepGoal,
     this.sleepNeedMin = Metric.empty,
-    this.sleepScore,
+    this.sleepPerfPct = Metric.empty,
     this.bedtime = Metric.empty,
     this.strainTarget,
     this.heldOverNight,
@@ -2278,6 +2275,7 @@ class HomeData {
         strain: strain,
         stepGoal: stepGoal,
         sleepNeedMin: sleepNeedMin,
+        sleepPerfPct: sleepPerfPct,
         bedtime: bedtime,
         strainTarget: strainTarget,
         heldOverNight: heldOverNight,
@@ -2328,17 +2326,26 @@ class HomeData {
       calories: metricOf(strain['calories']),
       caloriesTotal: metricOf(strain['calories_total']),
       sleepMin: metricOf(sleep['duration_min']),
-      sleepScore: sleepScoreOf(crossDay),
+      sleepPerfPct: sleepPerfOf(crossDay),
+      sleepNeedMin: sleepNeedOf(crossDay),
       stepGoal: (profile['step_goal'] as num?)?.toInt() ?? kDefaultStepGoal,
     );
   }
 
-  /// The night's score out of a cross-day rollup, or null when it has none.
-  static Map<String, dynamic>? sleepScoreOf(Map crossDay) {
+  /// The night's sleep performance (%) out of a cross-day rollup, wearing
+  /// its envelope's note when absent.
+  static Metric sleepPerfOf(Map crossDay) {
     final coach = crossDay['sleep_coach'];
-    return coach is Map && coach['score'] is Map
-        ? (coach['score'] as Map).cast<String, dynamic>()
-        : null;
+    final env = coach is Map ? coach['performance'] : null;
+    return envMetric(env, envValue(env)?['pct'] as num?, unit: '%');
+  }
+
+  /// The reference the night's performance was measured against, in minutes.
+  static Metric sleepNeedOf(Map crossDay) {
+    final coach = crossDay['sleep_coach'];
+    final env = coach is Map ? coach['need'] : null;
+    final sec = envValue(env)?['need_sec'] as num?;
+    return envMetric(env, sec == null ? null : sec / 60, unit: 'min');
   }
 
   static Future<HomeData> load(LocalRepository repo, [AppLocalizations? l]) async {
@@ -2355,9 +2362,7 @@ class HomeData {
     final gbDrivers = gb is Map ? gb['drivers'] : null;
 
     final coach = cd['sleep_coach'];
-    final needEnv = coach is Map ? coach['need'] : null;
     final bedEnv = coach is Map ? coach['bedtime'] : null;
-    final needSec = (envValue(needEnv)?['need_sec'] as num?);
 
     final strain = today['coach'];
 
@@ -2414,11 +2419,10 @@ class HomeData {
       calories: metricOf(d('calories')),
       caloriesTotal: metricOf(d('calories_total')),
       stepGoal: (today['step_goal'] as num?)?.toInt() ?? kDefaultStepGoal,
-      // sleep_coach.need is the COMPUTED need. `sleep.need_min` is a hardcoded
-      // 480 and must never be shown as "your sleep need".
-      sleepNeedMin: envMetric(needEnv, needSec == null ? null : needSec / 60,
-          unit: 'min'),
-      sleepScore: sleepScoreOf(cd),
+      // sleep_coach.need is the 7 h adult minimum. `sleep.need_min` is a
+      // hardcoded 480 and must never be shown as the user's own.
+      sleepNeedMin: sleepNeedOf(cd),
+      sleepPerfPct: sleepPerfOf(cd),
       bedtime: envMetric(
           bedEnv, envValue(bedEnv)?['bedtime_min_of_day'] as num?),
       strainTarget: strain is Map && strain['strain_target'] is Map
@@ -3016,9 +3020,6 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
           NextGenMvpCard(
             repo: repoOf(c),
             dayId: d.dayId,
-            strain: d.strain,
-            sleepMinutes: d.sleepMin,
-            sleepNeedMinutes: d.sleepNeedMin,
           ),
         ),
 
@@ -3363,7 +3364,7 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
           l?.homeSleepNeedRow(hm(need)) ?? '${hm(need)} of sleep',
           l?.homeTonight ?? 'Tonight',
           d.bedtime.value == null
-              ? (l?.homeNeed ?? 'Need')
+              ? (l?.homeAdultMinimum ?? 'Adult minimum')
               : (l?.homeBedTime(clock(d.bedtime.value)) ?? 'Bed ${clock(d.bedtime.value)}'),
           false));
     }

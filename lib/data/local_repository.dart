@@ -103,8 +103,9 @@ abstract class LocalRepository {
       throw UnimplementedError('re-layer: getInsights');
 
   /// The same rollup as of a past [date], rebuilt from the stored nights up
-  /// to it, so that day's sleep score is its own night's. Empty when there
-  /// is none; a repository without one simply shows no past-day score.
+  /// to it, so that day's sleep performance is measured against its own
+  /// night's reference. Empty when there is none; a repository without one
+  /// simply shows no past-day performance.
   Future<Map<String, dynamic>> getInsightsAsOf(String date) async => const {};
 
   // ── day drill-down detail ────────────────────────────────────────────────────

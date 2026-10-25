@@ -1830,6 +1830,14 @@ import 'vendor_sleep.dart';
 // strain is there from day one; wearable families abstain (`hr_1hz`).
 // `trimp_net`/`quiet_hrr`, zones and calories are unchanged. Days whose raw is
 // pruned keep their stored strain.
+// 113 -> 114 (honest sleep): The sleep reference is the 7 h AASM/SRS adult
+// minimum (Watson et al. 2015, Sleep 38(6)). No strain bonus, no clamps:
+// `sleep_coach.strain_bonus_min` is gone. `sleep_coach.shortfall` is the
+// 7-night sum of max(0, reference - sleep), absent under 3 nights.
+// `sleep_coach.performance` is last night's sleep over the 7 h reference.
+// The weighted 0-100 `sleep_coach.score` and its crossday row inputs
+// (`waso_min`, `awakenings`, `deep_min`, `rem_min`) are removed;
+// SleepNeedCalculator is gone from analytics.
 const int kAlgoVersion = 114;
 /// The sibling SHAs this version was derived against, asserted against
 /// pubspec.yaml in test/db_serve_version_and_reads_test.dart.
@@ -2013,9 +2021,9 @@ const int kAlgoVersion = 114;
 // REPIN @ c0effea: analytics main, #79 + #86 (rmssd gate), for v105.
 // REPIN @ f44875b: current analytics main plus the Edge MOD readiness weights,
 // Next-Gen MVP APIs, and calculator hardening, for v113.
-// REPIN @ 483ca4e: analytics `chore/honest-recovery`, readiness weights back
-// to OpenStrap's 0.40/0.30/0.20/0.10, for v114.
-const String kAnalyticsPin = '483ca4e996e20b4b690517d6241bb24d059490d4';
+// REPIN @ fd0b505: analytics main carrying honest recovery weights, WHOOP
+// day-strain formula, and honest sleep (AASM/SRS 7 h adult minimum), for v114.
+const String kAnalyticsPin = 'fd0b5059da1c59c13e0cb1a703746215f24e433d';
 // Repinned to analytics main's tip, which carries BOTH PR #72 (hrv_freq
 // Welch gap guard) and PR #73 (overreachingConjunction rhr quantum guard) —
 // the two independent kAlgoVersion bumps above (93 and 94). Verified both
@@ -6894,13 +6902,6 @@ class DerivationEngine {
       'steps': sc('steps'),
       'nap_min': sc('nap_min'),
       'efficiency': sc('efficiency'),
-      // Sleep score inputs beyond hours (crossday `sleep_coach.score`).
-      'waso_min': (acctVal?['waso_sec'] as num?) == null
-          ? null
-          : (acctVal!['waso_sec'] as num) / 60.0,
-      'awakenings': sc('awakenings'),
-      'deep_min': sc('deep_min'),
-      'rem_min': sc('rem_min'),
       'onset_sec': onsetMs == null ? null : (onsetMs / 1000).round(),
       'wake_sec': offsetMs == null ? null : (offsetMs / 1000).round(),
       'tst_min': tstSec == null ? null : (tstSec / 60).round(),

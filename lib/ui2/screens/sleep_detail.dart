@@ -184,7 +184,20 @@ class SleepData {
 
   final Map<String, dynamic> night;
   final Map<String, dynamic> timeline;
-  final Metric need, debt, bedtime;
+  /// The sleep reference (`sleep_coach.need`, kept under its old key): the
+  /// AASM/SRS recommended minimum for adults, 7 h per night. Not a measured
+  /// need.
+  final Metric need;
+
+  /// Minutes the last 7 nights fell below the 7 h reference
+  /// (`sleep_coach.shortfall`); absent under 3 nights.
+  final Metric shortfall;
+
+  /// Phillips Sleep Regularity Index (`regularity.sri`); absent with a
+  /// `need_baseline` note under 3 nights.
+  final Metric regularity;
+
+  final Metric bedtime;
 
   /// The user's own recent nights, LAST NIGHT EXCLUDED, oldest→newest. Minutes
   /// for duration and deep, whole percent for efficiency, epoch seconds for
@@ -210,7 +223,8 @@ class SleepData {
     this.night = const {},
     this.timeline = const {},
     this.need = Metric.empty,
-    this.debt = Metric.empty,
+    this.shortfall = Metric.empty,
+    this.regularity = Metric.empty,
     this.bedtime = Metric.empty,
     this.tstHistory = const [],
     this.deepHistory = const [],
@@ -305,12 +319,20 @@ class SleepData {
       // A repository without per-device nights: ours only.
     }
     final timeline = await repo.getDayTimeline(day);
-    final cd = await repo.getInsights();
+    // The rollup AS OF this night: a past night's shortfall and regularity are
+    // those nights', not today's. Today's own read keeps its staleness gate.
+    final todayDay = (today['status'] as Map?)?['today_day']?.toString();
+    final cd = day == todayDay || day == heldOverNightOf(today)
+        ? await repo.getInsights()
+        : await repo.getInsightsAsOf(day);
     final coach = cd['sleep_coach'];
     final needEnv = coach is Map ? coach['need'] : null;
     final needSec = envValue(needEnv)?['need_sec'] as num?;
-    final debtEnv = cd['sleep_debt'];
-    final debtH = envValue(debtEnv)?['debt_hours'] as num?;
+    final shortEnv = coach is Map ? coach['shortfall'] : null;
+    final shortH = envValue(shortEnv)?['shortfall_hours'] as num?;
+    final regEnv = cd['regularity'];
+    final sri = envValue(regEnv)?['sri'] as num?;
+    final sriDays = (envValue(regEnv)?['days'] as num?)?.toInt();
     final bedEnv = coach is Map ? coach['bedtime'] : null;
 
     // Personal history for the comparisons. These are `metric_series` reads —
@@ -343,7 +365,13 @@ class SleepData {
       night: night,
       timeline: timeline,
       need: envMetric(needEnv, needSec == null ? null : needSec / 60, unit: 'min'),
-      debt: envMetric(debtEnv, debtH == null ? null : debtH * 60, unit: 'min'),
+      shortfall:
+          envMetric(shortEnv, shortH == null ? null : shortH * 60, unit: 'min'),
+      // A regularity index over fewer than 3 nights compares one or two pairs
+      // of days; it is withheld, not shown with a low confidence.
+      regularity: sri != null && sriDays != null && sriDays < 3
+          ? Metric(note: 'need_baseline:have=$sriDays,need=3')
+          : envMetric(regEnv, sri),
       bedtime:
           envMetric(bedEnv, envValue(bedEnv)?['bedtime_min_of_day'] as num?),
       tstHistory: tst,
@@ -610,6 +638,10 @@ class _SleepDetailState extends State<SleepDetail> with RevisionReload {
       // ── 1 · THE ANSWER ──
       _answer(c, p, d, n),
 
+      // ── 1b · THE NIGHT IN NUMBERS ── one measured row each, no composite.
+      Section(l?.sleepDetailMeasuresSection ?? 'The night in numbers',
+          _measures(c, p, d, n)),
+
       // ── 2 · THE NIGHT ITSELF ──
       const SizedBox(height: S.x3),
       // Ours, or any paired device's own staging of the same night — shown
@@ -687,7 +719,6 @@ class _SleepDetailState extends State<SleepDetail> with RevisionReload {
   Widget _answer(BuildContext c, P p, SleepData d, Map<String, dynamic> n) {
     final l = AppLocalizations.of(c);
     final tst = n['duration_min'] as num?;
-    final eff = n['efficiency'] as num?;
     final inBed = n['in_bed_min'] as num?;
     final from = clockOfTs(n['onset_ts'] as num?);
     final to = clockOfTs(n['wake_ts'] as num?);
@@ -716,17 +747,13 @@ class _SleepDetailState extends State<SleepDetail> with RevisionReload {
             ),
           ]),
         ],
-        if (inBed != null || eff != null) ...[
+        // Efficiency is its own row under this card, not a third figure here.
+        if (inBed != null) ...[
           const SizedBox(height: S.x4),
           InlineMetrics([
-            if (inBed != null) (l?.sleepDetailInBed ?? 'IN BED', hm(inBed), C.indigo),
+            (l?.sleepDetailInBed ?? 'IN BED', hm(inBed), C.indigo),
             if (watched != null)
               (l?.sleepDetailWatched ?? 'WATCHED', hm(watched), C.sky),
-            if (eff != null)
-              (watched == null
-                  ? (l?.sleepDetailAsleepOfThat ?? 'ASLEEP OF THAT')
-                  : (l?.sleepDetailAsleep ?? 'ASLEEP'),
-                  _pct(eff * 100), C.green),
           ]),
         ],
         if (watched != null) ...[
@@ -739,6 +766,72 @@ class _SleepDetailState extends State<SleepDetail> with RevisionReload {
             style: F.over.copyWith(color: p.ink3, height: 1.5),
           ),
         ],
+      ]),
+    );
+  }
+
+  /// The night as four measured rows: efficiency (total sleep over the time
+  /// in bed we watched), time awake after sleep onset with the wake-up floor,
+  /// the Phillips Sleep Regularity Index, and the 7-night shortfall against
+  /// each night's own reference. No weights, no composite: the 0-100 sleep
+  /// score that combined these had invented weights and is gone.
+  Widget _measures(BuildContext c, P p, SleepData d, Map<String, dynamic> n) {
+    final l = AppLocalizations.of(c);
+    final eff = n['efficiency'] as num?;
+    final awake = n['awake_min'] as num?;
+    final w = d.awakenings?.round();
+    final watched = (d.unobservedMin ?? 0) > 0;
+    final collecting = l?.sleepDetailStillCollecting ?? 'Still collecting';
+    final sri = d.regularity.value;
+    final short = d.shortfall.value;
+    return Surface(
+      pad: const EdgeInsets.symmetric(horizontal: S.x4, vertical: S.x2),
+      child: Column(children: [
+        if (eff != null)
+          MetricRow(
+            LucideIcons.gauge,
+            C.green,
+            l?.sleepDetailEfficiency ?? 'Efficiency',
+            _pct(eff * 100),
+            sub: watched
+                ? (l?.sleepDetailEfficiencyWatchedSub ??
+                    'Total sleep over the time we watched')
+                : (l?.sleepDetailEfficiencySub ??
+                    'Total sleep over time in bed'),
+          ),
+        if (awake != null)
+          MetricRow(
+            LucideIcons.eye,
+            C.orange,
+            l?.sleepDetailWaso ?? 'Awake after sleep onset',
+            hm(awake),
+            sub: w == null
+                ? ''
+                : (l?.sleepDetailWakeupsSub(w) ??
+                    'At least $w wake-up${w == 1 ? '' : 's'} of 5 min or more'),
+          ),
+        MetricRow(
+          LucideIcons.repeat,
+          C.indigo,
+          l?.sleepDetailSri ?? 'Regularity (SRI)',
+          // The state goes under the name, not in the value slot: a value
+          // never wraps, and a sentence there overflows at large text.
+          sri == null ? '' : '${sri.round()}',
+          sub: sri == null
+              ? collecting
+              : (l?.sleepDetailSriSub ??
+                  'Same state at the same clock time, day to day'),
+        ),
+        MetricRow(
+          LucideIcons.trendingDown,
+          C.orange,
+          l?.sleepDetailShortfall7 ?? 'Short over 7 nights',
+          short == null ? '' : hm(short),
+          sub: short == null
+              ? collecting
+              : (l?.sleepDetailShortfallSub ??
+                  "Against each night's own reference"),
+        ),
       ]),
     );
   }
@@ -1509,7 +1602,16 @@ class _SleepDetailState extends State<SleepDetail> with RevisionReload {
         icon: LucideIcons.chartNoAxesColumn,
       );
     }
-    return Column(children: [
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      // A 1 Hz wrist infers stages; it does not count them. Nothing on this
+      // screen or Home feeds a stage into a number.
+      Padding(
+        padding: const EdgeInsets.only(bottom: S.x2),
+        child: Text(
+            l?.sleepDetailStagesEstimate ??
+                'Estimated from movement and pulse; low accuracy.',
+            style: F.over.copyWith(color: p.ink3, height: 1.5)),
+      ),
       Surface(
         pad: const EdgeInsets.symmetric(horizontal: S.x4),
         child: Column(children: [
@@ -2032,20 +2134,23 @@ class _SleepDetailState extends State<SleepDetail> with RevisionReload {
     final l = AppLocalizations.of(c);
     final need = d.need.value;
     final bed = d.bedtime.value;
-    final debt = d.debt.value;
+    final short = d.shortfall.value;
 
     if (need == null && bed == null) {
       return StatusCard.forMetric(
-              l?.sleepDetailSleepNeedNotEstablished ??
-                  'Sleep need not established',
+              l?.sleepDetailSleepReferenceNotEstablished ??
+                  'Sleep reference not established',
               d.need) ??
           const SizedBox.shrink();
     }
 
     final reason = [
-      if (need != null) l?.sleepDetailYourNeedIs(hm(need)) ?? 'Your need is ${hm(need)}',
-      if (debt != null && debt >= 1)
-        l?.sleepDetailYouAreDown(hm(debt)) ?? 'you are ${hm(debt)} down',
+      if (need != null)
+        l?.sleepDetailAdultMinimumIs(hm(need)) ??
+            'The recommended minimum for adults is ${hm(need)} per night (AASM/SRS)',
+      if (short != null)
+        l?.sleepDetailShortOver7(hm(short)) ??
+            '${hm(short)} short over the last 7 nights',
     ].join(', ');
 
     return Surface(

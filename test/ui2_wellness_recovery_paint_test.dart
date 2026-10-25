@@ -45,14 +45,17 @@ import 'package:openstrap_edge/ui2/ui2.dart';
 
 const _day = '2026-08-16';
 
-/// A day with everything Recovery can show: a debt worth a recommendation, a
-/// learned need, and four readiness inputs — one that helped, one that moved
+/// A day with everything Recovery can show: a 7-night shortfall worth a
+/// recommendation, a reference from free nights, and four readiness inputs — one that helped, one that moved
 /// inside its own spread, one that could not be used, and the raw skin-temp
 /// ADC whose numbers are suppressed. Every field is the WIRE name; a fixture
 /// built on `contribution` instead of `weighted_contribution` passes its own
 /// fiction and reports every driver as "neither".
 class _Repo extends LocalRepository {
-  _Repo({this.insights, this.stress});
+  _Repo({this.insights, this.stress, this.basis = 'free_nights'});
+
+  /// The reference's `basis`: `free_nights` or `population_floor`.
+  final String basis;
 
   /// Overrides the healthy fixture, for the hostile-leaf case.
   final Map<String, dynamic>? insights;
@@ -74,7 +77,7 @@ class _Repo extends LocalRepository {
   @override
   Future<Map<String, dynamic>> getInsights() async =>
       insights ??
-      const {
+      {
         'readiness_glassbox': {
           'value': {
             'breakdown': [
@@ -108,12 +111,20 @@ class _Repo extends LocalRepository {
             ],
           },
         },
+        // A pseudo-debt (p75 minus median) that nothing may show as a debt.
         'sleep_debt': {
-          'value': {'debt_hours': 1.4}
+          'value': {'debt_hours': 9.9}
         },
         'sleep_coach': {
           'need': {
-            'value': {'need_sec': 28800.0}
+            'value': {'need_sec': 28800.0, 'basis': basis}
+          },
+          'shortfall': {
+            'value': {
+              'shortfall_hours': 1.4,
+              'nights_hours': [0.4, 0.0, 1.0],
+              'nights': 3,
+            }
           },
           'bedtime': {
             'value': {'bedtime_min_of_day': 1380}
@@ -122,7 +133,6 @@ class _Repo extends LocalRepository {
             'value': {'wake_min_of_day': 420}
           },
           'nap_credit_min': 20,
-          'strain_bonus_min': 15,
         },
       };
 
@@ -233,7 +243,7 @@ void main() {
         await _openRecovery(t, dark: dark, scale: scale, repo: _Repo());
 
         expect(find.text('What charged and drained you'), findsOneWidget);
-        expect(find.text('Sleep need tonight'), findsOneWidget);
+        expect(find.text('Recommended sleep'), findsOneWidget);
         expect(find.byType(DriverBreakdown), findsOneWidget);
         _expectCardPainted(t);
       }, timeout: const Timeout(Duration(seconds: 60)));
@@ -271,7 +281,8 @@ void main() {
                   'value': {'wake_min_of_day': '07:00'}
                 },
                 'nap_credit_min': 'twenty',
-                'strain_bonus_min': double.nan,
+                // The envelope's own `value` is not a map.
+                'shortfall': {'value': double.nan},
               },
               // The envelope's own `value` is a String, not a map or a number.
               'sleep_debt': {'value': 'a lot'},
@@ -286,12 +297,29 @@ void main() {
         // Every one of those is now ABSENT, which is a state this screen
         // already renders honestly — so the section is still here and still
         // says why, rather than the page being gone.
-        expect(find.text('Sleep need tonight'), findsOneWidget);
-        expect(find.text('No sleep need yet'), findsOneWidget);
+        expect(find.text('Recommended sleep'), findsOneWidget);
+        expect(find.text('No sleep reference yet'), findsOneWidget);
         _expectCardPainted(t);
       }, timeout: const Timeout(Duration(seconds: 60)));
     }
   }
+
+  // A REFERENCE, NOT A NEED. The sleep section shows the AASM/SRS adult minimum
+  // (7 h) and the measured shortfall of the last 7 nights.
+  testWidgets('the sleep section shows the adult minimum and a 7-night shortfall',
+      (t) async {
+    await _openRecovery(t, dark: false, scale: 1.0, repo: _Repo());
+
+    expect(find.text('Adult minimum per night'), findsOneWidget);
+    expect(find.text('Short over 7 nights'), findsOneWidget);
+    expect(find.text('1h 24m'), findsOneWidget,
+        reason: 'the shortfall, 1.4 h, on its row');
+    expect(find.text('Added for strain'), findsNothing);
+    expect(find.text('Sleep debt'), findsNothing);
+    expect(find.text('9h 54m'), findsNothing,
+        reason: 'the p75-minus-median pseudo-debt is not a deficit');
+    expect(find.textContaining('recommended minimum for adults'), findsOneWidget);
+  }, timeout: const Timeout(Duration(seconds: 60)));
 }
 
 /// TWO framework-internal assertions this harness causes and the screen does

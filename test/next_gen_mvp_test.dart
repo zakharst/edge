@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openstrap_edge/data/day_label.dart';
 import 'package:openstrap_edge/data/local_repository.dart';
-import 'package:openstrap_edge/models/metric.dart';
 import 'package:openstrap_edge/ui2/screens/next_gen_mvp.dart';
 import 'package:openstrap_edge/ui2/theme.dart';
 
@@ -89,9 +88,6 @@ void main() {
       NextGenMvpCard(
         repo: _Repo(),
         dayId: '2026-10-11',
-        strain: const Metric(value: 12, confidence: 1),
-        sleepMinutes: const Metric(value: 430, confidence: 1),
-        sleepNeedMinutes: const Metric(value: 480, confidence: 1),
       ),
     );
 
@@ -100,7 +96,10 @@ void main() {
     expect(find.text('late meal'), findsOneWidget);
     expect(find.textContaining('HRV: -8.4%'), findsOneWidget);
     expect(find.text('BIOLOGICAL AGE · EXPERIMENTAL'), findsOneWidget);
-    expect(find.text('SLEEP PLANNER · EXPERIMENTAL'), findsOneWidget);
+    // The strain-driven sleep-need planner was an invented formula; it is
+    // gone. Sleep lives on the ring and the sleep detail screen.
+    expect(find.text('SLEEP PLANNER · EXPERIMENTAL'), findsNothing);
+    expect(find.textContaining('Strain Exertion'), findsNothing);
     expect(
       find.text('—'),
       findsOneWidget,
@@ -117,14 +116,11 @@ void main() {
       NextGenMvpCard(
         repo: _Repo(),
         dayId: today,
-        strain: const Metric(value: 12, confidence: 1),
-        sleepMinutes: const Metric(value: 430, confidence: 1),
-        sleepNeedMinutes: const Metric(value: 480, confidence: 1),
       ),
     );
 
     expect(find.text('STRESS · LIVE'), findsOneWidget);
-    expect(find.text('Tonight’s Target'), findsOneWidget);
+    expect(find.text('Tonight’s Target'), findsNothing);
     expect(find.text('Today'), findsOneWidget);
 
     // Now pump with past date
@@ -133,14 +129,11 @@ void main() {
       NextGenMvpCard(
         repo: _Repo(),
         dayId: '2026-10-11',
-        strain: const Metric(value: 12, confidence: 1),
-        sleepMinutes: const Metric(value: 430, confidence: 1),
-        sleepNeedMinutes: const Metric(value: 480, confidence: 1),
       ),
     );
 
     expect(find.text('STRESS · DAY RECORD'), findsOneWidget);
-    expect(find.text('Night’s Target'), findsOneWidget);
+    expect(find.text('Night’s Target'), findsNothing);
     expect(find.text('2026-10-11'), findsOneWidget);
   });
 

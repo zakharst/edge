@@ -4,12 +4,10 @@ import 'package:openstrap_analytics/onehz.dart' as ana;
 
 import '../../data/day_label.dart' show todayLabel;
 import '../../data/local_repository.dart';
-import '../../models/metric.dart';
 import '../grammar.dart';
 import '../profile/settings.dart';
 import '../revision.dart';
 import '../screens/journal_compose.dart';
-import '../screens/sleep_detail.dart';
 import '../screens/wellness_screen.dart';
 import '../screens/workout_screen.dart';
 import '../theme.dart';
@@ -21,17 +19,11 @@ import '../theme.dart';
 class NextGenMvpCard extends StatefulWidget {
   final LocalRepository? repo;
   final String? dayId;
-  final Metric strain;
-  final Metric sleepMinutes;
-  final Metric sleepNeedMinutes;
 
   const NextGenMvpCard({
     super.key,
     required this.repo,
     required this.dayId,
-    this.strain = Metric.empty,
-    this.sleepMinutes = Metric.empty,
-    this.sleepNeedMinutes = Metric.empty,
   });
 
   @override
@@ -60,44 +52,9 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.repo != widget.repo || oldWidget.dayId != widget.dayId) {
       _reload();
-    } else if (oldWidget.strain.value != widget.strain.value ||
-        oldWidget.sleepMinutes.value != widget.sleepMinutes.value ||
-        oldWidget.sleepNeedMinutes.value != widget.sleepNeedMinutes.value) {
-      _updateSleepNeedOnly();
     }
   }
 
-  void _updateSleepNeedOnly() {
-    final current = _data;
-    if (current == null) return;
-    final strain = widget.strain.value?.toDouble();
-    final sleepMinutes = widget.sleepMinutes.value?.toDouble();
-    final sleepNeedMinutes = widget.sleepNeedMinutes.value?.toDouble();
-
-    ana.SleepNeedResult? sleep;
-    String? sleepMissing;
-    if (strain == null) {
-      sleepMissing =
-          'Awaiting day activity — calculated as your daily strain accumulates.';
-    } else if (sleepMinutes == null || sleepNeedMinutes == null) {
-      sleepMissing =
-          'Needs last night’s sleep data to calculate carryover sleep debt.';
-    } else {
-      sleep = ana.SleepNeedCalculator.calculate(
-        strain: strain,
-        previousTotalNeed: sleepNeedMinutes,
-        previousActualSleep: sleepMinutes,
-        napMinutes: current.napMinutes,
-      );
-    }
-    setState(() {
-      _data = current.copyWith(
-        sleepNeed: sleep,
-        sleepNeedMissingReason: sleepMissing,
-        actualSleepMinutes: sleepMinutes,
-      );
-    });
-  }
 
   void _reload() {
     final repo = widget.repo;
@@ -118,9 +75,6 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
     _NextGenData.load(
       repo,
       day: day,
-      strain: widget.strain.value?.toDouble(),
-      sleepMinutes: widget.sleepMinutes.value?.toDouble(),
-      sleepNeedMinutes: widget.sleepNeedMinutes.value?.toDouble(),
     ).then((data) {
       if (stillNewest(#nextGen, t)) {
         setState(() {
@@ -174,24 +128,18 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
         _bioAgeHeroCard(context, data),
         const SizedBox(height: S.x3),
 
-        // ── BENTO ROW 1: Real-Time Stress & Sleep Planner ──
+        // ── BENTO ROW 1: Real-Time Stress & Journal Insights ──
         Row(
           children: [
             Expanded(child: _compactStressCard(context, data)),
             const SizedBox(width: S.x3),
-            Expanded(child: _compactSleepCard(context, data)),
+            Expanded(child: _compactJournalCard(context, data)),
           ],
         ),
         const SizedBox(height: S.x3),
 
-        // ── BENTO ROW 2: Journal Insights & Rep Counter ──
-        Row(
-          children: [
-            Expanded(child: _compactJournalCard(context, data)),
-            const SizedBox(width: S.x3),
-            Expanded(child: _compactRepCard(context, data)),
-          ],
-        ),
+        // ── BENTO ROW 2: Rep Counter ──
+        _compactRepCard(context, data),
         const SizedBox(height: S.x4),
       ],
     );
@@ -582,99 +530,6 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
         decoration: BoxDecoration(
           color: isActive ? color : color.withValues(alpha: 0.2),
           borderRadius: R.rPill,
-        ),
-      ),
-    );
-  }
-
-  // ── BENTO 2: Sleep Planner ────────────────────────────────────────────────
-
-  Widget _compactSleepCard(BuildContext context, _NextGenData data) {
-    final p = P.of(context);
-    final result = data.sleepNeed;
-
-    return Pressable(
-      onTap: () => _showSleepNeedDetailSheet(context, data),
-      semanticLabel:
-          'Sleep planner target ${result != null ? _hours(result.totalNeedMinutes) : "calculating"}. Tap to open sleep target details.',
-      child: Container(
-        height: 154,
-        padding: const EdgeInsets.all(S.x3),
-        decoration: BoxDecoration(
-          color: p.card,
-          borderRadius: R.rLg,
-          border: Border.all(color: p.line),
-          boxShadow: p.el(1),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Top Row (fixed height 28 for cross-card baseline alignment)
-            SizedBox(
-              height: 28,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      color: C.indigo.withValues(alpha: 0.12),
-                      borderRadius: R.rSm,
-                    ),
-                    child: const Icon(LucideIcons.moon, size: 14, color: C.indigo),
-                  ),
-                  const SizedBox(width: S.x1),
-                  Expanded(
-                    child: Text(
-                      'SLEEP PLANNER · EXPERIMENTAL',
-                      style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
-                      maxLines: 2,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: S.x2),
-
-            // Middle: Hours & Target
-            Text(
-              result != null ? _hours(result.totalNeedMinutes) : '—',
-              style: (result != null ? F.t1 : F.head).copyWith(color: p.ink),
-              maxLines: 1,
-            ),
-            const SizedBox(height: 3),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: S.x1, vertical: 2),
-              decoration: BoxDecoration(
-                color: C.indigo.withValues(alpha: 0.12),
-                borderRadius: R.rPill,
-              ),
-              child: Text(
-                data.isToday ? 'Tonight’s Target' : 'Night’s Target',
-                style: F.over.copyWith(color: C.indigo, fontWeight: FontWeight.bold),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const Spacer(),
-
-            // Bottom Subtitle
-            Text(
-              !data.isToday && data.actualSleepMinutes != null && result != null
-                  ? () {
-                      final diff = (data.actualSleepMinutes! - result.totalNeedMinutes).round();
-                      return diff >= 0
-                          ? 'Slept ${_hours(data.actualSleepMinutes!)} · +${diff}m surplus'
-                          : 'Slept ${_hours(data.actualSleepMinutes!)} · ${diff.abs()}m debt';
-                    }()
-                  : (result != null
-                      ? 'Base ${_hours(result.baselineMinutes)} · +${result.strainMinutes.round()}m'
-                      : (data.sleepNeedMissingReason ?? 'Awaiting strain data')),
-              style: F.cap.copyWith(color: p.ink3),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
         ),
       ),
     );
@@ -1498,195 +1353,6 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
     );
   }
 
-  static void _showSleepNeedDetailSheet(BuildContext context, _NextGenData data) {
-    final p = P.of(context);
-    final result = data.sleepNeed;
-
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      sheetAnimationStyle: sheetMotion(context),
-      backgroundColor: p.card,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(R.xl)),
-      ),
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(S.x4, 0, S.x4, S.x6),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(S.x2),
-                    decoration: BoxDecoration(
-                      color: C.indigo.withValues(alpha: 0.12),
-                      borderRadius: R.rMd,
-                    ),
-                    child: const Icon(LucideIcons.moon, color: C.indigo, size: 22),
-                  ),
-                  const SizedBox(width: S.x3),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Sleep Need & Debt Planner',
-                          style: F.t1.copyWith(color: p.ink),
-                        ),
-                        Text(
-                          'Physiological recovery calculation',
-                          style: F.cap.copyWith(color: p.ink3),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(LucideIcons.x, color: p.ink3),
-                    onPressed: () => Navigator.of(sheetContext).pop(),
-                  ),
-                ],
-              ),
-              const SizedBox(height: S.x4),
-
-              // Hero Card
-              Container(
-                padding: const EdgeInsets.all(S.x4),
-                decoration: BoxDecoration(
-                  color: p.card2,
-                  borderRadius: R.rLg,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          result != null ? _hours(result.totalNeedMinutes) : 'Calculating',
-                          style: F.n48.copyWith(color: p.ink),
-                        ),
-                        Text('Optimal Sleep Needed Tonight', style: F.over.copyWith(color: p.ink3)),
-                      ],
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: S.x3, vertical: S.x2),
-                      decoration: BoxDecoration(
-                        color: C.indigo.withValues(alpha: 0.15),
-                        borderRadius: R.rPill,
-                        border: Border.all(color: C.indigo.withValues(alpha: 0.4)),
-                      ),
-                      child: Text(
-                        'Tonight',
-                        style: F.head.copyWith(color: C.indigo, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: S.x4),
-
-              // Equation Breakdown
-              if (result != null) ...[
-                _equationRow(context, '🛏️', 'Baseline Need', _hours(result.baselineMinutes), 'Individual biological baseline', C.indigo),
-                const SizedBox(height: S.x2),
-                _equationRow(context, '🏃', 'Strain Exertion', '+${result.strainMinutes.round()}m', 'Recovery added from daily exertion', C.orange),
-                const SizedBox(height: S.x2),
-                _equationRow(context, '⏳', 'Sleep Debt Carryover', '+${result.debtMinutes.round()}m', '20% amortized debt from recent nights', C.red),
-                const SizedBox(height: S.x2),
-                _equationRow(context, '💤', 'Nap Credits', '−${result.napCreditMinutes.round()}m', 'Daytime nap registered by band', C.green),
-              ] else ...[
-                Container(
-                  padding: const EdgeInsets.all(S.x3),
-                  decoration: BoxDecoration(
-                    color: p.bg,
-                    borderRadius: R.rMd,
-                  ),
-                  child: Text(
-                    data.sleepNeedMissingReason ?? 'Calculating tonight’s sleep target as day strain and nap data accumulate.',
-                    style: F.body.copyWith(color: p.ink2),
-                  ),
-                ),
-              ],
-              const SizedBox(height: S.x6),
-
-              // Action button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: C.indigo,
-                    foregroundColor: p.inkOnFill,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: const RoundedRectangleBorder(borderRadius: R.rMd),
-                  ),
-                  onPressed: () {
-                    Navigator.of(sheetContext).pop();
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(builder: (_) => SleepDetail(day: data.dayId)),
-                    );
-                  },
-                  child: Text(
-                    'View Sleep Analysis',
-                    style: F.head.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  static Widget _equationRow(
-    BuildContext context,
-    String icon,
-    String title,
-    String value,
-    String explanation,
-    Color accentColor,
-  ) {
-    final p = P.of(context);
-    return Container(
-      padding: const EdgeInsets.all(S.x3),
-      decoration: BoxDecoration(
-        color: p.card2,
-        borderRadius: R.rMd,
-      ),
-      child: Row(
-        children: [
-          Text(icon, style: F.head),
-          const SizedBox(width: S.x2),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: F.body.copyWith(color: p.ink, fontWeight: FontWeight.w600)),
-                Text(explanation, style: F.over.copyWith(color: p.ink3)),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: S.x2, vertical: 2),
-            decoration: BoxDecoration(
-              color: accentColor.withValues(alpha: 0.12),
-              borderRadius: R.rPill,
-            ),
-            child: Text(
-              value,
-              style: F.cap.copyWith(color: accentColor, fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   static void _showJournalDetailSheet(
     BuildContext context,
     _NextGenData data, {
@@ -2003,10 +1669,6 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
     );
   }
 
-  static String _hours(double minutes) {
-    final total = minutes.round();
-    return '${total ~/ 60}h ${total % 60}m';
-  }
 }
 
 class _NextGenData {
@@ -2027,12 +1689,8 @@ class _NextGenData {
   final double? avgHrv;
   final double? avgSteps;
   final double? sleepConsistency;
-  final ana.SleepNeedResult? sleepNeed;
-  final double? actualSleepMinutes;
-  final String? sleepNeedMissingReason;
   final Map<String, dynamic>? journalInsight;
   final List<String> dayLoggedHabits;
-  final double napMinutes;
 
   const _NextGenData({
     required this.dayId,
@@ -2052,53 +1710,13 @@ class _NextGenData {
     this.avgHrv,
     this.avgSteps,
     this.sleepConsistency,
-    this.sleepNeed,
-    this.actualSleepMinutes,
-    this.sleepNeedMissingReason,
     this.journalInsight,
     this.dayLoggedHabits = const [],
-    this.napMinutes = 0.0,
   });
-
-  _NextGenData copyWith({
-    ana.SleepNeedResult? sleepNeed,
-    double? actualSleepMinutes,
-    String? sleepNeedMissingReason,
-  }) {
-    return _NextGenData(
-      dayId: dayId,
-      isToday: isToday,
-      stressScore: stressScore,
-      stressSi: stressSi,
-      stressLevel: stressLevel,
-      stressNote: stressNote,
-      biologicalAge: biologicalAge,
-      bio7dDelta: bio7dDelta,
-      bioTrajectory: bioTrajectory,
-      bioAgeMissingReason: bioAgeMissingReason,
-      bioAgeChecklist: bioAgeChecklist,
-      bioAgeActionLabel: bioAgeActionLabel,
-      bioAgeRequiresProfileEdit: bioAgeRequiresProfileEdit,
-      avgRhr: avgRhr,
-      avgHrv: avgHrv,
-      avgSteps: avgSteps,
-      sleepConsistency: sleepConsistency,
-      sleepNeed: sleepNeed ?? this.sleepNeed,
-      actualSleepMinutes: actualSleepMinutes ?? this.actualSleepMinutes,
-      sleepNeedMissingReason:
-          sleepNeedMissingReason ?? this.sleepNeedMissingReason,
-      journalInsight: journalInsight,
-      dayLoggedHabits: dayLoggedHabits,
-      napMinutes: napMinutes,
-    );
-  }
 
   static Future<_NextGenData> load(
     LocalRepository repo, {
     required String day,
-    required double? strain,
-    required double? sleepMinutes,
-    required double? sleepNeedMinutes,
   }) async {
     final isToday = day == todayLabel();
     final results = await Future.wait<Object>([
@@ -2107,7 +1725,6 @@ class _NextGenData {
       repo.getZones(),
       repo.getInsights(),
       repo.getJournalInsights(),
-      repo.getDayNaps(day),
       repo.getChart('resting_hr'),
       repo.getChart('hrv'),
       repo.getChart('steps'),
@@ -2117,11 +1734,10 @@ class _NextGenData {
     final zones = results[2] as Map<String, dynamic>;
     final insights = results[3] as Map<String, dynamic>;
     final journal = results[4] as Map<String, dynamic>;
-    final naps = results[5] as Map<String, dynamic>;
 
-    final rhr = _tailValues(results[6] as Map<String, dynamic>, 14, day: day);
-    final hrv = _tailValues(results[7] as Map<String, dynamic>, 14, day: day);
-    final steps = _tailValues(results[8] as Map<String, dynamic>, 14, day: day);
+    final rhr = _tailValues(results[5] as Map<String, dynamic>, 14, day: day);
+    final hrv = _tailValues(results[6] as Map<String, dynamic>, 14, day: day);
+    final steps = _tailValues(results[7] as Map<String, dynamic>, 14, day: day);
     final sex = (profile['sex'] as String?)?.toLowerCase() ?? 'm';
     final age = (profile['age'] as num?)?.toDouble();
     final ceiling = zones['ceiling'];
@@ -2207,9 +1823,9 @@ class _NextGenData {
         final tDate = DateTime(dayDt.year, dayDt.month, dayDt.day - i);
         final tLabel =
             '${tDate.year}-${tDate.month.toString().padLeft(2, '0')}-${tDate.day.toString().padLeft(2, '0')}';
-        final tRhr = _tailValues(results[6] as Map<String, dynamic>, 14, day: tLabel);
-        final tHrv = _tailValues(results[7] as Map<String, dynamic>, 14, day: tLabel);
-        final tSteps = _tailValues(results[8] as Map<String, dynamic>, 14, day: tLabel);
+        final tRhr = _tailValues(results[5] as Map<String, dynamic>, 14, day: tLabel);
+        final tHrv = _tailValues(results[6] as Map<String, dynamic>, 14, day: tLabel);
+        final tSteps = _tailValues(results[7] as Map<String, dynamic>, 14, day: tLabel);
         if (tRhr.length >= 3 && tHrv.length >= 3) {
           final tBio = ana.BiologicalAgeCalculator.calculate(
             chronologicalAge: age,
@@ -2229,22 +1845,6 @@ class _NextGenData {
         final latest = bio.biologicalAge;
         bio7dDelta = latest - earliest;
       }
-    }
-
-    final napMinutes = (naps['nap_min'] as num?)?.toDouble() ?? 0.0;
-    ana.SleepNeedResult? sleep;
-    String? sleepMissing;
-    if (strain == null) {
-      sleepMissing = 'Awaiting day activity — calculated as your daily strain accumulates.';
-    } else if (sleepMinutes == null || sleepNeedMinutes == null) {
-      sleepMissing = 'Needs last night’s sleep data to calculate carryover sleep debt.';
-    } else {
-      sleep = ana.SleepNeedCalculator.calculate(
-        strain: strain,
-        previousTotalNeed: sleepNeedMinutes,
-        previousActualSleep: sleepMinutes,
-        napMinutes: napMinutes,
-      );
     }
 
     final journalRows = journal['insights'];
@@ -2293,12 +1893,8 @@ class _NextGenData {
       avgHrv: avgHrv,
       avgSteps: avgSteps,
       sleepConsistency: effectiveSleepConsistency,
-      sleepNeed: sleep,
-      actualSleepMinutes: sleepMinutes,
-      sleepNeedMissingReason: sleepMissing,
       journalInsight: firstJournal,
       dayLoggedHabits: dayLoggedHabits,
-      napMinutes: napMinutes,
     );
   }
 

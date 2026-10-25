@@ -215,6 +215,13 @@ void main() {
         (await LocalDb.baseline('crossday_input'))!['payload_json'] as String,
       );
       expect((input['days'] as List).single['nap_min'], 24);
+      // The cross-day rows carry no stage minutes and no score-only inputs:
+      // the weighted sleep score that read them is gone, and nothing in the
+      // rollup may turn a 1 Hz stage estimate into a number.
+      final row = (input['days'] as List).single as Map;
+      for (final k in const ['deep_min', 'rem_min', 'waso_min', 'awakenings']) {
+        expect(row.containsKey(k), isFalse, reason: k);
+      }
       expect(input['review_revision'], await LocalDb.activityReviewRevision());
       expect(await db.query('activity_review_days'), isEmpty);
     },

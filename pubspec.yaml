@@ -503,13 +503,10 @@ dependencies:
       #      grep -n 'varTot == 0\|diffN == 0'`
       # analytics main @ 4fc2b12: adds #80 (band-state night end) plus #81-#85.
       # analytics main @ c0effea: adds #79 (catalog) and #86 (rmssd gate).
-      # Edge MOD analytics @ f44875b: current OpenStrap analytics main plus
-      # replacement readiness weights (no source) and additive stress,
-      # biological-age, sleep-need, journal and rep-counter APIs used by the
-      # MVP cards.
-      # analytics `chore/honest-recovery` @ 483ca4e: readiness weights back to
-      # OpenStrap's 0.40/0.30/0.20/0.10 (v114).
-      ref: 483ca4e996e20b4b690517d6241bb24d059490d4
+      # analytics main @ fd0b505: carries honest recovery weights (0.40/0.30/0.20/0.10),
+      # WHOOP day-strain formula (whoopStrain), and honest sleep (AASM/SRS 7 h
+      # adult minimum; SleepNeedCalculator removed), for v114.
+      ref: fd0b5059da1c59c13e0cb1a703746215f24e433d
 
   # BLE — flutter_blue_plus is the maintained cross-platform GATT client.
   flutter_blue_plus: ^1.36.8

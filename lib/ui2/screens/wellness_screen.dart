@@ -39,7 +39,6 @@ import 'home_screen.dart' show envValue, metricOf, weekdayShortName;
 import 'journal_compose.dart';
 import 'start_card.dart';
 import 'metric_detail.dart' show detailScaffold;
-import 'sleep_detail.dart';
 
 class WellnessScreen extends StatefulWidget {
   /// Only the sleep plan (need, debt, bedtime, what charged and drained you),
@@ -467,33 +466,15 @@ class _WellnessScreenState extends State<WellnessScreen> with RevisionReload {
     final needSec = _nested(coachMap, 'need', 'need_sec');
     final bedMin = _nested(coachMap, 'bedtime', 'bedtime_min_of_day');
     final wakeMin = _nested(coachMap, 'wake', 'wake_min_of_day');
-    final napMin = _reading(coachMap?['nap_credit_min']);
-    final strainMin = _reading(coachMap?['strain_bonus_min']);
-    final debtH = _nested(_insights, 'sleep_debt', 'debt_hours');
+    // The measured deficit: Σ max(0, 7 h − TST) over the last 7 nights.
+    // `sleep_debt.debt_hours` (p75 minus median) is not shown as a debt. No
+    // advice card hangs off it: there is no sourced threshold at which a
+    // shortfall becomes worth acting on, so the number speaks for itself.
+    final shortH = _nested(coachMap, 'shortfall', 'shortfall_hours');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // The one recommendation on this screen, and only when all three of
-        // its inputs are real: a measured debt worth acting on, a learned need,
-        // and a target bedtime to name. No debt, no card — the widget does not
-        // get an invented reason so that it can appear.
-        if (debtH != null && debtH >= .75 && needSec != null && bedMin != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: S.x5),
-            child: Recommendation(
-              l?.wellnessTurnInBy(formatMinuteOfDay(bedMin.round())) ??
-                  'Turn in by ${formatMinuteOfDay(bedMin.round())}',
-              l?.wellnessDebtBody(_hm(debtH * 60), _hm(needSec / 60)) ??
-                  'You are ${_hm(debtH * 60)} down against your own need, and '
-                      'tonight\'s is ${_hm(needSec / 60)}.',
-              l?.wellnessSeeWhatLastNightCost ?? 'See what last night cost you',
-              color: C.indigo,
-              onTap: () => Navigator.of(c).push(
-                MaterialPageRoute<void>(builder: (_) => const SleepDetail()),
-              ),
-            ),
-          ),
         Section(
           l?.wellnessWhatChargedAndDrained ?? 'What charged and drained you',
           // Two words and a full stop, before: "hrv", "rhr". No reading, no
@@ -512,17 +493,16 @@ class _WellnessScreenState extends State<WellnessScreen> with RevisionReload {
               : DriverBreakdown(_drivers),
         ),
         Section(
-          l?.wellnessSleepNeedTonight ?? 'Sleep need tonight',
+          l?.wellnessRecommendedSleep ?? 'Recommended sleep',
           needSec == null
-              // The coach's own reason for the absent need — it names the
-              // input that is actually missing. "Not enough of them yet" named
-              // nothing, and was printed for every cause the estimator has.
+              // The coach's own reason for the absent reference: it names the
+              // input that is actually missing.
               ? StatusCard(
-                  l?.wellnessNoSleepNeedTitle ?? 'No sleep need yet',
+                  l?.wellnessNoSleepReferenceTitle ?? 'No sleep reference yet',
                   whyFromNote(_noteOf(coachMap?['need'])) ??
-                      (l?.wellnessNoSleepNeedBody ??
-                          'Nothing recorded says why there is no need for '
-                              'tonight.'),
+                      (l?.wellnessNoSleepReferenceBody ??
+                          'Nothing recorded says why there is no reference '
+                              'for tonight.'),
                   icon: LucideIcons.bedDouble,
                 )
               : Surface(
@@ -531,33 +511,26 @@ class _WellnessScreenState extends State<WellnessScreen> with RevisionReload {
                       MetricRow(
                         LucideIcons.bedDouble,
                         C.blue,
-                        l?.wellnessTonightsNeed ?? 'Tonight\'s need',
+                        l?.wellnessAdultMinimum ?? 'Adult minimum per night',
                         _hm(needSec / 60),
                       ),
-                      // Null here means "we do not know", which is why it is a
-                      // missing row rather than "+0 min".
-                      if (debtH != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: S.x2),
+                        child: Text(
+                          l?.wellnessAdultMinimumCaption ??
+                              'The recommended minimum for adults (AASM/SRS '
+                                  'consensus), not your measured need.',
+                          style: F.cap.copyWith(color: P.of(c).ink3),
+                        ),
+                      ),
+                      // Null here means "we do not know" (under 3 nights),
+                      // which is why it is a missing row rather than "0m".
+                      if (shortH != null)
                         MetricRow(
                           LucideIcons.trendingDown,
                           C.orange,
-                          l?.wellnessSleepDebt ?? 'Sleep debt',
-                          _hm(debtH * 60),
-                        ),
-                      if (strainMin != null)
-                        MetricRow(
-                          LucideIcons.flame,
-                          C.purple,
-                          l?.wellnessAddedForStrain ?? 'Added for strain',
-                          '${strainMin.round()}',
-                          unit: 'min',
-                        ),
-                      if (napMin != null)
-                        MetricRow(
-                          LucideIcons.sun,
-                          C.yellow,
-                          l?.wellnessCreditedFromNaps ?? 'Credited from naps',
-                          '${napMin.round()}',
-                          unit: 'min',
+                          l?.wellnessShortfall7 ?? 'Short over 7 nights',
+                          _hm(shortH * 60),
                         ),
                       if (bedMin != null)
                         MetricRow(

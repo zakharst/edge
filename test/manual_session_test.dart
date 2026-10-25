@@ -15,6 +15,8 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:openstrap_analytics/onehz.dart' as ana;
+import 'package:openstrap_edge/compute/hr_max.dart' show whoopStrainMaxHr;
 import 'package:openstrap_edge/compute/manual_session.dart';
 import 'package:openstrap_edge/compute/profile.dart';
 
@@ -253,7 +255,6 @@ void main() {
         profile: _profile,
         hrMax: _hrMax,
         restingHr: 55,
-        quietHrr: 0.20,
       );
       expect(s.isUnscored, isTrue);
       expect(s.hrSampleCount, 0);
@@ -272,9 +273,8 @@ void main() {
         profile: _profile,
         hrMax: _hrMax,
         restingHr: null,
-        quietHrr: 0.20,
       );
-      // Banister carries RHR as a term in the formula — absent it, abstain.
+      // Resting HR anchors the reserve strain is scored on; absent it, abstain.
       expect(s.strain, isNull);
       // Keytel's own kJ/min formula takes no RHR, so it is tempting to score
       // calories anyway. But `estimateBoutCalories` uses RHR to place the
@@ -297,7 +297,6 @@ void main() {
         profile: const Profile(weightKg: 75, heightCm: 180, sex: 'm'),
         hrMax: null,
         restingHr: 55,
-        quietHrr: 0.20,
       );
       expect(s.strain, isNull);
       expect(s.calories, isNull);
@@ -315,7 +314,6 @@ void main() {
         profile: const Profile(ageYears: 30, heightCm: 180, sex: 'm'),
         hrMax: _hrMax,
         restingHr: 55,
-        quietHrr: 0.20,
       );
       expect(s.calories, isNull);
       expect(s.strain, isNotNull);
@@ -329,7 +327,6 @@ void main() {
         profile: _profile,
         hrMax: _hrMax,
         restingHr: 55,
-        quietHrr: 0.20,
       );
       expect(s.isUnscored, isFalse);
       expect(s.avgHr, 150);
@@ -348,7 +345,6 @@ void main() {
             profile: _profile,
             hrMax: _hrMax,
             restingHr: 55,
-            quietHrr: 0.20,
           );
       // THE WHOLE POINT of the feature: correcting 25 min → 60 min must
       // actually move the number the athlete came here to fix.
@@ -366,7 +362,6 @@ void main() {
         profile: _profile,
         hrMax: _hrMax,
         restingHr: 55,
-        quietHrr: 0.20,
       );
       expect(s.avgHr, 150);
       expect(s.hrSampleCount, 60);
@@ -382,7 +377,6 @@ void main() {
         profile: _profile,
         hrMax: _hrMax,
         restingHr: 55,
-        quietHrr: 0.20,
       );
       expect(s.calories, wornOnly.calories);
       expect(s.strain, wornOnly.strain);
@@ -457,39 +451,10 @@ void main() {
           isNull);
     });
 
-    test('abstains without this user\'s quiet-waking level', () {
-      // The 0.20 population reference used to stand in here. A session is
-      // priced on the quiet level of the day it sits in, or not at all.
-      final w = _flat(0, 45, 150);
-      final none = computeManualSessionStats(
-        hrTs: w.ts,
-        hrBpm: w.bpm,
-        profile: _profile,
-        hrMax: _hrMax,
-        restingHr: 55,
-        quietHrr: null,
-      );
-      expect(none.strain, isNull);
-      // Everything else about the session is still scored.
-      expect(none.avgHr, 150);
-      expect(none.calories, isNotNull);
-      final priced = computeManualSessionStats(
-        hrTs: w.ts,
-        hrBpm: w.bpm,
-        profile: _profile,
-        hrMax: _hrMax,
-        restingHr: 55,
-        quietHrr: 0.20,
-      );
-      expect(priced.strain, isNotNull);
-      expect(
-          strainFromPerMinuteHr(List<double>.filled(60, 150),
-              profile: _profile, restingHr: 55, hrMax: _hrMax, quietHrr: null),
-          isNull);
-    });
-
-    test('is exactly what computeManualSessionStats reports', () {
-      // The session scorer must not fork its own copy of the method.
+    test('a session is WHOOP strain over its own 1 Hz HR, no quiet level', () {
+      // Sessions and the day they sit in are on one scale: the day floor
+      // (`strainFlooredAtSessions`) compares the two. The live gauge keeps
+      // `strainFromPerMinuteHr` until it moves too.
       final w = _flat(0, 45, 150);
       final viaStats = computeManualSessionStats(
         hrTs: w.ts,
@@ -497,11 +462,31 @@ void main() {
         profile: _profile,
         hrMax: _hrMax,
         restingHr: 55,
-        quietHrr: 0.20,
       ).strain;
-      final direct = strainFromPerMinuteHr(hrPerMinute(w.ts, w.bpm),
-          profile: _profile, restingHr: 55, hrMax: _hrMax, quietHrr: 0.20);
+      final direct = ana.whoopStrain(
+        [for (final v in w.bpm) v.toDouble()],
+        w.ts,
+        restingHr: 55,
+        maxHr: whoopStrainMaxHr(30, 'm'),
+      )!.strain;
       expect(viaStats, direct);
+      expect(viaStats, greaterThan(0));
+    });
+
+    test('a higher lifetime ceiling raises the strain HRmax', () {
+      final w = _flat(0, 45, 150);
+      double? at(double? ceiling) => computeManualSessionStats(
+            hrTs: w.ts,
+            hrBpm: w.bpm,
+            profile: _profile,
+            hrMax: _hrMax,
+            restingHr: 55,
+            lifetimeHrCeilingBpm: ceiling,
+          ).strain;
+      // 30 y male: WHOOP's regression is 194.2. A held 205 widens the reserve,
+      // so the same 45 minutes score lower; a lower one changes nothing.
+      expect(at(205)!, lessThan(at(null)!));
+      expect(at(170), at(null));
     });
   });
 
@@ -512,7 +497,6 @@ void main() {
       profile: _profile,
       hrMax: _hrMax,
       restingHr: 55,
-      quietHrr: 0.20,
     );
 
     test('a new entry is done/manual with a start-keyed id', () {

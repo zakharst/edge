@@ -61,7 +61,7 @@ import '../../l10n/decimal_text.dart';
 import '../../state/locale_controller.dart';
 import 'package:intl/intl.dart';
 import 'package:openstrap_analytics/onehz.dart'
-    show quietHrrMinDays, readinessCompositeMinBaseline;
+    show readinessCompositeMinBaseline;
 import '../../models/metric.dart';
 import '../../models/payloads.dart' show todayHeadlineOf;
 import '../../notify/notification_prefs.dart' show NotificationPrefs;
@@ -3478,15 +3478,15 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
 }
 
 /// What happens in the first weeks, with the counts the pipeline actually
-/// gates on: sleep after the first night, strain once [quietHrrMinDays] earlier
-/// days give it a resting level, recovery once [readinessCompositeMinBaseline]
+/// gates on: sleep after the first night, strain from the first day (WHOOP's
+/// formula needs no history), recovery once [readinessCompositeMinBaseline]
 /// earlier nights give it a normal range. Read from the analytics constants so
 /// the card cannot drift from the gate.
 Widget firstWeekCard(BuildContext c,
     {required int days, required bool strainScored, int? recoveryNightsLeft}) {
   final p = P.of(c);
   final l = AppLocalizations.of(c);
-  final strainDay = quietHrrMinDays + 1;
+  const strainDay = 1;
   final recoveryNight = readinessCompositeMinBaseline + 1;
   Widget step(bool done, String text) => Semantics(
         // The tick is drawn, so it is also said.

@@ -345,11 +345,9 @@ final Map<String, Cell> kUltrahumanColumn = {
     reason: Why.needsBeats,
   ),
   'steps': Cell(device: 'steps', reason: Why.noDeviceSteps),
-  'strain': Cell(
-    estimated: (d, _) => scalar(d, 'strain'),
-    estimatedMethod: 'hr_5min',
-    reason: Why.noWakeHr,
-  ),
+  // WHOOP's strain formula weighs each sample at most 3 s, so readings
+  // minutes apart would score near zero. The day abstains (`hr_1hz`).
+  'strain': const Cell(reason: Why.tooSparseForStrain),
   'calories': Cell(
     estimated: (d, _) => scalar(d, 'calories'),
     estimatedMethod: 'hr_5min',

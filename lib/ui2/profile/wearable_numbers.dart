@@ -232,6 +232,7 @@ String whyText(AppLocalizations l, String? reason, String device) =>
       Why.noNightForNaps => l.wearableWhyNoNightForNaps,
       Why.needsThreeNightsTemp => l.wearableWhyNeedsThreeNightsTemp,
       Why.tooSparseForWorkouts => l.wearableWhyTooSparseForWorkouts,
+      Why.tooSparseForStrain => l.wearableWhyTooSparseForStrain,
       Why.noDeviceNap => l.wearableWhyNoDeviceNap(device),
       Why.notDecoded => l.wearableWhyNotDecoded(device),
       Why.beatsNotSeparated => l.wearableWhyBeatsNotSeparated(device),

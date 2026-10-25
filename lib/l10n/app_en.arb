@@ -9565,7 +9565,7 @@
   "@dayStrainNoReasonBody": {
     "description": "Fallback body text when no strain trace exists and no reason was given by the backend"
   },
-  "dayStrainScoredNoTraceBody": "The day strain is {strain}. The waking minutes it was built from are not stored for this day.",
+  "dayStrainScoredNoTraceBody": "The day strain is {strain}. The heart rate it was built from is no longer stored for this day.",
   "@dayStrainScoredNoTraceBody": {
     "description": "Body text when a day has a strain score but no per-minute curve stored",
     "placeholders": {
@@ -9582,9 +9582,9 @@
   "@dayStrainChartTitle": {
     "description": "Chart title above the day's strain-over-time curve"
   },
-  "dayStrainChartFootnote": "Effort above your usual waking pace. It can ease later if you slow back toward that pace. From {drawn} recorded waking minutes.",
+  "dayStrainChartFootnote": "It only adds up: every second above 30% of your heart-rate reserve raises it, and the steep parts are where the effort was. From {drawn} recorded minutes.",
   "@dayStrainChartFootnote": {
-    "description": "Footnote under the strain curve chart explaining it tracks effort above baseline pace, not a raw accumulator, so it can dip",
+    "description": "Footnote under the strain curve chart: the curve only rises, each second above 30% of heart-rate reserve adds to it",
     "placeholders": {
       "drawn": {
         "type": "int"
@@ -9646,11 +9646,11 @@
   "@dayStrainInputsSection": {
     "description": "Section header above the paragraph explaining what the strain score is built from"
   },
-  "dayStrainInputsBase": "How hard your heart worked while awake, by minutes in each heart-rate zone, on a 0–21 scale.",
+  "dayStrainInputsBase": "WHOOP's strain formula over your second-by-second heart rate for the whole day, sleep included, on a 0 to 21 scale. Seconds under 30% of your heart-rate reserve add nothing.",
   "@dayStrainInputsBase": {
     "description": "First sentence of the day strain 'what this is made of' explanation"
   },
-  "dayStrainInputsMaxHr": "It was integrated against an assumed maximum of {maxHr} bpm — estimated from your age and your strap, not measured.",
+  "dayStrainInputsMaxHr": "Your maximum is taken as {maxHr} bpm: WHOOP's estimate from your age and sex, or the highest heart rate the band has held if that is higher.",
   "@dayStrainInputsMaxHr": {
     "description": "Sentence naming the assumed max heart rate the strain score was integrated against",
     "placeholders": {
@@ -9659,7 +9659,7 @@
       }
     }
   },
-  "dayStrainInputsMeasuredCeilingNote": "The zone bar uses your measured maximum. Strain does not, so the strain scores you have already seen stay the same.",
+  "dayStrainInputsMeasuredCeilingNote": "The zone bar is set on its own maximum, so its edges do not follow this one.",
   "@dayStrainInputsMeasuredCeilingNote": {
     "description": "Sentence noting the zone bar uses a different, measured ceiling than the strain score"
   },
@@ -14595,6 +14595,10 @@
   "wearableWhyNoNightForNaps": "No night to measure daytime rest against",
   "wearableWhyNeedsThreeNightsTemp": "Needs three nights of skin temperature",
   "wearableWhyTooSparseForWorkouts": "One heart rate every 5 minutes cannot place a workout",
+  "wearableWhyTooSparseForStrain": "Strain needs second-by-second heart rate; this device records it minutes apart",
+  "@wearableWhyTooSparseForStrain": {
+    "description": "Why a wearable has no strain: the formula needs 1 Hz heart rate"
+  },
   "wearableRowSleepWindow": "Night length",
   "wearableRowEfficiency": "Sleep efficiency",
   "wearableRowSleepStages": "Deep sleep",

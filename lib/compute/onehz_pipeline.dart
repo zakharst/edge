@@ -36,6 +36,7 @@ import 'hr_max.dart'
     show
         estimatedMaxHr,
         manualZoneBoundsFromProfile,
+        whoopStrainMaxHr,
         smoothedMaxHr,
         smoothedMinHr,
         trainingZones;
@@ -1002,11 +1003,18 @@ Map<String, dynamic> deriveDayBundle(Map<String, dynamic> inputJson) {
   // TRIMP, HR zones, and calories so all three see the same wake series).
   final wakeHr = _perMinuteWakeSeries(d);
   final perMin = [for (final p in wakeHr) p.hr];
-  // THIS user's quiet-waking level: the median of the trailing days' own
-  // levels, strictly before today. Absent below three days — strain then
-  // abstains with the baseline grammar rather than pricing being awake at a
-  // population constant.
+  // The CTL/ATL load (`trimp_net`, written by the engine half) is priced on
+  // THIS user's quiet-waking level. Named here too, so the re-score pass
+  // (`DerivationEngine.quietBlocked`) sees the block when that half fails.
   final quiet = personalQuietWakingHrr(d.quietHrrHistory);
+  // HEADLINE STRAIN's ceiling: WHOOP's own HRmax regression, raised to the
+  // highest HR the band has held on an earlier day (`whoopStrainMaxHr`). Not
+  // `hrMax`: that stays the zones/TRIMP/calorie ceiling it always was.
+  final strainMaxHr = whoopStrainMaxHr(
+    age,
+    sex,
+    lifetimeObservedBpm: d.observedHrCeilingBpm,
+  );
   // ── WHY the activity family is absent, named AT THE GATE THAT CAUSED IT ────
   //
   // These four figures — strain/TRIMP, the zone minutes, the ceiling they were
@@ -1031,7 +1039,23 @@ Map<String, dynamic> deriveDayBundle(Map<String, dynamic> inputJson) {
       // The age is known; what measured this HR is not, so there is no ceiling
       // to band it against (analytics' device.dart contract).
       : unknownFamilyNote(d.deviceFamily);
-  final strainAbsentNote = perMin.isEmpty
+  // Strain is WHOOP's formula over the day's 1 Hz HR (sleep included, as in
+  // a WHOOP cycle). A wearable's one-reading-per-minutes column is not 1 Hz:
+  // the formula caps every sample at 3 s, so it would score such a day near
+  // 0. It abstains instead.
+  final strainAbsentNote = dayHrValid.isEmpty
+      ? needInputNote('hr_samples')
+      : isWearableFamily(d.deviceFamily)
+      ? needInputNote('hr_1hz')
+      : age == null
+      ? needInputNote('age')
+      : sex == null
+      ? needInputNote('sex')
+      : rhrForTrimp == null
+      ? needInputNote('resting_hr')
+      : null;
+  // TRIMP keeps the gates it always had (wake minutes, Tanaka ceiling).
+  final trimpAbsentNote = perMin.isEmpty
       ? needInputNote('wake_hr')
       : hrMax == null
       ? ceilingAbsentNote
@@ -1041,8 +1065,6 @@ Map<String, dynamic> deriveDayBundle(Map<String, dynamic> inputJson) {
       ? needInputNote('resting_hr')
       : sex == null
       ? needInputNote('sex')
-      : !quiet.present
-      ? (quiet.note ?? kUnknownAbsenceNote)
       : null;
   final caloriesAbsentNote = perMin.isEmpty
       ? needInputNote('wake_hr')
@@ -1067,7 +1089,7 @@ Map<String, dynamic> deriveDayBundle(Map<String, dynamic> inputJson) {
   Metric<double> trimp = Metric<double>.absent(
     tier: Tier.estimate,
     inputs_used: const ['hr_1hz', 'profile'],
-    note: strainAbsentNote ?? kUnknownAbsenceNote,
+    note: trimpAbsentNote ?? kUnknownAbsenceNote,
   );
   Map<String, int> hrZones = const {};
   double? caloriesKcal;
@@ -1136,25 +1158,25 @@ Map<String, dynamic> deriveDayBundle(Map<String, dynamic> inputJson) {
     }
   }
 
-  // HEADLINE STRAIN = 0–21 map of the TRIMP earned ABOVE this user's
-  // quiet-waking level, exercise minutes (≥ 40 % HRR) never offset by quiet
-  // ones; raw TRIMP kept as a detail. Same analytics arithmetic as the curve
-  // below and the engine's recompute, so the three cannot disagree.
-  final sexEnum = workoutSex(sex) == 'female' ? Sex.female : Sex.male;
-  final strainMetric = strainAbsentNote != null || !quiet.present
-      ? Metric<double>.absent(
-          tier: Tier.estimate,
-          inputs_used: const ['hr_1hz', 'profile', 'quiet_waking_hrr_history'],
-          note: strainAbsentNote ?? kUnknownAbsenceNote,
-        )
-      : strainScoreFromSeries(
-          perMin,
+  // HEADLINE STRAIN = WHOOP's client formula (analytics `whoopStrain`) over
+  // the day's 1 Hz HR; raw Banister TRIMP kept as a detail. One pass feeds the
+  // headline AND the curve below, and the engine's recompute runs the same
+  // call on the same substrate, so the three cannot disagree.
+  final whoop = strainAbsentNote != null
+      ? null
+      : whoopStrain(
+          dayHr,
+          d.dayTsSec,
           restingHr: rhrForTrimp,
-          maxHr: hrMax,
-          quietHrr: quiet.value!.hrr,
-          sex: sexEnum,
-          quietSettled: quiet.value!.settled,
+          maxHr: strainMaxHr,
         );
+  final strainMetric =
+      whoop?.metric ??
+      Metric<double>.absent(
+        tier: Tier.estimate,
+        inputs_used: const ['hr_1hz', 'resting_hr', 'max_hr'],
+        note: strainAbsentNote ?? whoopStrainAbsentNote,
+      );
 
   // ── curve series for the UI ────────────────────────────────────────────────
   final hrCurve = _downsampleHr(d.dayTsSec, d.dayHr);
@@ -1187,13 +1209,7 @@ Map<String, dynamic> deriveDayBundle(Map<String, dynamic> inputJson) {
   // Every bin is an RMSSD of the same beats: absent with them on an
   // over-counted stream.
   final nightShape = nightHrvShape(nn, nnTimes, coverage: rrCov);
-  final strainCurve = _strainCurve(
-    wakeHr,
-    restingHr: rhrForTrimp,
-    maxHr: hrMax,
-    sex: sex,
-    quietHrr: quiet.value?.hrr,
-  );
+  final strainCurve = _strainCurve(d.dayTsSec, whoop);
   final zoneTimeline = zoneSet == null
       ? const <Map<String, num>>[]
       : _zoneTimeline(wakeHr, zoneSet);
@@ -1697,7 +1713,9 @@ Map<String, dynamic> deriveDayBundle(Map<String, dynamic> inputJson) {
       if (strainScalar == null)
         'strain': strainAbsentNote ?? strainMetric.note ?? kUnknownAbsenceNote,
       if (!trimp.present)
-        'trimp': strainAbsentNote ?? trimp.note ?? kUnknownAbsenceNote,
+        'trimp': trimpAbsentNote ?? trimp.note ?? kUnknownAbsenceNote,
+      if (trimpAbsentNote == null && !quiet.present)
+        'trimp_net': quiet.note ?? kUnknownAbsenceNote,
     },
     'respiration': respiration,
     // CV-06 (see `nightShape` above). Envelope + the epoch origin its bin
@@ -1750,6 +1768,10 @@ Map<String, dynamic> deriveDayBundle(Map<String, dynamic> inputJson) {
       // Headline 0–21 strain (the screens already expect a 0–21 scale); raw
       // Banister TRIMP stays under `trimp` as the secondary "training load".
       'strain': strainScalar,
+      // The ceiling the STRAIN was priced on (WHOOP regression, lifetime
+      // held max, or this day's own higher smoothed HR). `max_hr_used` stays
+      // the zones/TRIMP/calorie one.
+      'strain_max_hr': whoop?.maxHrUsed,
       'max_hr_used': hrMax,
       'ln_rmssd': lnToday,
       'resp_rate': respToday,
@@ -2053,30 +2075,22 @@ List<Map<String, num>> _zoneTimeline(
   ];
 }
 
-List<Map<String, num>> _strainCurve(
-  List<_WakeMinuteHr> wakeHr, {
-  required double? restingHr,
-  required double? maxHr,
-  required String? sex,
-  required double? quietHrr,
-}) {
-  if (wakeHr.isEmpty || sex == null) return const [];
-  // The headline's own arithmetic, minute by minute (`strainCurveFromSeries`),
-  // so the last point IS the headline and exercise already banked never falls
-  // back out through a quiet afternoon. Null — no level, or bad anchors —
-  // leaves the curve empty, which the strain screen explains from the note.
-  final curve = strainCurveFromSeries(
-    [for (final p in wakeHr) p.hr],
-    restingHr: restingHr,
-    maxHr: maxHr,
-    quietHrr: quietHrr,
-    sex: workoutSex(sex) == 'female' ? Sex.female : Sex.male,
-  );
-  if (curve == null) return const [];
-  return [
-    for (var i = 0; i < wakeHr.length; i++)
-      {'t': wakeHr[i].tsSec, 'v': _round(curve[i], 2)},
-  ];
+/// One point per minute that has HR: the cumulative WHOOP strain at the end
+/// of that minute, off the headline's own pass, so the last point IS the
+/// headline. Empty when the headline abstained.
+List<Map<String, num>> _strainCurve(List<int> tsSec, WhoopStrain? whoop) {
+  if (whoop == null) return const [];
+  final out = <Map<String, num>>[];
+  for (var i = 0; i < tsSec.length; i++) {
+    final minute = tsSec[i] ~/ 60 * 60;
+    final point = {'t': minute, 'v': _round(whoop.curve[i], 2)};
+    if (out.isNotEmpty && out.last['t'] == minute) {
+      out[out.length - 1] = point;
+    } else {
+      out.add(point);
+    }
+  }
+  return out;
 }
 
 double? _mean(List<double> xs) {

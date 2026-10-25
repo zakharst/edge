@@ -105,12 +105,13 @@ SYNTHETIC DAY $_dayId — derived vs truth
     if (resp != null) {
       expect((resp - SyntheticDay.sleepRespRate).abs(), lessThanOrEqualTo(2));
     }
-    // A single day has no prior quiet-waking levels, and strain is priced
-    // against at least three of them: it abstains rather than price being
-    // awake at a population constant.
-    expect(s['strain'], isNull,
-        reason: 'strain abstains on a cold start');
-    expect(((full['absent_notes'] as Map?)?['strain'] as String?) ?? '',
+    // Strain is WHOOP's formula and scores a first day. The net load is
+    // priced on at least three prior quiet-waking levels, and a single day has
+    // none: it abstains rather than price being awake at a population constant.
+    expect(s['strain'] as num, inInclusiveRange(0.1, 21.0),
+        reason: 'strain scores on a cold start');
+    expect(s['trimp_net'], isNull);
+    expect(((full['absent_notes'] as Map?)?['trimp_net'] as String?) ?? '',
         startsWith('need_baseline:'));
   });
 

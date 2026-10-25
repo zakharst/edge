@@ -257,11 +257,9 @@ final Map<String, Cell> kColmiColumn = {
     reason: Why.needsBeats,
   ),
   'steps': Cell(device: 'steps', reason: Why.noDeviceSteps),
-  'strain': Cell(
-    estimated: (d, _) => scalar(d, 'strain'),
-    estimatedMethod: 'hr_5min',
-    reason: Why.noWakeHr,
-  ),
+  // WHOOP's strain formula weighs each sample at most 3 s, so readings
+  // minutes apart would score near zero. The day abstains (`hr_1hz`).
+  'strain': const Cell(reason: Why.tooSparseForStrain),
   // The ring's own daily figure where it gave one (PLAN §3b: never C when
   // V exists); our estimate off its 5-minute HR only where it gave none.
   'calories': Cell(

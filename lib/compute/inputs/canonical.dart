@@ -77,6 +77,7 @@ enum Why {
   noNightForNaps,
   needsThreeNightsTemp,
   tooSparseForWorkouts,
+  tooSparseForStrain,
   noDeviceNap,
   notDecoded,
   beatsNotSeparated,

@@ -104,7 +104,6 @@ final Map<String, num? Function(Map day, Map crossDay)> _reference = {
   'nadir_dip': (d, _) => scalar(d, 'sleeping_hr_nadir'),
   // Our partial score off the 1 Hz baseline: the resolution's effect on it.
   'readiness': (d, _) => rhrOnlyReadiness(d),
-  'strain': (d, _) => scalar(d, 'strain'),
   'calories': (d, _) => scalar(d, 'calories'),
   'baselines_load_illness': (d, _) =>
       at(d, ['baselines', 'resting_hr', 'baseline']),
@@ -121,7 +120,6 @@ const Map<String, int> _minDays = {
   'sleep_window': 23,
   'resting_hr': 22,
   'nadir_dip': 22,
-  'strain': 22,
   'calories': 22,
   'readiness': 16,
   'baselines_load_illness': 17,
@@ -136,7 +134,6 @@ const Map<String, num> _tolerance = {
   'resting_hr': 3,
   'nadir_dip': 3,
   'readiness': 10,
-  'strain': 1.5,
   'calories': 150,
   'baselines_load_illness': 3,
   'sleep_debt_need_sri': 0.5,

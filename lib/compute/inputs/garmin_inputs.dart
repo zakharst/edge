@@ -224,10 +224,9 @@ final Map<String, Cell> kGarminColumn = {
     reason: Why.needsBeats,
   ),
   'steps': Cell(device: 'steps', reason: Why.noDeviceSteps),
-  'strain': Cell(
-    ours: (d, _) => scalar(d, 'strain'),
-    reason: Why.noWakeHr,
-  ),
+  // WHOOP's strain formula weighs each sample at most 3 s, so readings
+  // minutes apart would score near zero. The day abstains (`hr_1hz`).
+  'strain': const Cell(reason: Why.tooSparseForStrain),
   'calories': Cell(
     ours: (d, _) => scalar(d, 'calories'),
     reason: Why.noWakeHrOrProfile,

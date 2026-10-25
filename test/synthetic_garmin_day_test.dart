@@ -106,7 +106,7 @@ void main() {
       'readiness': 'estimated',
       'irregular_rhythm': 'unavailable',
       'steps': 'device',
-      'strain': 'ours',
+      'strain': 'unavailable',
       'calories': 'ours',
       'movement': 'estimated',
       'auto_workouts': 'ours',
@@ -127,8 +127,8 @@ void main() {
     expect(cells['resting_hr']!['device_value'], SyntheticDay.garminRestingHr,
         reason: "the watch's own value rides beside ours");
     expect(v('nadir_dip'), inInclusiveRange(40, v('resting_hr')));
-    expect(v('strain'), inInclusiveRange(4, 15),
-        reason: 'a 40-minute run at 150 bpm');
+    // WHOOP's strain formula needs 1 Hz HR; this column is minutes apart.
+    expect(cells['strain']!['value'], isNull);
     expect(v('calories'), inInclusiveRange(200, 1500));
     expect(v('auto_workouts'), 1, reason: 'the run, found off 1-min HR');
     expect(v('sleep_debt_need_sri'), inInclusiveRange(0, 2));

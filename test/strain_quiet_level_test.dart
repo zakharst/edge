@@ -1,12 +1,10 @@
-// Strain is priced against THIS user's quiet-waking level, and quiet time never
-// debits exercise.
+// The quiet-waking level now prices only `trimp_net` (the CTL/ATL load).
+// Headline strain is WHOOP's client formula (see whoop_day_strain_test.dart)
+// and never reads it: a first day scores, and two users with different quiet
+// levels get the same strain for the same heart rate.
 //
-// Every strain site used to subtract a population 0.20 HRR as the cost of
-// being awake. A user who sits below it had real workouts cancelled (a 45-min
-// run at 145 bpm scored 0.00 for someone at 0.10 HRR); a user above it scored
-// 7–12/21 for doing nothing. The day now scores against the median of its own
-// trailing `quiet_hrr` days (strictly before it), persists its own level for
-// later days, and abstains with the baseline grammar until three exist.
+// The day still persists its own `quiet_hrr` for later days, and `trimp_net`
+// still waits for three prior levels.
 
 import 'package:flutter_test/flutter_test.dart';
 
@@ -116,38 +114,34 @@ Map<String, dynamic> _pipeline(
     ).toJson());
 
 void main() {
-  group('the day is priced on its own trailing quiet level', () {
-    test('no prior levels: strain abstains with the baseline grammar', () {
+  group('quiet level prices trimp_net, not strain', () {
+    test('no prior levels: strain scores, trimp_net waits', () {
       final r = _run(_daySub(), quietHrrHistory: const []);
-      expect(r.scalars.containsKey('strain'), isTrue,
-          reason: 'written even when null, so a stale value is erased');
-      expect(r.scalars['strain'], isNull);
-      expect((r.bundle['absent_notes'] as Map)['strain'],
-          'need_baseline:have=0,need=3');
+      expect(r.scalars['strain'] as num, greaterThan(0));
+      expect((r.bundle['absent_notes'] as Map).containsKey('strain'), isFalse);
+      expect(r.scalars['trimp_net'], isNull);
+      // The day's own level is still persisted for later days.
+      expect(r.scalars['quiet_hrr'] as num, closeTo(0.0545, 0.0005));
     });
 
-    test('seven prior levels: strain, the day\'s own level and net load', () {
+    test('seven prior levels: net load appears, strain does not move', () {
+      final none = _run(_daySub(), quietHrrHistory: const []);
       final r = _run(_daySub(), quietHrrHistory: List.filled(7, 0.20));
-      // The shipped lump form scored this fixture 2.85: 300 quiet minutes at
-      // 0.0545 HRR cancelled most of the hour at 130 bpm.
-      expect(r.scalars['strain'] as num, closeTo(8.55, 0.05));
+      expect(r.scalars['strain'], none.scalars['strain']);
       // 62 bpm against RHR 55 / HRmax 183.5 = 7/128.5. Persisted for LATER
       // days; it never prices this one.
       expect(r.scalars['quiet_hrr'] as num, closeTo(0.0545, 0.0005));
       expect(r.scalars['trimp_net'] as num, closeTo(57.46, 0.1));
     });
 
-    test('three prior levels score the same value, as "calibrating"', () {
-      final three = _run(_daySub(), quietHrrHistory: List.filled(3, 0.20));
-      final seven = _run(_daySub(), quietHrrHistory: List.filled(7, 0.20));
-      expect(three.scalars['strain'], seven.scalars['strain']);
-
+    test('the pipeline envelope ignores the quiet history', () {
       Map<String, dynamic> env(int n) => ((_pipeline(_daySub(),
               quietHrrHistory: List.filled(n, 0.20))['clinical']
           as Map)['strain'] as Map).cast<String, dynamic>();
-      expect(env(3)['confidence'], 0.45);
-      expect(env(3)['note'] as String, startsWith('calibrating'));
-      expect(env(7)['confidence'], 0.6);
+      expect(env(0)['value'], env(7)['value']);
+      expect(env(0)['confidence'], env(7)['confidence']);
+      expect(env(0)['value'], _run(_daySub(), quietHrrHistory: const [])
+          .scalars['strain']);
     });
 
     test('re-deriving the same day is idempotent', () {
@@ -161,7 +155,8 @@ void main() {
       }
     });
 
-    test('a low-quiet user\'s 45-min run is not erased', () {
+    test('a low-quiet user\'s 45-min run scores the same at any quiet level',
+        () {
       final own = _run(_lowQuietSub(),
           quietHrrHistory: List.filled(7, 0.10),
           profile: _profile30,
@@ -170,8 +165,8 @@ void main() {
           quietHrrHistory: List.filled(7, 0.20),
           profile: _profile30,
           restingHr: 50);
-      expect(own.scalars['strain'] as num, closeTo(9.90, 0.05));
-      expect(ref.scalars['strain'] as num, closeTo(9.38, 0.05));
+      expect(own.scalars['strain'] as num, greaterThan(0));
+      expect(own.scalars['strain'], ref.scalars['strain']);
     });
 
     test('the curve ends on the engine\'s headline', () {
@@ -186,18 +181,11 @@ void main() {
       expect(curve, hasLength(900));
       expect((curve.last['v'] as num).toDouble(),
           closeTo(engine.scalars['strain'] as num, 0.01));
-      // Banked exercise never falls back out through the quiet afternoon.
-      final atEndOfRun = (curve[44]['v'] as num).toDouble();
-      for (final p in curve.skip(44)) {
-        expect((p['v'] as num).toDouble(), greaterThanOrEqualTo(atEndOfRun));
+      // Strain only accumulates: nothing banked falls back out.
+      for (var i = 1; i < curve.length; i++) {
+        expect((curve[i]['v'] as num).toDouble(),
+            greaterThanOrEqualTo((curve[i - 1]['v'] as num).toDouble()));
       }
-    });
-
-    test('the pipeline abstains with the same reason', () {
-      final bundle = _pipeline(_daySub(), quietHrrHistory: const [0.2, 0.2]);
-      expect((bundle['absent_notes'] as Map)['strain'],
-          'need_baseline:have=2,need=3');
-      expect((bundle['series'] as Map)['strain_curve'], isEmpty);
     });
   });
 }

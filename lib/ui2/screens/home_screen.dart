@@ -498,15 +498,16 @@ class _WhoopStatusBar extends StatelessWidget {
       data = c.select<AppState, _StatusBarData>((a) {
         final now = DateTime.now();
         final isToday = todayId == null || todayId == todayLabel();
-        final isMorningHour = now.hour >= 5 && now.hour < 13;
         final isPendingWake = a.isPendingWakeConfirm(todayId ?? todayLabel());
-        final isMorningSync = isToday &&
-            !quietDerive &&
+        final isDeriving = a.deriving || a.deriveProgress.isComputing;
+        final isQuietDerivePass = quietDerive && a.deriveProgress.totalDays <= 1;
+        final isPipelineActive = isToday &&
+            a.isPaired &&
             (a.syncingNow ||
-                a.deriving ||
-                a.deriveProgress.isComputing ||
+                (isDeriving && !isQuietDerivePass) ||
                 isPendingWake ||
-                (isMorningHour && a.device.connection != 'connected'));
+                a.device.connection == 'connecting' ||
+                a.device.connection == 'scanning');
         return _StatusBarData(
           isPaired: a.isPaired,
           connection: a.device.connection,
@@ -526,7 +527,7 @@ class _WhoopStatusBar extends StatelessWidget {
           isCharging: a.device.charging ?? false,
           batteryPackPct: a.device.batteryPackPct,
           liveHr: a.device.liveHr,
-          isMorningSync: isMorningSync,
+          isMorningSync: isPipelineActive,
           isPendingWakeConfirm: isPendingWake,
         );
       });
@@ -559,7 +560,10 @@ class _WhoopStatusBar extends StatelessWidget {
                   isCharging: data.isCharging,
                   batteryPackPct: data.batteryPackPct,
                   liveHr: data.liveHr,
-                  isMorningSync: data.isMorningSync,
+                  isMorningSync: data.isMorningSync ||
+                      (data.isPaired &&
+                          progress.isComputing &&
+                          (!quietDerive || progress.totalDays > 1)),
                   isPendingWakeConfirm: data.isPendingWakeConfirm,
                 )
               : data!;
@@ -730,15 +734,15 @@ class _WhoopStatusBar extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      SizedBox(
-                        width: 8,
-                        height: 8,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 1.5,
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
                           color: p.on(C.blue),
                         ),
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 5),
                       Text(
                         'TRANSFERRING',
                         style: F.over.copyWith(
@@ -799,27 +803,44 @@ class _WhoopStatusBar extends StatelessWidget {
 
     // ── 1B. ON-DEVICE DERIVATION (CRUNCHING) STATE ─────────────────────
     if (isDeriving && quietDerive && data.deriveProgress.totalDays <= 1) {
+      final fracInt = (data.deriveProgress.fraction * 100).round();
       return Padding(
         padding: const EdgeInsets.only(bottom: S.x3),
         child: Row(
           children: [
-            SizedBox(
-              width: 10,
-              height: 10,
-              child: CircularProgressIndicator(
-                strokeWidth: 1.5,
-                color: p.ink3,
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: p.on(C.blue),
               ),
             ),
             const SizedBox(width: S.x2),
-            Expanded(
-              child: Text(
-                l?.homeUpdatingQuietly ?? 'Updating in the background',
-                style: F.cap.copyWith(color: p.ink3),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+            Text(
+              l?.homeUpdatingQuietly ?? 'Updating in the background',
+              style: F.cap.copyWith(color: p.ink3),
             ),
+            if (fracInt > 0) ...[
+              Text(
+                ' · $fracInt%',
+                style: F.cap.copyWith(
+                  color: p.on(C.blue),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+            if (data.deriveProgress.stageDescription != null) ...[
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  '· ${data.deriveProgress.stageDescription}',
+                  style: F.cap.copyWith(color: p.ink3),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ],
         ),
       );
@@ -1047,11 +1068,7 @@ class _WhoopStatusBar extends StatelessWidget {
         ),
         child: Row(
           children: [
-            SizedBox(
-              width: 14,
-              height: 14,
-              child: CircularProgressIndicator(strokeWidth: 2, color: p.on(C.orange)),
-            ),
+            Icon(LucideIcons.bluetooth, size: 15, color: p.on(C.orange)),
             const SizedBox(width: S.x3),
             Expanded(
               child: Text(
@@ -1191,7 +1208,11 @@ class _WhoopStatusBar extends StatelessWidget {
       remainingSec = (rem * 1.5).round().clamp(5, 150);
     } else if (step == 2) {
       final frac = data.deriveProgress.fraction;
-      remainingSec = ((1.0 - frac) * 12).round().clamp(3, 20);
+      final days = data.deriveProgress.totalDays;
+      final done = data.deriveProgress.completedDays;
+      final daysLeft = (days - done).clamp(1, 10);
+      remainingSec =
+          ((daysLeft * 12) * (1.0 - frac.clamp(0.0, 1.0))).round().clamp(3, 120);
     } else {
       remainingSec = null;
     }
@@ -1228,9 +1249,11 @@ class _WhoopStatusBar extends StatelessWidget {
               Expanded(
                 child: Text(
                   step == 2
-                      ? (l?.homeAnalyzingTitle ?? 'Calculating Morning Recovery')
+                      ? (data.deriveProgress.totalDays > 1
+                          ? 'Calculating History (${data.deriveProgress.completedDays + 1}/${data.deriveProgress.totalDays} days)'
+                          : (l?.homeAnalyzingTitle ?? 'Calculating Sleep & Recovery'))
                       : (step == 1
-                          ? (l?.homeSyncingTitle ?? 'Transferring Overnight Data')
+                          ? (l?.homeSyncingTitle ?? 'Downloading Biometric Records')
                           : (l?.homeConnectingTitle ?? 'Connecting to WHOOP…')),
                   style: F.head.copyWith(
                     color: p.ink,
@@ -1247,19 +1270,19 @@ class _WhoopStatusBar extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    SizedBox(
-                      width: 8,
-                      height: 8,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 1.5,
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
                         color: p.on(C.blue),
                       ),
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 5),
                     Text(
                       step == 2
                           ? 'CALCULATING'
-                          : (step == 1 ? 'TRANSFERRING' : 'CONNECTING'),
+                          : (step == 1 ? 'DOWNLOADING' : 'CONNECTING'),
                       style: F.over.copyWith(
                         color: p.on(C.blue),
                         fontWeight: FontWeight.bold,
@@ -1276,11 +1299,11 @@ class _WhoopStatusBar extends StatelessWidget {
             borderRadius: R.rSm,
             child: LinearProgressIndicator(
               value: step == 1
-                  ? (percent == null ? null : percent / 100)
+                  ? (percent == null ? null : (percent / 100).clamp(0.05, 1.0))
                   : (step == 2
                       ? (data.deriveProgress.fraction > 0
-                          ? data.deriveProgress.fraction
-                          : null)
+                          ? data.deriveProgress.fraction.clamp(0.05, 1.0)
+                          : 0.1)
                       : null),
               minHeight: 4,
               backgroundColor: p.on(C.blue).withValues(alpha: 0.15),
@@ -1325,7 +1348,9 @@ class _WhoopStatusBar extends StatelessWidget {
                 Expanded(
                   child: Text(
                     data.deriveProgress.stageDescription ??
-                        'Calculating sleep stages (Deep/REM) & HRV…',
+                        (data.deriveProgress.totalDays > 1
+                            ? 'Processing day ${data.deriveProgress.completedDays + 1} of ${data.deriveProgress.totalDays}…'
+                            : 'Calculating sleep stages (Deep/REM) & HRV…'),
                     style: F.cap.copyWith(
                       color: p.ink,
                       fontWeight: FontWeight.w600,
@@ -1349,7 +1374,9 @@ class _WhoopStatusBar extends StatelessWidget {
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
-                    '100% private: processed locally on your phone CPU',
+                    data.deriveProgress.totalDays > 1
+                        ? 'Multi-day history recalculation on phone CPU'
+                        : '100% private: processed locally on your phone CPU',
                     style: F.over.copyWith(color: p.ink3),
                   ),
                 ),
@@ -2935,11 +2962,6 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
       _syncTapped = false;
       _syncTapTimer?.cancel();
     }
-    final spinner = SizedBox(
-      width: 16,
-      height: 16,
-      child: CircularProgressIndicator(strokeWidth: 2, color: P.of(c).ink3),
-    );
 
     if (syncing || deriving) {
       return const StatusCard(
@@ -2952,7 +2974,7 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
       return StatusCard(
         l?.homeConnectingTitle ?? 'Connecting to your band',
         l?.homeConnectingBody ?? 'Hang on — this usually takes a few seconds.',
-        leading: spinner,
+        icon: LucideIcons.bluetooth,
       );
     }
     return null;

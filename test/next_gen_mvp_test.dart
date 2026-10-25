@@ -95,7 +95,7 @@ void main() {
     expect(find.textContaining('Balanced'), findsOneWidget);
     expect(find.text('late meal'), findsOneWidget);
     expect(find.textContaining('HRV: -8.4%'), findsOneWidget);
-    expect(find.text('BIOLOGICAL AGE · EXPERIMENTAL'), findsOneWidget);
+    expect(find.textContaining('BIOLOGICAL AGE'), findsOneWidget);
     // The strain-driven sleep-need planner was an invented formula; it is
     // gone. Sleep lives on the ring and the sleep detail screen.
     expect(find.text('SLEEP PLANNER · EXPERIMENTAL'), findsNothing);

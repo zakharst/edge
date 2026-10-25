@@ -804,10 +804,48 @@ class _WhoopStatusBar extends StatelessWidget {
     }
 
     // ── 1B. ON-DEVICE DERIVATION (CRUNCHING) STATE ─────────────────────
-    // If the screen already has scores (quietDerive == true), run background
-    // derivation 100% silently with zero visual distraction or spinner.
-    if (isDeriving && quietDerive) {
-      return const SizedBox.shrink();
+    if (isDeriving && quietDerive && data.deriveProgress.totalDays <= 1) {
+      final fracInt = (data.deriveProgress.fraction * 100).round();
+      return Padding(
+        padding: const EdgeInsets.only(bottom: S.x3),
+        child: Row(
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: p.on(C.blue),
+              ),
+            ),
+            const SizedBox(width: S.x2),
+            Text(
+              l?.homeUpdatingQuietly ?? 'Updating in the background',
+              style: F.cap.copyWith(color: p.ink3),
+            ),
+            if (fracInt > 0) ...[
+              Text(
+                ' · $fracInt%',
+                style: F.cap.copyWith(
+                  color: p.on(C.blue),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+            if (data.deriveProgress.stageDescription != null) ...[
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  '· ${data.deriveProgress.stageDescription}',
+                  style: F.cap.copyWith(color: p.ink3),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
     }
     if (isDeriving) {
       final progress = data.deriveProgress;

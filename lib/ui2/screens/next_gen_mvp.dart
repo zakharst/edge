@@ -4,6 +4,7 @@ import 'package:openstrap_analytics/onehz.dart' as ana;
 
 import '../../data/day_label.dart' show todayLabel;
 import '../../data/local_repository.dart';
+import '../../state/locale_controller.dart';
 import '../grammar.dart';
 import '../profile/settings.dart';
 import '../revision.dart';
@@ -149,6 +150,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
 
   Widget _bioAgeHeroCard(BuildContext context, _NextGenData data) {
     final p = P.of(context);
+    final isUk = LocaleController.displayLanguageCode == 'uk';
     final result = data.biologicalAge;
     final diff = result?.ageDifference ?? 0.0;
     final isYounger = diff < 0;
@@ -156,8 +158,9 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
 
     return Pressable(
       onTap: () => _showBioAgeDetailSheet(context, data, onReload: _reload),
-      semanticLabel:
-          'Biological age overview. Tap to view longevity breakdown and calibration checklist.',
+      semanticLabel: isUk
+          ? 'Біологічний вік. Натисніть для перегляду 4 стовпів та розрахунків.'
+          : 'Biological age overview. Tap to view longevity breakdown and calibration checklist.',
       child: Container(
         padding: const EdgeInsets.all(S.x4),
         decoration: BoxDecoration(
@@ -186,7 +189,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                 const SizedBox(width: S.x2),
                 Expanded(
                   child: Text(
-                    'CARDIOVASCULAR AGE',
+                    isUk ? 'БІОЛОГІЧНИЙ ВІК' : 'BIOLOGICAL AGE',
                     style: F.over.copyWith(
                       color: p.ink3,
                       fontWeight: FontWeight.bold,
@@ -205,9 +208,13 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                       ),
                     ),
                     child: Text(
-                      isYounger
-                          ? '▼ $diffAbs YRS YOUNGER'
-                          : (diff > 0 ? '▲ $diffAbs YRS OLDER' : 'OPTIMAL PACE'),
+                      isUk
+                          ? (isYounger
+                              ? '▼ $diffAbs Р. МОЛОДШИЙ'
+                              : (diff > 0 ? '▲ $diffAbs Р. СТАРШИЙ' : 'НОРМА'))
+                          : (isYounger
+                              ? '▼ $diffAbs YRS YOUNGER'
+                              : (diff > 0 ? '▲ $diffAbs YRS OLDER' : 'OPTIMAL PACE')),
                       style: F.over.copyWith(
                         color: isYounger ? C.green : C.orange,
                         fontWeight: FontWeight.bold,
@@ -222,13 +229,13 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                       borderRadius: R.rPill,
                     ),
                     child: Text(
-                      'CALIBRATING',
+                      isUk ? 'КАЛІБРУВАННЯ' : 'CALIBRATING',
                       style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
                     ),
                   ),
               ],
             ),
-            const SizedBox(height: S.x4),
+            const SizedBox(height: S.x3),
 
             // Big Metric & Comparison
             if (result != null) ...[
@@ -245,7 +252,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                       ),
                       const SizedBox(width: S.x1),
                       Text(
-                        'YRS',
+                        isUk ? 'РОКІВ' : 'YRS',
                         style: F.cap.copyWith(
                           color: p.ink3,
                           fontWeight: FontWeight.bold,
@@ -258,18 +265,72 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        'CALENDAR',
+                        isUk ? 'ПАСПОРТНИЙ' : 'CALENDAR',
                         style: F.over.copyWith(color: p.ink3),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                       Text(
-                        '${result.chronologicalAge.toStringAsFixed(0)} yrs',
+                        isUk
+                            ? '${result.chronologicalAge.toStringAsFixed(0)} р.'
+                            : '${result.chronologicalAge.toStringAsFixed(0)} yrs',
                         style: F.head.copyWith(color: p.ink2, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
                 ],
+              ),
+              const SizedBox(height: S.x3),
+
+              // ── VISUAL MATH LEDGER: 28.0 - 1.5 - 1.0 - 0.8 + 0.5 = 25.2 ──
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: S.x3, vertical: S.x2),
+                decoration: BoxDecoration(
+                  color: p.card2,
+                  borderRadius: R.rMd,
+                  border: Border.all(color: p.line),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _BioEquationNode(
+                      value: result.chronologicalAge.toStringAsFixed(0),
+                      label: isUk ? 'Паспорт' : 'Calendar',
+                      color: p.ink,
+                    ),
+                    Text(result.rhrModifier <= 0 ? '-' : '+', style: F.head.copyWith(color: p.ink3)),
+                    _BioEquationNode(
+                      value: result.rhrModifier.abs().toStringAsFixed(1),
+                      label: isUk ? 'Пульс' : 'RHR',
+                      color: result.rhrModifier <= 0 ? C.green : C.orange,
+                    ),
+                    Text(result.hrvModifier <= 0 ? '-' : '+', style: F.head.copyWith(color: p.ink3)),
+                    _BioEquationNode(
+                      value: result.hrvModifier.abs().toStringAsFixed(1),
+                      label: 'HRV',
+                      color: result.hrvModifier <= 0 ? C.green : C.purple,
+                    ),
+                    Text(result.vo2Modifier <= 0 ? '-' : '+', style: F.head.copyWith(color: p.ink3)),
+                    _BioEquationNode(
+                      value: result.vo2Modifier.abs().toStringAsFixed(1),
+                      label: 'VO₂',
+                      color: result.vo2Modifier <= 0 ? C.green : C.blue,
+                    ),
+                    Text(result.lifestyleModifier <= 0 ? '-' : '+', style: F.head.copyWith(color: p.ink3)),
+                    _BioEquationNode(
+                      value: result.lifestyleModifier.abs().toStringAsFixed(1),
+                      label: isUk ? 'Сон' : 'Sleep',
+                      color: result.lifestyleModifier <= 0 ? C.green : C.orange,
+                    ),
+                    Text('=', style: F.head.copyWith(color: p.ink3)),
+                    _BioEquationNode(
+                      value: result.biologicalAge.toStringAsFixed(1),
+                      label: isUk ? 'Біовік' : 'Bio Age',
+                      color: isYounger ? C.green : C.orange,
+                      highlight: true,
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: S.x3),
 
@@ -282,10 +343,10 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                 ),
                 child: Row(
                   children: [
-                    Expanded(child: _miniBiomarkerChip(context, '🫀', data.avgRhr != null ? '${data.avgRhr!.round()} bpm' : '—', 'RHR')),
-                    Expanded(child: _miniBiomarkerChip(context, '⚡', data.avgHrv != null ? '${data.avgHrv!.round()} ms' : '—', 'HRV')),
+                    Expanded(child: _miniBiomarkerChip(context, '🫀', data.avgRhr != null ? '${data.avgRhr!.round()} bpm' : '—', isUk ? 'Пульс' : 'RHR')),
+                    Expanded(child: _miniBiomarkerChip(context, '⚡', data.avgHrv != null ? '${data.avgHrv!.round()} ms' : '—', isUk ? 'HRV' : 'HRV')),
                     Expanded(child: _miniBiomarkerChip(context, '🁢', result.vo2MaxEst.toStringAsFixed(1), 'VO₂ Max')),
-                    Expanded(child: _miniBiomarkerChip(context, '🌙', '${((data.sleepConsistency ?? 0.75) * 100).round()}%', 'Sleep')),
+                    Expanded(child: _miniBiomarkerChip(context, '🌙', '${((data.sleepConsistency ?? 0.75) * 100).round()}%', isUk ? 'Ритм сну' : 'Sleep')),
                   ],
                 ),
               ),
@@ -317,10 +378,14 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                       const SizedBox(width: S.x1),
                       Text(
                         data.bio7dDelta! <= -0.05
-                            ? '7d: -${data.bio7dDelta!.abs().toStringAsFixed(1)} yrs'
+                            ? (isUk
+                                ? '7 днів: -${data.bio7dDelta!.abs().toStringAsFixed(1)} р. омолодження'
+                                : '7d: -${data.bio7dDelta!.abs().toStringAsFixed(1)} yrs')
                             : (data.bio7dDelta! >= 0.05
-                                ? '7d: +${data.bio7dDelta!.toStringAsFixed(1)} yrs strain'
-                                : '7d: Stable baseline'),
+                                ? (isUk
+                                    ? '7 днів: +${data.bio7dDelta!.toStringAsFixed(1)} р. втома'
+                                    : '7d: +${data.bio7dDelta!.toStringAsFixed(1)} yrs strain')
+                                : (isUk ? '7 днів: стабільна норма' : '7d: Stable baseline')),
                         style: F.over.copyWith(
                           color: data.bio7dDelta! <= -0.05
                               ? C.green
@@ -335,7 +400,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                       ),
                       const SizedBox(width: S.x2),
                       Text(
-                        data.isToday ? 'Today' : data.dayId,
+                        data.isToday ? (isUk ? 'Сьогодні' : 'Today') : data.dayId,
                         style: F.over.copyWith(color: p.ink3),
                       ),
                     ],
@@ -344,12 +409,15 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
               ],
             ] else ...[
               Text(
-                'Calibrating Baseline',
+                isUk ? 'Вивчення базового ритму' : 'Calibrating Baseline',
                 style: F.t2.copyWith(color: p.ink),
               ),
               const SizedBox(height: S.x1),
               Text(
-                data.bioAgeMissingReason ?? 'Needs profile age & 3+ days of band recordings.',
+                data.bioAgeMissingReason ??
+                    (isUk
+                        ? 'Потрібен вік у профілі та від 3 днів записів браслета.'
+                        : 'Needs profile age & 3+ days of band recordings.'),
                 style: F.cap.copyWith(color: p.ink2),
               ),
             ],
@@ -361,8 +429,8 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                 Expanded(
                   child: Text(
                     result != null
-                        ? 'Чесна розшифровка 4 кардіо-стовпів (PpgAge)'
-                        : 'Tap to view calibration checklist',
+                        ? (isUk ? 'Як розраховано біологічний вік' : 'How biological age is calculated')
+                        : (isUk ? 'Подивитися список для калібрування' : 'Tap to view calibration checklist'),
                     style: F.cap.copyWith(color: p.ink3),
                   ),
                 ),
@@ -405,6 +473,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
 
   Widget _compactStressCard(BuildContext context, _NextGenData data) {
     final p = P.of(context);
+    final isUk = LocaleController.displayLanguageCode == 'uk';
     final score = data.stressScore;
     final rawLevel = data.stressLevel ?? 'Balanced';
     final isScored = score != null;
@@ -421,10 +490,19 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
       _ => C.blue,
     };
 
+    final localizedLevel = switch (levelLower) {
+      'low' => isUk ? 'Спокій' : 'Low',
+      'balanced' || 'normal' => isUk ? 'Баланс' : 'Balanced',
+      'elevated' => isUk ? 'Напруга' : 'Elevated',
+      'high' => isUk ? 'Стрес' : 'High',
+      _ => isUk ? 'Баланс' : 'Balanced',
+    };
+
     return Pressable(
       onTap: () => _showStressDetailSheet(context, data),
-      semanticLabel:
-          'Real-time stress level $displayLevel${isScored ? ", score ${score.toStringAsFixed(0)}" : ""}. Tap to open details.',
+      semanticLabel: isUk
+          ? 'Рівень стресу $localizedLevel${isScored ? ", бал ${score.toStringAsFixed(0)}" : ""}. Натисніть для деталей.'
+          : 'Real-time stress level $displayLevel${isScored ? ", score ${score.toStringAsFixed(0)}" : ""}. Tap to open details.',
       child: Container(
         height: 154,
         padding: const EdgeInsets.all(S.x3),
@@ -454,7 +532,9 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                   const SizedBox(width: S.x1),
                   Expanded(
                     child: Text(
-                      data.isToday ? 'STRESS · LIVE' : 'STRESS · DAY RECORD',
+                      data.isToday
+                          ? (isUk ? 'СТРЕС · ЗАРАЗ' : 'STRESS · LIVE')
+                          : (isUk ? 'СТРЕС · ЗА ДЕНЬ' : 'STRESS · DAY RECORD'),
                       style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -471,7 +551,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
               textBaseline: TextBaseline.alphabetic,
               children: [
                 Text(
-                  isScored ? score.toStringAsFixed(0) : 'Resting',
+                  isScored ? score.toStringAsFixed(0) : (isUk ? 'Спокій' : 'Resting'),
                   style: isScored ? F.n34.copyWith(color: p.ink) : F.head.copyWith(color: p.ink2),
                 ),
                 const SizedBox(width: S.x1),
@@ -484,7 +564,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                         borderRadius: R.rPill,
                       ),
                       child: Text(
-                        displayLevel,
+                        localizedLevel,
                         style: F.over.copyWith(color: badgeColor, fontWeight: FontWeight.bold),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -511,8 +591,13 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
             // Bottom Subtitle
             Text(
               isScored
-                  ? 'Baevsky SI: ${data.stressSi?.toStringAsFixed(1) ?? '—'}'
-                  : (data.stressNote ?? (data.isToday ? 'Awaiting rest period' : 'No rest recording')),
+                  ? (isUk
+                      ? 'Індекс напруги (SI): ${data.stressSi?.toStringAsFixed(1) ?? "—"}'
+                      : 'Baevsky SI: ${data.stressSi?.toStringAsFixed(1) ?? "—"}')
+                  : (data.stressNote ??
+                      (data.isToday
+                          ? (isUk ? 'Очікування спокою' : 'Awaiting rest period')
+                          : (isUk ? 'Немає запису спокою' : 'No rest recording'))),
               style: F.cap.copyWith(color: p.ink3),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -539,13 +624,15 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
 
   Widget _compactJournalCard(BuildContext context, _NextGenData data) {
     final p = P.of(context);
+    final isUk = LocaleController.displayLanguageCode == 'uk';
     final row = data.journalInsight;
     final delta = (row?['delta_pct'] as num?)?.toDouble();
 
     return Pressable(
       onTap: () => _showJournalDetailSheet(context, data, onReload: _reload),
-      semanticLabel:
-          'Journal insights ${data.dayLoggedHabits.isNotEmpty ? data.dayLoggedHabits.join(", ") : (row != null ? row["tag"].toString() : "awaiting logs")}. Tap to open journal details.',
+      semanticLabel: isUk
+          ? 'Вплив звичок із щоденника. Натисніть для перегляду кореляцій.'
+          : 'Journal insights ${data.dayLoggedHabits.isNotEmpty ? data.dayLoggedHabits.join(", ") : (row != null ? row["tag"].toString() : "awaiting logs")}. Tap to open journal details.',
       child: Container(
         height: 154,
         padding: const EdgeInsets.all(S.x3),
@@ -575,7 +662,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                   const SizedBox(width: S.x1),
                   Expanded(
                     child: Text(
-                      'JOURNAL INSIGHTS',
+                      isUk ? 'ВПЛИВ ЗВИЧОК' : 'JOURNAL INSIGHTS',
                       style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -590,7 +677,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
             Text(
               data.dayLoggedHabits.isNotEmpty
                   ? data.dayLoggedHabits.join(', ')
-                  : (row != null ? '${row['tag']}' : 'No Habits Yet'),
+                  : (row != null ? '${row['tag']}' : (isUk ? 'Немає звичок' : 'No Habits Yet')),
               style: F.head.copyWith(color: p.ink, fontWeight: FontWeight.bold),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -621,7 +708,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                   borderRadius: R.rPill,
                 ),
                 child: Text(
-                  'Awaiting Logs',
+                  isUk ? 'Очікування записів' : 'Awaiting Logs',
                   style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -632,10 +719,12 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
             // Bottom Subtitle
             Text(
               data.dayLoggedHabits.isNotEmpty
-                  ? 'Logged on this day'
+                  ? (isUk ? 'Записано в цей день' : 'Logged on this day')
                   : (row != null
-                      ? '${row['n_with']} with · ${row['n_without']} without'
-                      : 'Needs 5+ logged days'),
+                      ? (isUk
+                          ? '${row['n_with']} з · ${row['n_without']} без'
+                          : '${row['n_with']} with · ${row['n_without']} without')
+                      : (isUk ? 'Потрібно 5+ днів' : 'Needs 5+ logged days')),
               style: F.cap.copyWith(color: p.ink3),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -650,11 +739,13 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
 
   Widget _compactRepCard(BuildContext context, _NextGenData data) {
     final p = P.of(context);
+    final isUk = LocaleController.displayLanguageCode == 'uk';
 
     return Pressable(
       onTap: () => _showRepCounterDetailSheet(context),
-      semanticLabel:
-          'Strength rep counter. Tap to view strength trainer and rep detection.',
+      semanticLabel: isUk
+          ? 'Трекер повторень. Натисніть для перегляду кінематики 100 Гц.'
+          : 'Strength rep counter. Tap to view strength trainer and rep detection.',
       child: Container(
         height: 154,
         padding: const EdgeInsets.all(S.x3),
@@ -684,7 +775,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                   const SizedBox(width: S.x1),
                   Expanded(
                     child: Text(
-                      'REP COUNTER',
+                      isUk ? 'ПОВТОРЕННЯ' : 'REP COUNTER',
                       style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -708,7 +799,9 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                 borderRadius: R.rPill,
               ),
               child: Text(
-                data.isToday ? '100 Hz Live IMU' : 'RAM Kinematics',
+                data.isToday
+                    ? (isUk ? '100 Гц Акселерометр' : '100 Hz Live IMU')
+                    : (isUk ? 'RAM Кінематика' : 'RAM Kinematics'),
                 style: F.over.copyWith(color: C.green, fontWeight: FontWeight.bold),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -718,7 +811,9 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
 
             // Bottom Subtitle
             Text(
-              data.isToday ? 'Live workout tracking' : 'Active session mode',
+              data.isToday
+                  ? (isUk ? 'Під час тренування' : 'Live workout tracking')
+                  : (isUk ? 'Режим сесії' : 'Active session mode'),
               style: F.cap.copyWith(color: p.ink3),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -737,11 +832,13 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
     VoidCallback? onReload,
   }) {
     final p = P.of(context);
+    final isUk = LocaleController.displayLanguageCode == 'uk';
     final result = data.biologicalAge;
     final diff = result?.ageDifference ?? 0.0;
     final isYounger = diff < 0;
     final diffAbs = diff.abs().toStringAsFixed(1);
-    final sexLabel = result?.sex == 'f' ? 'Female' : 'Male';
+    final isFemale = result?.sex == 'f';
+    final sexLabel = isUk ? (isFemale ? 'Жіночі' : 'Чоловічі') : (isFemale ? 'Female' : 'Male');
 
     showModalBottomSheet<void>(
       context: context,
@@ -779,11 +876,13 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Cardiovascular Fitness Age',
+                          isUk ? 'Біологічний вік серця' : 'Cardiovascular Fitness Age',
                           style: F.t1.copyWith(color: p.ink),
                         ),
                         Text(
-                          'Sex-stratified PpgAge model (Nature 2025)',
+                          isUk
+                              ? 'Модель PpgAge на базі біомаркерів (Nature 2025)'
+                              : 'Sex-stratified PpgAge model (Nature 2025)',
                           style: F.cap.copyWith(color: p.ink3),
                         ),
                       ],
@@ -812,7 +911,9 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                     const SizedBox(width: S.x2),
                     Expanded(
                       child: Text(
-                        '100% чесність: це фізіологічний вік серцево-судинної системи, а не ДНК-тест. Розраховується за моделлю PpgAge (Nature 2025) на базі 14-денного пульсу спокою, HRV, VO₂ Max та ритму сну.',
+                        isUk
+                            ? '100% чесність: це фізіологічний вік серцево-судинної та вегетативної системи, а не ДНК-тест. Розраховується за 14-денним пульсом спокою, нічним HRV, VO₂ Max та ритмом сну.'
+                            : '100% scientific honesty: This is physiological cardiovascular and autonomic age, not a DNA test. Calculated using your 14-day rolling resting HR, overnight HRV, VO₂ Max, and circadian sleep regularity.',
                         style: F.cap.copyWith(color: p.ink, height: 1.3),
                       ),
                     ),
@@ -836,13 +937,13 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                         children: [
                           Column(
                             children: [
-                              Text('Calendar Age', style: F.over.copyWith(color: p.ink3)),
+                              Text(isUk ? 'Паспортний' : 'Calendar Age', style: F.over.copyWith(color: p.ink3)),
                               const SizedBox(height: 4),
                               Text(
                                 result.chronologicalAge.toStringAsFixed(0),
                                 style: F.n34.copyWith(color: p.ink2),
                               ),
-                              Text('years', style: F.over.copyWith(color: p.ink3)),
+                              Text(isUk ? 'років' : 'years', style: F.over.copyWith(color: p.ink3)),
                             ],
                           ),
                           Container(
@@ -857,14 +958,18 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                             child: Column(
                               children: [
                                 Text(
-                                  isYounger ? '▼ $diffAbs YRS' : '▲ $diffAbs YRS',
+                                  isUk
+                                      ? (isYounger ? '▼ $diffAbs Р.' : '▲ $diffAbs Р.')
+                                      : (isYounger ? '▼ $diffAbs YRS' : '▲ $diffAbs YRS'),
                                   style: F.head.copyWith(
                                     color: isYounger ? C.green : C.orange,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
                                 Text(
-                                  isYounger ? 'YOUNGER' : (diff > 0 ? 'OLDER' : 'MATCHED'),
+                                  isUk
+                                      ? (isYounger ? 'МОЛОДШИЙ' : (diff > 0 ? 'СТАРШИЙ' : 'НОРМА'))
+                                      : (isYounger ? 'YOUNGER' : (diff > 0 ? 'OLDER' : 'MATCHED')),
                                   style: F.over.copyWith(
                                     color: isYounger ? C.green : C.orange,
                                     fontWeight: FontWeight.bold,
@@ -875,7 +980,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                           ),
                           Column(
                             children: [
-                              Text('Biological Age', style: F.over.copyWith(color: p.ink3)),
+                              Text(isUk ? 'Біологічний' : 'Biological Age', style: F.over.copyWith(color: p.ink3)),
                               const SizedBox(height: 4),
                               Text(
                                 result.biologicalAge.toStringAsFixed(1),
@@ -884,12 +989,73 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              Text('years', style: F.over.copyWith(color: p.ink3)),
+                              Text(isUk ? 'років' : 'years', style: F.over.copyWith(color: p.ink3)),
                             ],
                           ),
                         ],
                       ),
                       const SizedBox(height: S.x4),
+
+                      // ── VISUAL ARITHMETIC LEDGER BREAKDOWN ──
+                      Container(
+                        padding: const EdgeInsets.all(S.x3),
+                        decoration: BoxDecoration(
+                          color: p.bg,
+                          borderRadius: R.rMd,
+                          border: Border.all(color: p.line),
+                        ),
+                        child: Column(
+                          children: [
+                            _BioLedgerEquationRow(
+                              sign: '•',
+                              value: '${result.chronologicalAge.toStringAsFixed(1)} ${isUk ? 'р.' : 'yrs'}',
+                              label: isUk ? 'Паспортний вік (база)' : 'Chronological Age (base)',
+                              color: p.ink,
+                            ),
+                            const SizedBox(height: S.x2),
+                            _BioLedgerEquationRow(
+                              sign: result.rhrModifier >= 0 ? '+' : '-',
+                              value: '${result.rhrModifier.abs().toStringAsFixed(1)} ${isUk ? 'р.' : 'yrs'}',
+                              label: isUk ? 'Пульс спокою (RHR)' : 'Resting Heart Rate (RHR)',
+                              color: result.rhrModifier <= 0 ? C.green : C.orange,
+                            ),
+                            const SizedBox(height: S.x2),
+                            _BioLedgerEquationRow(
+                              sign: result.hrvModifier >= 0 ? '+' : '-',
+                              value: '${result.hrvModifier.abs().toStringAsFixed(1)} ${isUk ? 'р.' : 'yrs'}',
+                              label: isUk ? 'Вегетативний баланс (HRV)' : 'Autonomic Tone (Overnight HRV)',
+                              color: result.hrvModifier <= 0 ? C.green : C.orange,
+                            ),
+                            const SizedBox(height: S.x2),
+                            _BioLedgerEquationRow(
+                              sign: result.vo2Modifier >= 0 ? '+' : '-',
+                              value: '${result.vo2Modifier.abs().toStringAsFixed(1)} ${isUk ? 'р.' : 'yrs'}',
+                              label: isUk ? 'Аеробна витривалість (VO₂ Max)' : 'Cardiorespiratory Fitness (VO₂ Max)',
+                              color: result.vo2Modifier <= 0 ? C.green : C.orange,
+                            ),
+                            const SizedBox(height: S.x2),
+                            _BioLedgerEquationRow(
+                              sign: result.lifestyleModifier >= 0 ? '+' : '-',
+                              value: '${result.lifestyleModifier.abs().toStringAsFixed(1)} ${isUk ? 'р.' : 'yrs'}',
+                              label: isUk ? 'Ритм сну та активність (SRI)' : 'Circadian Sleep & Daily Movement',
+                              color: result.lifestyleModifier <= 0 ? C.green : C.orange,
+                            ),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: S.x2),
+                              child: Divider(height: 1),
+                            ),
+                            _BioLedgerEquationRow(
+                              sign: '=',
+                              value: '${result.biologicalAge.toStringAsFixed(1)} ${isUk ? 'років' : 'years'}',
+                              label: isUk ? 'Разом: Біологічний вік' : 'Total: Biological Age',
+                              color: isYounger ? C.green : C.orange,
+                              isTotal: true,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: S.x3),
+
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(S.x3),
@@ -898,11 +1064,17 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                           borderRadius: R.rMd,
                         ),
                         child: Text(
-                          diff <= -1.5
-                              ? '🎉 Outstanding! Your cellular and cardiovascular biomarkers reflect superior biological fitness.'
-                              : (diff >= 1.5
-                                  ? '⚠️ Elevated biological strain. Focus on targeted recovery and aerobic endurance to reverse.'
-                                  : '👍 Optimal pace. Your physiological biomarkers align with chronological peers.'),
+                          isUk
+                              ? (diff <= -1.5
+                                  ? '🎉 Відмінно! Ваші серцево-судинні показники відповідають значно молодшому віку.'
+                                  : (diff >= 1.5
+                                      ? '⚠️ Підвищене навантаження на серцево-судинну систему. Зверніть увагу на відновлення та кардіо.'
+                                      : '👍 Оптимальний темп. Ваші біомаркери гармонійно відповідають паспортному віку.'))
+                              : (diff <= -1.5
+                                  ? '🎉 Outstanding! Your cellular and cardiovascular biomarkers reflect superior biological fitness.'
+                                  : (diff >= 1.5
+                                      ? '⚠️ Elevated biological strain. Focus on targeted recovery and aerobic endurance to reverse.'
+                                      : '👍 Optimal pace. Your physiological biomarkers align with chronological peers.')),
                           style: F.cap.copyWith(color: p.ink, height: 1.35),
                           textAlign: TextAlign.center,
                         ),
@@ -918,7 +1090,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                       const Icon(LucideIcons.activity, size: 16, color: C.blue),
                       const SizedBox(width: S.x2),
                       Text(
-                        '7-DAY LONGEVITY TRAJECTORY',
+                        isUk ? 'ДИНАМІКА БІОЛОГІЧНОГО ВІКУ ЗА 7 ДНІВ' : '7-DAY LONGEVITY TRAJECTORY',
                         style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
                       ),
                     ],
@@ -939,14 +1111,14 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  item.$1 == data.dayId ? '${item.$1} (Selected)' : item.$1,
+                                  item.$1 == data.dayId ? '${item.$1} ${isUk ? "(Обрано)" : "(Selected)"}' : item.$1,
                                   style: F.cap.copyWith(
                                     color: item.$1 == data.dayId ? p.ink : p.ink2,
                                     fontWeight: item.$1 == data.dayId ? FontWeight.bold : FontWeight.normal,
                                   ),
                                 ),
                                 Text(
-                                  '${item.$2.toStringAsFixed(1)} yrs',
+                                  '${item.$2.toStringAsFixed(1)} ${isUk ? "р." : "yrs"}',
                                   style: F.cap.copyWith(
                                     color: item.$2 < result.chronologicalAge ? C.green : p.ink,
                                     fontWeight: FontWeight.bold,
@@ -966,7 +1138,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
 
                 // Pillars Section Header
                 Text(
-                  'BIOMARKER PILLARS ($sexLabel Norms)',
+                  isUk ? '4 СТОВПИ БІОЛОГІЧНОГО ВІКУ (Норми: $sexLabel)' : 'BIOMARKER PILLARS ($sexLabel Norms)',
                   style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: S.x3),
@@ -974,9 +1146,10 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                 _biomarkerPillarCard(
                   context,
                   icon: '🫀',
-                  title: 'Resting Heart Rate (RHR)',
-                  value: data.avgRhr != null ? '${data.avgRhr!.round()} bpm' : '—',
-                  insight: result.heartInsight,
+                  title: isUk ? 'Пульс спокою (RHR)' : 'Resting Heart Rate (RHR)',
+                  value: data.avgRhr != null ? '${data.avgRhr!.round()} ${isUk ? "уд/хв" : "bpm"}' : '—',
+                  modifierBadge: '${result.rhrModifier >= 0 ? "+" : ""}${result.rhrModifier.toStringAsFixed(1)} ${isUk ? "р." : "yrs"}',
+                  insight: _getHeartInsight(result, data.avgRhr, isUk),
                   accentColor: C.red,
                 ),
                 const SizedBox(height: S.x3),
@@ -984,9 +1157,10 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                 _biomarkerPillarCard(
                   context,
                   icon: '⚡',
-                  title: 'Autonomic System (Overnight HRV)',
-                  value: data.avgHrv != null ? '${data.avgHrv!.round()} ms' : '—',
-                  insight: result.hrvInsight,
+                  title: isUk ? 'Вегетативна система (Нічний HRV)' : 'Autonomic System (Overnight HRV)',
+                  value: data.avgHrv != null ? '${data.avgHrv!.round()} ${isUk ? "мс" : "ms"}' : '—',
+                  modifierBadge: '${result.hrvModifier >= 0 ? "+" : ""}${result.hrvModifier.toStringAsFixed(1)} ${isUk ? "р." : "yrs"}',
+                  insight: _getHrvInsight(result, data.avgHrv, isUk),
                   accentColor: C.purple,
                 ),
                 const SizedBox(height: S.x3),
@@ -994,9 +1168,10 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                 _biomarkerPillarCard(
                   context,
                   icon: '🁢',
-                  title: 'Aerobic Endurance (VO₂ Max)',
-                  value: '${result.vo2MaxEst.toStringAsFixed(1)} ml/kg',
-                  insight: result.vo2Insight,
+                  title: isUk ? 'Аеробна витривалість (VO₂ Max)' : 'Aerobic Endurance (VO₂ Max)',
+                  value: '${result.vo2MaxEst.toStringAsFixed(1)} ${isUk ? "мл/кг" : "ml/kg"}',
+                  modifierBadge: '${result.vo2Modifier >= 0 ? "+" : ""}${result.vo2Modifier.toStringAsFixed(1)} ${isUk ? "р." : "yrs"}',
+                  insight: _getVo2Insight(result, isUk),
                   accentColor: C.blue,
                 ),
                 const SizedBox(height: S.x3),
@@ -1004,9 +1179,10 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                 _biomarkerPillarCard(
                   context,
                   icon: '🌙',
-                  title: 'Sleep Stability & Movement',
+                  title: isUk ? 'Ритм сну та активність' : 'Sleep Stability & Movement',
                   value: '${((data.sleepConsistency ?? 0.75) * 100).round()}% SRI',
-                  insight: result.lifestyleInsight,
+                  modifierBadge: '${result.lifestyleModifier >= 0 ? "+" : ""}${result.lifestyleModifier.toStringAsFixed(1)} ${isUk ? "р." : "yrs"}',
+                  insight: _getLifestyleInsight(result, isUk),
                   accentColor: C.indigo,
                 ),
                 const SizedBox(height: S.x6),
@@ -1017,21 +1193,23 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                     const Icon(LucideIcons.lightbulb, size: 16, color: C.yellow),
                     const SizedBox(width: S.x2),
                     Text(
-                      'HOW TO REVERSE BIOLOGICAL AGE',
+                      isUk ? 'ЯК ОМОЛОДИТИ СЕРЦЕ ТА СУДИНИ' : 'HOW TO REVERSE BIOLOGICAL AGE',
                       style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
                 const SizedBox(height: S.x3),
 
-                for (final tip in result.actionableTips) ...[
+                for (final tip in _getActionableTips(result, isUk)) ...[
                   _actionTipCard(context, tip),
                   const SizedBox(height: S.x2),
                 ],
                 const SizedBox(height: S.x4),
 
                 Text(
-                  'Science note: Benchmarks are calibrated to sex-stratified normative longevity decline curves (Levine PhenoAge, HUNT3 VO₂ max, and autonomic aging models).',
+                  isUk
+                      ? 'Наукова основа: Базується на нормативних кривих вікового спаду (Levine PhenoAge, HUNT3 VO₂ max, моделі вегетативного старіння).'
+                      : 'Science note: Benchmarks are calibrated to sex-stratified normative longevity decline curves (Levine PhenoAge, HUNT3 VO₂ max, and autonomic aging models).',
                   style: F.over.copyWith(color: p.ink3, height: 1.4),
                 ),
               ] else ...[
@@ -1046,7 +1224,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Calibration Checklist',
+                        isUk ? 'Контрольний список калібрування' : 'Calibration Checklist',
                         style: F.head.copyWith(color: p.ink),
                       ),
                       const SizedBox(height: S.x2),
@@ -1097,6 +1275,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
     required String icon,
     required String title,
     required String value,
+    required String modifierBadge,
     required String insight,
     required Color accentColor,
   }) {
@@ -1130,6 +1309,21 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                   value,
                   style: F.cap.copyWith(
                     color: accentColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: S.x1),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: S.x2, vertical: 2),
+                decoration: BoxDecoration(
+                  color: p.wash(accentColor, strength: 0.2),
+                  borderRadius: R.rPill,
+                ),
+                child: Text(
+                  modifierBadge,
+                  style: F.over.copyWith(
+                    color: p.on(accentColor),
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -1180,9 +1374,27 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
 
   static void _showStressDetailSheet(BuildContext context, _NextGenData data) {
     final p = P.of(context);
+    final isUk = LocaleController.displayLanguageCode == 'uk';
     final score = data.stressScore;
-    final level = data.stressLevel ?? 'Balanced';
+    final rawLevel = data.stressLevel ?? 'Balanced';
     final isScored = score != null;
+
+    final String localizedLevel;
+    switch (rawLevel) {
+      case 'Low':
+        localizedLevel = isUk ? 'Спокій' : 'Low';
+        break;
+      case 'Elevated':
+        localizedLevel = isUk ? 'Напруга' : 'Elevated';
+        break;
+      case 'High':
+        localizedLevel = isUk ? 'Стрес' : 'High';
+        break;
+      case 'Balanced':
+      default:
+        localizedLevel = isUk ? 'Баланс' : 'Balanced';
+        break;
+    }
 
     showModalBottomSheet<void>(
       context: context,
@@ -1217,11 +1429,13 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Real-Time & Daily Stress',
+                          isUk ? 'Рівень стресу та напруги' : 'Real-Time & Daily Stress',
                           style: F.t1.copyWith(color: p.ink),
                         ),
                         Text(
-                          'Autonomic nervous tone & Baevsky SI',
+                          isUk
+                              ? 'Вегетативний тонус та індекс напруги Баєвського'
+                              : 'Autonomic nervous tone & Baevsky SI',
                           style: F.cap.copyWith(color: p.ink3),
                         ),
                       ],
@@ -1254,7 +1468,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                               isScored ? score.toStringAsFixed(0) : '—',
                               style: F.n48.copyWith(color: p.ink),
                             ),
-                            Text('Stress Score (0–100)', style: F.over.copyWith(color: p.ink3)),
+                            Text(isUk ? 'Індекс стресу (0–100)' : 'Stress Score (0–100)', style: F.over.copyWith(color: p.ink3)),
                           ],
                         ),
                         Container(
@@ -1265,7 +1479,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                             border: Border.all(color: C.blue.withValues(alpha: 0.4)),
                           ),
                           child: Text(
-                            level,
+                            localizedLevel,
                             style: F.head.copyWith(color: C.blue, fontWeight: FontWeight.bold),
                           ),
                         ),
@@ -1275,13 +1489,13 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                     // Spectrum meter
                     Row(
                       children: [
-                        _spectrumZone(p, 'Rest', C.teal, level == 'Low'),
+                        _spectrumZone(p, isUk ? 'Спокій' : 'Rest', C.teal, rawLevel == 'Low'),
                         const SizedBox(width: 4),
-                        _spectrumZone(p, 'Balanced', C.blue, level == 'Balanced'),
+                        _spectrumZone(p, isUk ? 'Баланс' : 'Balanced', C.blue, rawLevel == 'Balanced'),
                         const SizedBox(width: 4),
-                        _spectrumZone(p, 'Elevated', C.orange, level == 'Elevated'),
+                        _spectrumZone(p, isUk ? 'Напруга' : 'Elevated', C.orange, rawLevel == 'Elevated'),
                         const SizedBox(width: 4),
-                        _spectrumZone(p, 'High', C.red, level == 'High'),
+                        _spectrumZone(p, isUk ? 'Стрес' : 'High', C.red, rawLevel == 'High'),
                       ],
                     ),
                   ],
@@ -1304,19 +1518,25 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                         const Icon(LucideIcons.activity, size: 16, color: C.orange),
                         const SizedBox(width: S.x2),
                         Text(
-                          'Baevsky Stress Index (SI): ${data.stressSi?.toStringAsFixed(1) ?? 'Calibrating'}',
+                          isUk
+                              ? 'Індекс напруги Баєвського (SI): ${data.stressSi?.toStringAsFixed(1) ?? "Калібрування"}'
+                              : 'Baevsky Stress Index (SI): ${data.stressSi?.toStringAsFixed(1) ?? "Calibrating"}',
                           style: F.head.copyWith(color: p.ink, fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),
                     const SizedBox(height: S.x2),
                     Text(
-                      'Stress is derived from heart rate variability (RR intervals) during rest. Consecutive beat-to-beat intervals form an amplitude histogram showing sympathetic vs. parasympathetic tone.',
+                      isUk
+                          ? 'Стрес визначається на основі варіабельності серцевого ритму (інтервалів RR) під час спокою. Гістограма послідовних ударів серця демонструє баланс між симпатичною (стрес) та парасимпатичною (відновлення) нервовою системою.'
+                          : 'Stress is derived from heart rate variability (RR intervals) during rest. Consecutive beat-to-beat intervals form an amplitude histogram showing sympathetic vs. parasympathetic tone.',
                       style: F.cap.copyWith(color: p.ink2, height: 1.4),
                     ),
                     const SizedBox(height: S.x2),
                     Text(
-                      'Why does it need rest?\nActive motion (walking, working out) introduces motion artifacts into optical sensors. Calculations activate as soon as you sit quietly, rest, or sleep.',
+                      isUk
+                          ? 'Чому потрібен спокій?\nАктивний рух (ходьба, тренування) створює оптичні артефакти на датчику. Розрахунок активується автоматично, щойно ви спокійно сидите, відпочиваєте або спите.'
+                          : 'Why does it need rest?\nActive motion (walking, working out) introduces motion artifacts into optical sensors. Calculations activate as soon as you sit quietly, rest, or sleep.',
                       style: F.cap.copyWith(color: p.ink3, height: 1.35),
                     ),
                   ],
@@ -1341,7 +1561,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                     );
                   },
                   child: Text(
-                    'Open Mind & Stress Dashboard',
+                    isUk ? 'Відкрити панель стресу' : 'Open Mind & Stress Dashboard',
                     style: F.head.copyWith(fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -1383,6 +1603,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
     VoidCallback? onReload,
   }) {
     final p = P.of(context);
+    final isUk = LocaleController.displayLanguageCode == 'uk';
     final row = data.journalInsight;
     final delta = (row?['delta_pct'] as num?)?.toDouble();
 
@@ -1419,11 +1640,13 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Journal Habit Insights',
+                          isUk ? 'Вплив звичок на організм' : 'Journal Habit Insights',
                           style: F.t1.copyWith(color: p.ink),
                         ),
                         Text(
-                          'Objective correlation with morning recovery',
+                          isUk
+                              ? 'Об’єктивна кореляція з ранковим відновленням'
+                              : 'Objective correlation with morning recovery',
                           style: F.cap.copyWith(color: p.ink3),
                         ),
                       ],
@@ -1457,7 +1680,9 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            '${row['n_with']} logged days with · ${row['n_without']} without',
+                            isUk
+                                ? '${row['n_with']} днів з цією звичкою · ${row['n_without']} без неї'
+                                : '${row['n_with']} logged days with · ${row['n_without']} without',
                             style: F.over.copyWith(color: p.ink3),
                           ),
                         ],
@@ -1494,12 +1719,16 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Welch’s Two-Sample Statistical Correlation',
+                        isUk
+                            ? 'Двовибірковий t-тест Велча'
+                            : 'Welch’s Two-Sample Statistical Correlation',
                         style: F.head.copyWith(color: p.ink, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: S.x2),
                       Text(
-                        'The analytics engine computes Welch’s t-test comparing morning biomarkers on nights following this habit versus nights without it. This isolates true causal behavioral signals from noise.',
+                        isUk
+                            ? 'Аналітичний модуль порівнює ранковий HRV та пульс спокою після днів із цією звичкою та без неї за допомогою t-критерію Велча. Це дозволяє відсіяти випадковий шум і виявити реальний причинно-наслідковий вплив.'
+                            : 'The analytics engine computes Welch’s t-test comparing morning biomarkers on nights following this habit versus nights without it. This isolates true causal behavioral signals from noise.',
                         style: F.cap.copyWith(color: p.ink2, height: 1.4),
                       ),
                     ],
@@ -1513,7 +1742,9 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                     borderRadius: R.rLg,
                   ),
                   child: Text(
-                    'Log at least 5 days with a habit and 5 days without it to surface verified statistical correlations with your morning recovery and HRV.',
+                    isUk
+                        ? 'Запишіть принаймні 5 днів зі звичкою та 5 днів без неї, щоб система виявила підтверджені статистичні зв’язки з вашим відновленням.'
+                        : 'Log at least 5 days with a habit and 5 days without it to surface verified statistical correlations with your morning recovery and HRV.',
                     style: F.body.copyWith(color: p.ink2, height: 1.4),
                   ),
                 ),
@@ -1538,7 +1769,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                     onReload?.call();
                   },
                   child: Text(
-                    'Log Today’s Journal',
+                    isUk ? 'Записати звички за сьогодні' : 'Log Today’s Journal',
                     style: F.head.copyWith(fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -1552,6 +1783,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
 
   static void _showRepCounterDetailSheet(BuildContext context) {
     final p = P.of(context);
+    final isUk = LocaleController.displayLanguageCode == 'uk';
 
     showModalBottomSheet<void>(
       context: context,
@@ -1586,11 +1818,13 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Strength Rep Counter',
+                          isUk ? 'Трекер силових повторень' : 'Strength Rep Counter',
                           style: F.t1.copyWith(color: p.ink),
                         ),
                         Text(
-                          'High-rate 100 Hz IMU kinematics',
+                          isUk
+                              ? 'Високочастотна кінематика 100 Гц'
+                              : 'High-rate 100 Hz IMU kinematics',
                           style: F.cap.copyWith(color: p.ink3),
                         ),
                       ],
@@ -1618,10 +1852,15 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Live RAM Only',
+                          isUk ? 'Лише в оперативній пам’яті (RAM)' : 'Live RAM Only',
                           style: F.t1.copyWith(color: p.ink, fontWeight: FontWeight.bold),
                         ),
-                        Text('100 Hz Accelerometer & Gyroscope', style: F.over.copyWith(color: p.ink3)),
+                        Text(
+                          isUk
+                              ? '100 Гц акселерометр та гіроскоп'
+                              : '100 Hz Accelerometer & Gyroscope',
+                          style: F.over.copyWith(color: p.ink3),
+                        ),
                       ],
                     ),
                     Container(
@@ -1651,12 +1890,14 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Why is history blank?',
+                      isUk ? 'Чому історія порожня?' : 'Why is history blank?',
                       style: F.head.copyWith(color: p.ink, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: S.x2),
                     Text(
-                      'High-rate 100 Hz IMU sensor frames produce gigabytes per hour and are never permanently stored in device flash storage. Rep detection operates with zero latency directly in live RAM during an active workout session.',
+                      isUk
+                          ? 'Потік сенсорних кадрів на частоті 100 Гц генерує гігабайти даних на годину і не записується у постійну пам’ять телефону. Детекція повторень працює з нульовою затримкою безпосередньо в оперативній пам’яті під час активного тренування.'
+                          : 'High-rate 100 Hz IMU sensor frames produce gigabytes per hour and are never permanently stored in device flash storage. Rep detection operates with zero latency directly in live RAM during an active workout session.',
                       style: F.cap.copyWith(color: p.ink2, height: 1.4),
                     ),
                   ],
@@ -1681,7 +1922,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                     );
                   },
                   child: Text(
-                    'Start Workout',
+                    isUk ? 'Почати тренування' : 'Start Workout',
                     style: F.head.copyWith(fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -1691,6 +1932,87 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
         ),
       ),
     );
+  }
+
+  // ── BIOMARKER INSIGHT BILINGUAL HELPERS ──────────────────────────────────
+
+  static String _getHeartInsight(ana.BiologicalAgeResult result, double? rhr, bool isUk) {
+    final pulse = rhr?.toStringAsFixed(0) ?? '—';
+    if (isUk) {
+      if (result.rhrModifier < 0) {
+        return 'Пульс спокою ($pulse уд/хв) вказує на відмінний ударний об’єм серця та еластичність судин (-${(-result.rhrModifier).toStringAsFixed(1)} р.).';
+      } else if (result.rhrModifier > 0) {
+        return 'Підвищений пульс спокою ($pulse уд/хв) створює додаткове навантаження на серцево-судинну систему (+${result.rhrModifier.toStringAsFixed(1)} р.).';
+      } else {
+        return 'Пульс спокою ($pulse уд/хв) знаходиться в оптимальній фізіологічній нормі для вашого віку.';
+      }
+    } else {
+      return result.heartInsight;
+    }
+  }
+
+  static String _getHrvInsight(ana.BiologicalAgeResult result, double? hrv, bool isUk) {
+    final hrvMs = hrv?.toStringAsFixed(0) ?? '—';
+    if (isUk) {
+      if (result.hrvModifier <= -1.0) {
+        return 'Нічний вегетативний баланс ($hrvMs мс) демонструє молоду парасимпатичну стійкість (-${(-result.hrvModifier).toStringAsFixed(1)} р.).';
+      } else if (result.hrvModifier >= 1.0) {
+        return 'Нічний HRV ($hrvMs мс) свідчить про накопичену хронічну втому або стрес (+${result.hrvModifier.toStringAsFixed(1)} р.).';
+      } else {
+        return 'Нічний HRV ($hrvMs мс) відображає збалансоване відновлення нервової системи для вашого віку.';
+      }
+    } else {
+      return result.hrvInsight;
+    }
+  }
+
+  static String _getVo2Insight(ana.BiologicalAgeResult result, bool isUk) {
+    final vo2 = result.vo2MaxEst.toStringAsFixed(1);
+    final isFemale = result.sex == 'f';
+    if (isUk) {
+      if (result.vo2Modifier <= -1.0) {
+        return 'Аеробна форма ($vo2 мл/кг) перевищує показники однолітків серед ${isFemale ? "жінок" : "чоловіків"}, скидаючи ${(-result.vo2Modifier).toStringAsFixed(1)} р.';
+      } else if (result.vo2Modifier >= 1.0) {
+        return 'Аеробна витривалість ($vo2 мл/кг) відстає від вікової норми, додаючи ${result.vo2Modifier.toStringAsFixed(1)} р. навантаження.';
+      } else {
+        return 'Аеробна ємність ($vo2 мл/кг) повністю відповідає паспортному віку.';
+      }
+    } else {
+      return result.vo2Insight;
+    }
+  }
+
+  static String _getLifestyleInsight(ana.BiologicalAgeResult result, bool isUk) {
+    if (isUk) {
+      if (result.lifestyleModifier < 0) {
+        return 'Стабільний циркадний ритм сну та здорова щоденна рухова активність (-${(-result.lifestyleModifier).toStringAsFixed(1)} р.).';
+      } else if (result.lifestyleModifier > 0) {
+        return 'Нерегулярний графік сну або низька активність додають біологічного зносу (+${result.lifestyleModifier.toStringAsFixed(1)} р.).';
+      } else {
+        return 'Помірна щоденна активність і прийнятна стабільність графіка сну.';
+      }
+    } else {
+      return result.lifestyleInsight;
+    }
+  }
+
+  static List<String> _getActionableTips(ana.BiologicalAgeResult result, bool isUk) {
+    if (!isUk) return result.actionableTips;
+    final tips = <String>[];
+    if (result.lifestyleModifier > 0) {
+      tips.add('Закріпіть час відходу до сну в межах 30-хвилинного вікна (індекс регулярності >80%), щоб омолодити серце на ~0.8 року.');
+      tips.add('Збільште щоденну активність до 8 000–10 000 кроків для покращення метаболічної гнучкості.');
+    }
+    if (result.vo2Modifier >= 0.0) {
+      tips.add('Додайте 1–2 сесії HIIT або інтервалів у 4/5 пульсових зонах щотижня для підвищення VO₂ Max та еластичності судин.');
+    }
+    if (result.rhrModifier > 0.0) {
+      tips.add('Приділіть увагу низькоінтенсивному бігу або веслуванню в Зоні 2 (30–45 хв), щоб знизити пульс спокою та зміцнити міокард.');
+    }
+    if (tips.isEmpty) {
+      tips.add('Відмінні біологічні маркери за всіма стовпами! Підтримуйте стабільний режим сну, щоденний рух та кардіонавантаження.');
+    }
+    return tips;
   }
 
 }
@@ -1778,36 +2100,69 @@ class _NextGenData {
 
     ana.BiologicalAgeResult? bio;
     String? bioMissing;
+    final isUk = LocaleController.displayLanguageCode == 'uk';
     final checklistItems = <String>[
       age != null
-          ? '✓ Profile Age: ${age.toStringAsFixed(0)} years'
-          : '✗ Profile Age: Missing (tap button below to enter)',
+          ? (isUk
+              ? '✓ Вік з профілю: ${age.toStringAsFixed(0)} років'
+              : '✓ Profile Age: ${age.toStringAsFixed(0)} years')
+          : (isUk
+              ? '✗ Вік не вказано (натисніть кнопку нижче)'
+              : '✗ Profile Age: Missing (tap button below to enter)'),
       sex == 'f'
-          ? '✓ Biological Sex: Female (normative female benchmarks applied)'
+          ? (isUk
+              ? '✓ Біологічна стать: Жіноча (застосовано жіночі норми)'
+              : '✓ Biological Sex: Female (normative female benchmarks applied)')
           : (sex == 'm'
-              ? '✓ Biological Sex: Male (normative male benchmarks applied)'
-              : '✓ Biological Sex: Standard benchmark applied'),
+              ? (isUk
+                  ? '✓ Біологічна стать: Чоловіча (застосовано чоловічі норми)'
+                  : '✓ Biological Sex: Male (normative male benchmarks applied)')
+              : (isUk
+                  ? '✓ Біологічна стать: Стандартні норми'
+                  : '✓ Biological Sex: Standard benchmark applied')),
       measuredMaxHr != null
-          ? '✓ Max Heart Rate: ${measuredMaxHr.toStringAsFixed(0)} bpm (measured)'
+          ? (isUk
+              ? '✓ Макс. пульс: ${measuredMaxHr.toStringAsFixed(0)} уд/хв (виміряно)'
+              : '✓ Max Heart Rate: ${measuredMaxHr.toStringAsFixed(0)} bpm (measured)')
           : (effectiveMaxHr != null
-              ? '✓ Max Heart Rate: ${effectiveMaxHr.toStringAsFixed(0)} bpm (estimated from age)'
-              : '✗ Max HR Ceiling: Need age to estimate or workout to measure'),
+              ? (isUk
+                  ? '✓ Макс. пульс: ${effectiveMaxHr.toStringAsFixed(0)} уд/хв (оцінка за віком)'
+                  : '✓ Max Heart Rate: ${effectiveMaxHr.toStringAsFixed(0)} bpm (estimated from age)')
+              : (isUk
+                  ? '✗ Макс. пульс: Потрібен вік для оцінки або тренування'
+                  : '✗ Max HR Ceiling: Need age to estimate or workout to measure')),
       rhr.length >= 3
-          ? '✓ Resting HR: ${rhr.length}/7 days recorded'
-          : '✗ Resting HR: ${rhr.length}/3 days minimum needed',
+          ? (isUk
+              ? '✓ Пульс спокою: ${rhr.length}/7 днів записано'
+              : '✓ Resting HR: ${rhr.length}/7 days recorded')
+          : (isUk
+              ? '✗ Пульс спокою: потрібно мінімум 3 дні (${rhr.length}/3)'
+              : '✗ Resting HR: ${rhr.length}/3 days minimum needed'),
       hrv.length >= 3
-          ? '✓ Overnight HRV: ${hrv.length}/7 days recorded'
-          : '✗ Overnight HRV: ${hrv.length}/3 nights minimum needed',
+          ? (isUk
+              ? '✓ Нічний HRV: ${hrv.length}/7 ночей записано'
+              : '✓ Overnight HRV: ${hrv.length}/7 days recorded')
+          : (isUk
+              ? '✗ Нічний HRV: потрібно мінімум 3 ночі (${hrv.length}/3)'
+              : '✗ Overnight HRV: ${hrv.length}/3 nights minimum needed'),
       steps.isNotEmpty
-          ? '✓ Daily Steps: ${steps.length}/7 days recorded (${_mean(steps).toStringAsFixed(0)} avg)'
-          : '• Daily Steps: Calibrating (using standard active benchmark)',
+          ? (isUk
+              ? '✓ Щоденні кроки: ${steps.length}/7 днів (${_mean(steps).toStringAsFixed(0)} сер.)'
+              : '✓ Daily Steps: ${steps.length}/7 days recorded (${_mean(steps).toStringAsFixed(0)} avg)')
+          : (isUk
+              ? '• Щоденні кроки: Калібрування (базовий темп)'
+              : '• Daily Steps: Calibrating (using standard active benchmark)'),
       sri != null
-          ? '✓ Sleep Regularity (SRI): ${sri.toStringAsFixed(0)}%'
-          : '• Sleep Regularity: Calibrating (using standard rhythm)',
+          ? (isUk
+              ? '✓ Ритм сну (SRI): ${sri.toStringAsFixed(0)}%'
+              : '✓ Sleep Regularity (SRI): ${sri.toStringAsFixed(0)}%')
+          : (isUk
+              ? '• Ритм сну: Калібрування (базовий ритм)'
+              : '• Sleep Regularity: Calibrating (using standard rhythm)'),
     ];
     final bioChecklist = checklistItems.join('\n');
 
-    String bioAction = 'Open Profile';
+    String bioAction = isUk ? 'Відкрити профіль' : 'Open Profile';
     bool bioRequiresEdit = false;
 
     final effectiveSleepConsistency = sri != null
@@ -1816,13 +2171,15 @@ class _NextGenData {
 
     final targetMaxHr = effectiveMaxHr ?? 190.0;
     if (age == null) {
-      bioMissing = 'Needs your birth date/age in Profile.';
-      bioAction = 'Enter Age in Profile';
+      bioMissing = isUk ? 'Вкажіть вашу дату народження/вік у Профілі.' : 'Needs your birth date/age in Profile.';
+      bioAction = isUk ? 'Вказати вік у Профілі' : 'Enter Age in Profile';
       bioRequiresEdit = true;
     } else if (rhr.length < 3 || hrv.length < 3) {
       final daysLeft = 3 - (rhr.length < hrv.length ? rhr.length : hrv.length);
-      bioMissing = 'Need $daysLeft more day(s) wearing band to establish 3-day baseline.';
-      bioAction = 'Got it (Keep wearing band)';
+      bioMissing = isUk
+          ? 'Потрібно ще $daysLeft дн. носіння браслета для 3-денної бази.'
+          : 'Need $daysLeft more day(s) wearing band to establish 3-day baseline.';
+      bioAction = isUk ? 'Зрозуміло (носити браслет)' : 'Got it (Keep wearing band)';
     } else {
       final effectiveSteps = steps.isNotEmpty ? _mean(steps) : 7500.0;
 
@@ -1956,4 +2313,101 @@ class _NextGenData {
 
   static double _mean(List<double> values) =>
       values.reduce((a, b) => a + b) / values.length;
+}
+
+class _BioEquationNode extends StatelessWidget {
+  final String value;
+  final String label;
+  final Color color;
+  final bool highlight;
+
+  const _BioEquationNode({
+    required this.value,
+    required this.label,
+    required this.color,
+    this.highlight = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = P.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          value,
+          style: F.n17.copyWith(
+            color: p.on(color),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: F.over.copyWith(
+            color: highlight ? p.on(color) : p.ink3,
+            fontWeight: highlight ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BioLedgerEquationRow extends StatelessWidget {
+  final String sign;
+  final String value;
+  final String label;
+  final Color color;
+  final bool isTotal;
+
+  const _BioLedgerEquationRow({
+    required this.sign,
+    required this.value,
+    required this.label,
+    required this.color,
+    this.isTotal = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final p = P.of(context);
+    return Row(
+      children: [
+        Container(
+          width: 22,
+          height: 22,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: p.wash(color, strength: 0.3),
+            borderRadius: R.rPill,
+          ),
+          child: Text(
+            sign,
+            style: F.over.copyWith(
+              color: p.on(color),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        const SizedBox(width: S.x2),
+        Expanded(
+          child: Text(
+            label,
+            style: isTotal
+                ? F.cap.copyWith(color: p.ink, fontWeight: FontWeight.bold)
+                : F.cap.copyWith(color: p.ink2),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        Text(
+          value,
+          style: isTotal
+              ? F.n17.copyWith(color: p.on(color), fontWeight: FontWeight.bold)
+              : F.cap.copyWith(color: p.ink, fontWeight: FontWeight.bold),
+        ),
+      ],
+    );
+  }
 }

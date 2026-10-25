@@ -3,6 +3,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../compute/body_battery.dart';
 import '../../data/day_label.dart';
+import '../../state/locale_controller.dart';
 import '../grammar.dart';
 import '../theme.dart';
 import 'biometric_explainer_sheet.dart';
@@ -12,7 +13,7 @@ import 'home_screen.dart';
 ///
 /// Models dynamic energy reserves (5..100%) from morning recovery and
 /// daytime drain (cardio strain + waking hours).
-/// Interactive: tap opens [BiometricExplainerSheet] with transparent formulas.
+/// Visual equation directly explains how the current score is derived.
 class BodyBatteryCard extends StatelessWidget {
   final HomeData d;
 
@@ -21,6 +22,7 @@ class BodyBatteryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = P.of(context);
+    final isUk = LocaleController.displayLanguageCode == 'uk';
     final isToday = d.dayId == null || d.dayId == todayLabel();
     final battery = BodyBatteryCalculator.calculate(
       readinessVal: d.readiness.value,
@@ -39,7 +41,9 @@ class BodyBatteryCard extends StatelessWidget {
         topic: BiometricTopic.bodyBattery,
         data: battery,
       ),
-      semanticLabel: 'Body Battery: $current percent. Tap to view calculation and guidance.',
+      semanticLabel: isUk
+          ? 'Рівень енергії: $current%. Натисніть для перегляду розрахунку.'
+          : 'Body Battery: $current%. Tap to view breakdown.',
       child: Container(
         padding: const EdgeInsets.all(S.x4),
         decoration: BoxDecoration(
@@ -70,7 +74,7 @@ class BodyBatteryCard extends StatelessWidget {
                 const SizedBox(width: S.x2),
                 Expanded(
                   child: Text(
-                    'BODY BATTERY',
+                    isUk ? 'ЗАПАС ЕНЕРГІЇ' : 'BODY BATTERY',
                     style: F.over.copyWith(
                       color: p.ink3,
                       fontWeight: FontWeight.bold,
@@ -89,7 +93,7 @@ class BodyBatteryCard extends StatelessWidget {
                     ),
                   ),
                   child: Text(
-                    battery.statusUa,
+                    isUk ? battery.statusUa : battery.status,
                     style: F.over.copyWith(
                       color: color,
                       fontWeight: FontWeight.bold,
@@ -114,7 +118,9 @@ class BodyBatteryCard extends StatelessWidget {
                     ),
                     const SizedBox(width: S.x2),
                     Text(
-                      isToday ? 'LIVE ENERGY' : 'END OF DAY',
+                      isToday
+                          ? (isUk ? 'ЗАЛИШОК ЗАРАЗ' : 'LIVE ENERGY')
+                          : (isUk ? 'НА КІНЕЦЬ ДНЯ' : 'END OF DAY'),
                       style: F.cap.copyWith(
                         color: color,
                         fontWeight: FontWeight.bold,
@@ -125,7 +131,9 @@ class BodyBatteryCard extends StatelessWidget {
                 ),
                 const Spacer(),
                 Text(
-                  'Старт: ${battery.morningCharge}% · Спалено: -${battery.totalDrain}%',
+                  isUk
+                      ? 'Сон: +${battery.morningCharge}% · Витрати: -${battery.totalDrain}%'
+                      : 'Recharge: +${battery.morningCharge}% · Spent: -${battery.totalDrain}%',
                   style: F.over.copyWith(color: p.ink3),
                 ),
               ],
@@ -144,46 +152,53 @@ class BodyBatteryCard extends StatelessWidget {
             ),
             const SizedBox(height: S.x3),
 
-            // Human Guidance
-            Text(
-              battery.verdictUa,
-              style: F.body.copyWith(
-                color: p.ink2,
-                height: 1.35,
+            // ── VISUAL MATH LEDGER: 46% - 12% - 14% = 20% ──
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: S.x3, vertical: S.x2),
+              decoration: BoxDecoration(
+                color: p.card2,
+                borderRadius: R.rMd,
+                border: Border.all(color: p.line),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _EquationNode(
+                    value: '+${battery.morningCharge}%',
+                    label: isUk ? 'Сон' : 'Sleep',
+                    color: C.green,
+                  ),
+                  Text('-', style: F.head.copyWith(color: p.ink3)),
+                  _EquationNode(
+                    value: '${battery.strainDrain}%',
+                    label: isUk ? 'Рух' : 'Active',
+                    color: C.purple,
+                  ),
+                  Text('-', style: F.head.copyWith(color: p.ink3)),
+                  _EquationNode(
+                    value: '${battery.timeDrain}%',
+                    label: isUk ? 'Час дня' : 'Daytime',
+                    color: C.orange,
+                  ),
+                  Text('=', style: F.head.copyWith(color: p.ink3)),
+                  _EquationNode(
+                    value: '$current%',
+                    label: isUk ? 'Зараз' : 'Remaining',
+                    color: color,
+                    highlight: true,
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: S.x3),
 
-            // Mini Chips Breakdown
-            Row(
-              children: [
-                Expanded(
-                  child: _BatteryMiniChip(
-                    label: 'Ранковий старт',
-                    value: '${battery.morningCharge}%',
-                    icon: LucideIcons.sunrise,
-                    color: C.green,
-                  ),
-                ),
-                const SizedBox(width: S.x2),
-                Expanded(
-                  child: _BatteryMiniChip(
-                    label: 'Навантаження',
-                    value: '-${battery.strainDrain}%',
-                    icon: LucideIcons.zap,
-                    color: C.purple,
-                  ),
-                ),
-                const SizedBox(width: S.x2),
-                Expanded(
-                  child: _BatteryMiniChip(
-                    label: 'Час неспання',
-                    value: '-${battery.timeDrain}%',
-                    icon: LucideIcons.clock,
-                    color: C.orange,
-                  ),
-                ),
-              ],
+            // Human Guidance
+            Text(
+              isUk ? battery.verdictUa : battery.verdict,
+              style: F.body.copyWith(
+                color: p.ink2,
+                height: 1.35,
+              ),
             ),
             const SizedBox(height: S.x2),
 
@@ -192,7 +207,7 @@ class BodyBatteryCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 Text(
-                  'Як це рахується',
+                  isUk ? 'Як рахується заряд' : 'How battery is calculated',
                   style: F.over.copyWith(color: p.ink3),
                 ),
                 const SizedBox(width: 2),
@@ -206,56 +221,40 @@ class BodyBatteryCard extends StatelessWidget {
   }
 }
 
-class _BatteryMiniChip extends StatelessWidget {
-  final String label;
+class _EquationNode extends StatelessWidget {
   final String value;
-  final IconData icon;
+  final String label;
   final Color color;
+  final bool highlight;
 
-  const _BatteryMiniChip({
-    required this.label,
+  const _EquationNode({
     required this.value,
-    required this.icon,
+    required this.label,
     required this.color,
+    this.highlight = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final p = P.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: S.x2, vertical: S.x2),
-      decoration: BoxDecoration(
-        color: p.card2,
-        borderRadius: R.rMd,
-        border: Border.all(color: p.line),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 11, color: color),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  label,
-                  style: F.over.copyWith(color: p.ink3),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
+    return Column(
+      children: [
+        Text(
+          value,
+          style: F.n17.copyWith(
+            color: p.on(color),
+            fontWeight: FontWeight.bold,
           ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            style: F.cap.copyWith(
-              color: p.ink,
-              fontWeight: FontWeight.bold,
-            ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: F.over.copyWith(
+            color: highlight ? p.on(color) : p.ink3,
+            fontWeight: highlight ? FontWeight.bold : FontWeight.normal,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

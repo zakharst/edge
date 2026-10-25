@@ -89,38 +89,38 @@ class BodyBatteryCalculator {
 
     if (current >= 75) {
       status = 'HIGH ENERGY';
-      statusUa = 'ОПТИМАЛЬНИЙ РЕЗЕРВ';
+      statusUa = 'БАГАТО СИЛ';
       verdict =
-          'Autonomic reserves fully charged. Ideal window for peak cardiovascular strain and high cognitive focus.';
+          'You recharged well overnight. Great time for a workout and high-focus work.';
       verdictUa =
-          'Вегетативні ресурси повністю заряджені. Оптимальний час для пікових навантажень та високої концентрації.';
+          'Ви чудово зарядилися за ніч. Тіло готове до тренувань, а голова — до складних завдань.';
       tierColor = C.green;
       icon = LucideIcons.batteryCharging;
     } else if (current >= 45) {
       status = 'STEADY ENERGY';
-      statusUa = 'ПОМІРНИЙ РЕЗЕРВ';
+      statusUa = 'РІВНИЙ ЗАРЯД';
       verdict =
-          'Balanced energy reserves. Sufficient for productive daily activity and Zone 2 aerobic training.';
+          'Steady energy for a typical day. A brisk walk or easy cardio will feel great.';
       verdictUa =
-          'Збалансований рівень енергії. Достатній для продуктивної активності та легкого кардіо в Зоні 2.';
+          'Сил достатньо для звичного ритму. Підійде прогулянка або спокійне кардіо.';
       tierColor = C.yellow;
       icon = LucideIcons.batteryMedium;
     } else if (current >= 20) {
       status = 'LOW ENERGY';
-      statusUa = 'НИЗЬКИЙ РЕЗЕРВ';
+      statusUa = 'МАЛО СИЛ';
       verdict =
-          'Physiological fatigue accumulating. Avoid exhausting workouts; focus on recovery and an early bedtime.';
+          'Fuel is running low. Skip intense workouts, avoid late caffeine, and head to bed early.';
       verdictUa =
-          'Накопичується фізіологічна втома. Уникайте виснажливих тренувань, сфокусуйтеся на ранньому сні.';
+          'Енергія закінчується. Уникайте важких тренувань, кави після обіду й лягайте спати раніше.';
       tierColor = C.orange;
       icon = LucideIcons.batteryLow;
     } else {
       status = 'DEPLETED';
       statusUa = 'ВИСНАЖЕННЯ';
       verdict =
-          'Energy reserves critically depleted. The autonomic nervous system demands rest and restorative sleep.';
+          'You are running on empty. Take it easy tonight, unwind without screens, and sleep earlier.';
       verdictUa =
-          'Резерви енергії критично вичерпані. Нервова система вимагає негайного відпочинку та сну.';
+          'Тілу потрібен спокій. Відпочиньте ввечері без екранів і лягайте спати раніше.';
       tierColor = C.red;
       icon = LucideIcons.batteryWarning;
     }

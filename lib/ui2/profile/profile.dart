@@ -192,6 +192,7 @@ class ProfileAvatar extends StatelessWidget {
 /// actually has translations for.
 const Map<String, String> _kLanguageNames = {
   'en': 'English',
+  'uk': 'Українська',
   'es': 'Español',
   'fr': 'Français',
   'de': 'Deutsch',

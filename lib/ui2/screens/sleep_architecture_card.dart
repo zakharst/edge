@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../state/locale_controller.dart';
 import '../grammar.dart';
 import '../theme.dart';
 import 'biometric_explainer_sheet.dart';
@@ -9,9 +10,7 @@ import 'home_screen.dart';
 /// Next-Gen Sleep Architecture & Quality Card.
 ///
 /// Unpacks the true sleep architecture (Deep + REM restorative stages,
-/// sleep efficiency %, wake interruptions) so the user is never misled
-/// by a naked duration percentage.
-/// Interactive: tap opens [BiometricExplainerSheet] with transparent formulas.
+/// sleep efficiency %, wake interruptions) with a visual breakdown ledger.
 class SleepArchitectureCard extends StatelessWidget {
   final HomeData d;
 
@@ -20,6 +19,7 @@ class SleepArchitectureCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = P.of(context);
+    final isUk = LocaleController.displayLanguageCode == 'uk';
     final sleepM = d.sleepMin.value;
     if (sleepM == null || sleepM <= 0) return const SizedBox.shrink();
 
@@ -37,19 +37,24 @@ class SleepArchitectureCard extends StatelessWidget {
         : (quality >= 60 ? C.blue : (quality >= 45 ? C.yellow : C.red));
 
     final String qualityLabel = quality >= 80
-        ? 'ВІДМІННА'
-        : (quality >= 60 ? 'ПОМІРНА' : 'НИЗЬКА');
+        ? (isUk ? 'ВІДМІННИЙ' : 'OPTIMAL')
+        : (quality >= 60
+            ? (isUk ? 'ПОМІРНИЙ' : 'STEADY')
+            : (isUk ? 'НЕСПОКІЙНИЙ' : 'RESTLESS'));
 
     final String insightText;
     if (quality >= 80) {
-      insightText =
-          'Висока якість сну: достатня частка відновлювальних Deep та REM-фаз ($restorativePct%) забезпечила повне відновлення нервової системи.';
+      insightText = isUk
+          ? 'Глибокий спокійний сон. Відновлювальні фази ($restorativePct%) допомогли тілу та мозку повністю перезавантажитися.'
+          : 'Deep, restorative sleep. Healthy restorative stages ($restorativePct%) gave your body and mind a full recharge.';
     } else if (quality >= 60) {
-      insightText =
-          'Тривалість закрита на $perf% (від норми 7 год), але чесна якість — $quality%: частка глибокого сну була $restorativePct%, а пробудження забрали $waso хв.';
+      insightText = isUk
+          ? 'Сон був дещо переривчастим. Ви спали ${hm(sleepM)}, але нічні пробудження забрали $waso хв, тому якість — $quality%.'
+          : 'Somewhat fragmented sleep. You slept ${hm(sleepM)}, but wakeups took $waso min, bringing quality to $quality%.';
     } else {
-      insightText =
-          'Фрагментований сон ($waso хв пробуджень). Дефіцит глибоких фаз знизив якість до $quality%, тому вранці відчувається втома.';
+      insightText = isUk
+          ? 'Неспокійна ніч. Через $waso хв пробуджень організм недоотримав глибокого відновлення ($restorativePct%). Сьогодні бережіть сили.'
+          : 'Restless night. With $waso min awake, your body missed deep recovery stages ($restorativePct%). Take it easy today.';
     }
 
     // Proportional breakdown for the stage bar
@@ -70,8 +75,9 @@ class SleepArchitectureCard extends StatelessWidget {
           waso: waso,
         ),
       ),
-      semanticLabel:
-          'Sleep Architecture: $quality percent quality. Tap to view clinical pillars and sleep phases.',
+      semanticLabel: isUk
+          ? 'Якість сну: $quality%. Натисніть, щоб переглянути аналіз.'
+          : 'Sleep Quality: $quality%. Tap to view breakdown.',
       child: Container(
         padding: const EdgeInsets.all(S.x4),
         decoration: BoxDecoration(
@@ -102,7 +108,7 @@ class SleepArchitectureCard extends StatelessWidget {
                 const SizedBox(width: S.x2),
                 Expanded(
                   child: Text(
-                    'SLEEP ARCHITECTURE',
+                    isUk ? 'АРХІТЕКТУРА СНУ' : 'SLEEP ARCHITECTURE',
                     style: F.over.copyWith(
                       color: p.ink3,
                       fontWeight: FontWeight.bold,
@@ -146,7 +152,7 @@ class SleepArchitectureCard extends StatelessWidget {
                     ),
                     const SizedBox(width: S.x2),
                     Text(
-                      'SLEPT',
+                      isUk ? 'ЧАС У СНІ' : 'SLEPT',
                       style: F.cap.copyWith(
                         color: C.blue,
                         fontWeight: FontWeight.bold,
@@ -157,7 +163,9 @@ class SleepArchitectureCard extends StatelessWidget {
                 ),
                 const Spacer(),
                 Text(
-                  'Якість: $quality% · Ефективність: $eff%',
+                  isUk
+                      ? 'Якість: $quality% · Ефективність: $eff%'
+                      : 'Quality: $quality% · Efficiency: $eff%',
                   style: F.over.copyWith(color: p.ink3),
                 ),
               ],
@@ -184,6 +192,52 @@ class SleepArchitectureCard extends StatelessWidget {
             ),
             const SizedBox(height: S.x3),
 
+            // ── VISUAL SLEEP LEDGER: чому 60%, а не 99% ──
+            Container(
+              padding: const EdgeInsets.all(S.x3),
+              decoration: BoxDecoration(
+                color: p.card2,
+                borderRadius: R.rMd,
+                border: Border.all(color: p.line),
+              ),
+              child: Column(
+                children: [
+                  _LedgerLine(
+                    icon: LucideIcons.clock,
+                    color: C.blue,
+                    title: isUk ? 'Час у ліжку' : 'Time in bed',
+                    detail: isUk ? '${hm(sleepM)} ($perf% від 7 год)' : '${hm(sleepM)} ($perf% of 7h)',
+                    status: perf >= 90 ? (isUk ? 'Достатньо' : 'Optimal') : (isUk ? 'Мало' : 'Short'),
+                  ),
+                  const SizedBox(height: 6),
+                  _LedgerLine(
+                    icon: LucideIcons.sparkles,
+                    color: C.purple,
+                    title: isUk ? 'Глибокий та REM-сон' : 'Deep & REM stages',
+                    detail: isUk ? '$restorativePct% (ціль >35%)' : '$restorativePct% (target >35%)',
+                    status: restorativePct >= 35 ? (isUk ? 'Добре' : 'Good') : (isUk ? 'Знижено' : 'Low'),
+                  ),
+                  const SizedBox(height: 6),
+                  _LedgerLine(
+                    icon: LucideIcons.gauge,
+                    color: C.green,
+                    title: isUk ? 'Спокій у ліжку' : 'Sleep efficiency',
+                    detail: '$eff%',
+                    status: eff >= 85 ? (isUk ? 'Спокійно' : 'Peaceful') : (isUk ? 'Крутіння' : 'Restless'),
+                  ),
+                  const SizedBox(height: 6),
+                  _LedgerLine(
+                    icon: LucideIcons.eye,
+                    color: C.orange,
+                    title: isUk ? 'Пробудження вночі' : 'Time awake',
+                    detail: isUk ? '$waso хв' : '$waso min',
+                    status: waso <= 20 ? (isUk ? 'Мало' : 'Minimal') : (isUk ? 'Багато' : 'High'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: S.x3),
+
             // Scientific Honesty explanation
             Text(
               insightText,
@@ -192,42 +246,6 @@ class SleepArchitectureCard extends StatelessWidget {
                 height: 1.35,
               ),
             ),
-            const SizedBox(height: S.x3),
-
-            // 4 Core Architecture Pillars (Mini Chips)
-            Row(
-              children: [
-                Expanded(
-                  child: _SleepMiniChip(
-                    label: 'Відновлення',
-                    value: '$restorativePct%',
-                    sub: 'Deep+REM',
-                    icon: LucideIcons.sparkles,
-                    color: C.purple,
-                  ),
-                ),
-                const SizedBox(width: S.x2),
-                Expanded(
-                  child: _SleepMiniChip(
-                    label: 'Ефективність',
-                    value: '$eff%',
-                    sub: 'у ліжку',
-                    icon: LucideIcons.gauge,
-                    color: C.green,
-                  ),
-                ),
-                const SizedBox(width: S.x2),
-                Expanded(
-                  child: _SleepMiniChip(
-                    label: 'Пробудження',
-                    value: '$waso хв',
-                    sub: 'WASO',
-                    icon: LucideIcons.eye,
-                    color: C.orange,
-                  ),
-                ),
-              ],
-            ),
             const SizedBox(height: S.x2),
 
             // Drill-down hint
@@ -235,7 +253,7 @@ class SleepArchitectureCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 Text(
-                  'Клінічні стовпи AASM',
+                  isUk ? 'Як рахується якість сну' : 'How sleep quality is measured',
                   style: F.over.copyWith(color: p.ink3),
                 ),
                 const SizedBox(width: 2),
@@ -249,64 +267,56 @@ class SleepArchitectureCard extends StatelessWidget {
   }
 }
 
-class _SleepMiniChip extends StatelessWidget {
-  final String label;
-  final String value;
-  final String sub;
+class _LedgerLine extends StatelessWidget {
   final IconData icon;
   final Color color;
+  final String title;
+  final String detail;
+  final String status;
 
-  const _SleepMiniChip({
-    required this.label,
-    required this.value,
-    required this.sub,
+  const _LedgerLine({
     required this.icon,
     required this.color,
+    required this.title,
+    required this.detail,
+    required this.status,
   });
 
   @override
   Widget build(BuildContext context) {
     final p = P.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: S.x2, vertical: S.x2),
-      decoration: BoxDecoration(
-        color: p.card2,
-        borderRadius: R.rMd,
-        border: Border.all(color: p.line),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 11, color: color),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  label,
-                  style: F.over.copyWith(color: p.ink3),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            style: F.cap.copyWith(
-              color: p.ink,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          Text(
-            sub,
-            style: F.over.copyWith(color: p.on(color)),
+    return Row(
+      children: [
+        Icon(icon, size: 12, color: p.on(color)),
+        const SizedBox(width: S.x2),
+        Expanded(
+          child: Text(
+            title,
+            style: F.cap.copyWith(color: p.ink2),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-        ],
-      ),
+        ),
+        Text(
+          detail,
+          style: F.cap.copyWith(color: p.ink, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(width: S.x2),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: p.wash(color, strength: 0.35),
+            borderRadius: R.rPill,
+          ),
+          child: Text(
+            status,
+            style: F.over.copyWith(
+              color: p.on(color),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

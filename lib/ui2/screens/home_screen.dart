@@ -3334,7 +3334,6 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
                       readiness: d.readiness.value?.round() ?? 0,
                     ),
                     onOpenDetails: () => go(c, const ReadinessDetail()),
-                    detailsLabel: 'Переглянути графіки відновлення',
                   );
                   break;
                 case HomeRingKind.strain:
@@ -3347,7 +3346,6 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
                           : '0.0',
                     ),
                     onOpenDetails: () => go(c, const DayStrainDetail()),
-                    detailsLabel: 'Переглянути пульсові зони',
                   );
                   break;
                 case HomeRingKind.sleep:
@@ -3369,7 +3367,6 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
                     ),
                     onOpenDetails: () =>
                         go(c, SleepDetail(day: isToday ? null : _day)),
-                    detailsLabel: 'Переглянути повну стадіограму сну',
                   );
                   break;
               }

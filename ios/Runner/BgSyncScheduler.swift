@@ -49,7 +49,31 @@ enum BackgroundTaskManager {
     /// never schedule without a channel.
     static func wireChannel(messenger: FlutterBinaryMessenger) {
         channel = FlutterMethodChannel(name: channelName, binaryMessenger: messenger)
+        channel?.setMethodCallHandler { call, result in
+            if call.method == "scheduleTargeted" {
+                if let args = call.arguments as? [String: Any],
+                   let earliestSeconds = args["earliestSeconds"] as? Double {
+                    scheduleTargeted(earliestDate: Date(timeIntervalSince1970: earliestSeconds))
+                }
+                result(nil)
+            } else {
+                result(FlutterMethodNotImplemented)
+            }
+        }
         NSLog("[bg-task] channel wired")
+    }
+
+    /// Schedule a targeted pre-wake BGAppRefreshTask (e.g. 45 min before habitual wake).
+    static func scheduleTargeted(earliestDate: Date) {
+        let req = BGAppRefreshTaskRequest(identifier: refreshTaskIdentifier)
+        let minDate = Date(timeIntervalSinceNow: 60)
+        req.earliestBeginDate = max(earliestDate, minDate)
+        do {
+            try BGTaskScheduler.shared.submit(req)
+            NSLog("[bg-refresh] targeted scheduled (earliest \(req.earliestBeginDate?.description ?? "-"))")
+        } catch {
+            NSLog("[bg-refresh] targeted schedule failed (ignored): \(error)")
+        }
     }
 
     /// Handle an OS-delivered BGProcessingTask. Pass this as the handler block in

@@ -402,6 +402,8 @@ class _StatusBarData {
   final bool isCharging;
   final double? batteryPackPct;
   final int? liveHr;
+  final bool isMorningSync;
+  final bool isPendingWakeConfirm;
 
   const _StatusBarData({
     required this.isPaired,
@@ -419,6 +421,8 @@ class _StatusBarData {
     required this.isCharging,
     this.batteryPackPct,
     this.liveHr,
+    this.isMorningSync = false,
+    this.isPendingWakeConfirm = false,
   });
 
   @override
@@ -440,7 +444,9 @@ class _StatusBarData {
           batteryPct == other.batteryPct &&
           isCharging == other.isCharging &&
           batteryPackPct == other.batteryPackPct &&
-          liveHr == other.liveHr;
+          liveHr == other.liveHr &&
+          isMorningSync == other.isMorningSync &&
+          isPendingWakeConfirm == other.isPendingWakeConfirm;
 
   @override
   int get hashCode => Object.hash(
@@ -489,26 +495,41 @@ class _WhoopStatusBar extends StatelessWidget {
     _StatusBarData? data;
     try {
       app = Provider.of<AppState>(c, listen: false);
-      data = c.select<AppState, _StatusBarData>((a) => _StatusBarData(
-            isPaired: a.isPaired,
-            connection: a.device.connection,
-            strapName: a.device.strapName,
-            bandStatus: a.engine.bandStatus,
-            isSyncing: a.syncingNow,
-            isDeriving: a.deriving || a.deriveProgress.isComputing,
-            syncDrainRecords: a.syncDrainRecords,
-            syncDrainBatches: a.syncDrainBatches,
-            deriveProgress: a.deriveProgress,
-            lastRecordAt: a.lastRecordAt,
-            // Whole percent, so the bar does not rebuild on every record.
-            drainPercent: a.drainFraction == null
-                ? null
-                : (a.drainFraction! * 100).round(),
-            batteryPct: a.device.batteryPct,
-            isCharging: a.device.charging ?? false,
-            batteryPackPct: a.device.batteryPackPct,
-            liveHr: a.device.liveHr,
-          ));
+      data = c.select<AppState, _StatusBarData>((a) {
+        final now = DateTime.now();
+        final isToday = todayId == null || todayId == todayLabel();
+        final isMorningHour = now.hour >= 5 && now.hour < 13;
+        final isPendingWake = a.isPendingWakeConfirm(todayId ?? todayLabel());
+        final isMorningSync = isToday &&
+            !quietDerive &&
+            (a.syncingNow ||
+                a.deriving ||
+                a.deriveProgress.isComputing ||
+                isPendingWake ||
+                (isMorningHour && a.device.connection != 'connected'));
+        return _StatusBarData(
+          isPaired: a.isPaired,
+          connection: a.device.connection,
+          strapName: a.device.strapName,
+          bandStatus: a.engine.bandStatus,
+          isSyncing: a.syncingNow,
+          isDeriving: a.deriving || a.deriveProgress.isComputing,
+          syncDrainRecords: a.syncDrainRecords,
+          syncDrainBatches: a.syncDrainBatches,
+          deriveProgress: a.deriveProgress,
+          lastRecordAt: a.lastRecordAt,
+          // Whole percent, so the bar does not rebuild on every record.
+          drainPercent: a.drainFraction == null
+              ? null
+              : (a.drainFraction! * 100).round(),
+          batteryPct: a.device.batteryPct,
+          isCharging: a.device.charging ?? false,
+          batteryPackPct: a.device.batteryPackPct,
+          liveHr: a.device.liveHr,
+          isMorningSync: isMorningSync,
+          isPendingWakeConfirm: isPendingWake,
+        );
+      });
     } catch (_) {
       // Golden or widget test without AppState
     }
@@ -538,6 +559,8 @@ class _WhoopStatusBar extends StatelessWidget {
                   isCharging: data.isCharging,
                   batteryPackPct: data.batteryPackPct,
                   liveHr: data.liveHr,
+                  isMorningSync: data.isMorningSync,
+                  isPendingWakeConfirm: data.isPendingWakeConfirm,
                 )
               : data!;
           return _buildContent(c, effective);
@@ -564,6 +587,99 @@ class _WhoopStatusBar extends StatelessWidget {
     final isCharging = data.isCharging;
     final connection = data.connection;
     final isConnected = connection == 'connected';
+
+    // ── 0A. FAULT / ACTION REQUIRED STATE ──────────────────────────────
+    if (isFault) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: S.x3),
+        padding: const EdgeInsets.all(S.x4),
+        decoration: BoxDecoration(
+          color: p.wash(C.red, strength: 0.12),
+          borderRadius: R.rMd,
+          border: Border.all(
+            color: p.on(C.red).withValues(alpha: 0.35),
+            width: 1.0,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(LucideIcons.triangleAlert, size: 16, color: p.on(C.red)),
+                const SizedBox(width: S.x2),
+                Expanded(
+                  child: Text(
+                    localized.title,
+                    style: F.head.copyWith(
+                      color: p.on(C.red),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: S.x1),
+            Text(
+              localized.reason,
+              style: F.cap.copyWith(color: p.ink2),
+            ),
+            if (localized.fix != null) ...[
+              const SizedBox(height: S.x3),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Pressable(
+                  onTap: () {
+                    switch (status.condition) {
+                      case BandCondition.bluetoothOff:
+                        if (Platform.isAndroid) {
+                          try {
+                            FlutterBluePlus.turnOn();
+                          } catch (_) {
+                            unawaited(Geolocator.openAppSettings());
+                          }
+                        } else {
+                          unawaited(Geolocator.openAppSettings());
+                        }
+                        break;
+                      case BandCondition.bluetoothDenied:
+                        unawaited(Geolocator.openAppSettings());
+                        break;
+                      case BandCondition.reconnectPaused:
+                      case BandCondition.repairNeeded:
+                        go(c, const DevicePickerScreen());
+                        break;
+                      default:
+                        onSync?.call();
+                    }
+                  },
+                  semanticLabel: localized.fix,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: S.x3, vertical: S.x2),
+                    decoration: BoxDecoration(
+                      color: p.fill(C.red),
+                      borderRadius: R.rPill,
+                    ),
+                    child: Text(
+                      localized.fix!,
+                      style: F.over.copyWith(
+                        color: p.inkOnFill,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
+    // ── 0C. UNIFIED CALM MORNING SYNC BANNER ──────────────────────────
+    if (data.isMorningSync) {
+      return _buildMorningSyncBanner(c, p, l, data, onSync);
+    }
 
     // ── 1A. ACTIVE BLE SYNC STATE ──────────────────────────────────────
     if (isSyncing) {
@@ -857,95 +973,6 @@ class _WhoopStatusBar extends StatelessWidget {
       );
     }
 
-    // ── 2. FAULT / ACTION REQUIRED STATE ──────────────────────────────
-    if (isFault) {
-      return Container(
-        margin: const EdgeInsets.only(bottom: S.x3),
-        padding: const EdgeInsets.all(S.x4),
-        decoration: BoxDecoration(
-          color: p.wash(C.red, strength: 0.12),
-          borderRadius: R.rMd,
-          border: Border.all(
-            color: p.on(C.red).withValues(alpha: 0.35),
-            width: 1.0,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(LucideIcons.triangleAlert, size: 16, color: p.on(C.red)),
-                const SizedBox(width: S.x2),
-                Expanded(
-                  child: Text(
-                    localized.title,
-                    style: F.head.copyWith(
-                      color: p.on(C.red),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: S.x1),
-            Text(
-              localized.reason,
-              style: F.cap.copyWith(color: p.ink2),
-            ),
-            if (localized.fix != null) ...[
-              const SizedBox(height: S.x3),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Pressable(
-                  onTap: () {
-                    switch (status.condition) {
-                      case BandCondition.bluetoothOff:
-                        if (Platform.isAndroid) {
-                          try {
-                            FlutterBluePlus.turnOn();
-                          } catch (_) {
-                            unawaited(Geolocator.openAppSettings());
-                          }
-                        } else {
-                          unawaited(Geolocator.openAppSettings());
-                        }
-                        break;
-                      case BandCondition.bluetoothDenied:
-                        unawaited(Geolocator.openAppSettings());
-                        break;
-                      case BandCondition.reconnectPaused:
-                      case BandCondition.repairNeeded:
-                        go(c, const DevicePickerScreen());
-                        break;
-                      default:
-                        onSync?.call();
-                    }
-                  },
-                  semanticLabel: localized.fix,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: S.x3, vertical: S.x2),
-                    decoration: BoxDecoration(
-                      color: p.fill(C.red),
-                      borderRadius: R.rPill,
-                    ),
-                    child: Text(
-                      localized.fix!,
-                      style: F.over.copyWith(
-                        color: p.inkOnFill,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      );
-    }
-
-
     // ── 3. LOW BATTERY WARNING (When connected) ───────────────────────
     final isLowBat = batteryPct != null && lowBattery(batteryPct, isCharging);
     if (isConnected && isPaired) {
@@ -1070,6 +1097,326 @@ class _WhoopStatusBar extends StatelessWidget {
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPipelineStepper(BuildContext c, P p, int currentStep) {
+    final steps = ['Connect', 'Download', 'Calculate', 'Ready'];
+    return Row(
+      children: [
+        for (int i = 0; i < steps.length; i++) ...[
+          if (i > 0)
+            Expanded(
+              child: Container(
+                height: 2,
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                color: i <= currentStep
+                    ? p.on(C.blue)
+                    : p.on(C.blue).withValues(alpha: 0.2),
+              ),
+            ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 16,
+                height: 16,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: i < currentStep
+                      ? p.fill(C.green)
+                      : (i == currentStep
+                          ? p.fill(C.blue)
+                          : p.wash(C.blue, strength: 0.2)),
+                ),
+                alignment: Alignment.center,
+                child: i < currentStep
+                    ? Icon(LucideIcons.check, size: 10, color: p.inkOnFill)
+                    : Text(
+                        '${i + 1}',
+                        style: F.over.copyWith(
+                          color: i == currentStep ? p.inkOnFill : p.on(C.blue),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 9,
+                          height: 1,
+                        ),
+                      ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                steps[i],
+                style: F.over.copyWith(
+                  color: i <= currentStep ? p.ink : p.ink3,
+                  fontWeight:
+                      i == currentStep ? FontWeight.bold : FontWeight.normal,
+                  fontSize: 10,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildMorningSyncBanner(
+    BuildContext c,
+    P p,
+    AppLocalizations? l,
+    _StatusBarData data,
+    VoidCallback? onSync,
+  ) {
+    final int step;
+    if (data.isDeriving) {
+      step = 2;
+    } else if (data.isSyncing) {
+      step = 1;
+    } else if (data.connection == 'connected') {
+      step = 1;
+    } else {
+      step = 0;
+    }
+
+    final percent = data.drainPercent;
+    final records = data.syncDrainRecords;
+    final formattedRecords = records > 0
+        ? NumberFormat.decimalPattern().format(records)
+        : null;
+
+    final int? remainingSec;
+    if (step == 1 && percent != null) {
+      final rem = (100 - percent).clamp(0, 100);
+      remainingSec = (rem * 1.5).round().clamp(5, 150);
+    } else if (step == 2) {
+      final frac = data.deriveProgress.fraction;
+      remainingSec = ((1.0 - frac) * 12).round().clamp(3, 20);
+    } else {
+      remainingSec = null;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: S.x3),
+      padding: const EdgeInsets.all(S.x4),
+      decoration: BoxDecoration(
+        color: p.wash(C.blue, strength: 0.12),
+        borderRadius: R.rMd,
+        border: Border.all(
+          color: p.on(C.blue).withValues(alpha: 0.25),
+          width: 1.0,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildPipelineStepper(c, p, step),
+          const SizedBox(height: S.x3),
+          Row(
+            children: [
+              Icon(
+                step == 2
+                    ? LucideIcons.cpu
+                    : (step == 1
+                        ? LucideIcons.arrowDownToLine
+                        : LucideIcons.bluetooth),
+                size: 16,
+                color: p.on(C.blue),
+              ),
+              const SizedBox(width: S.x2),
+              Expanded(
+                child: Text(
+                  step == 2
+                      ? (l?.homeAnalyzingTitle ?? 'Calculating Morning Recovery')
+                      : (step == 1
+                          ? (l?.homeSyncingTitle ?? 'Transferring Overnight Data')
+                          : (l?.homeConnectingTitle ?? 'Connecting to WHOOP…')),
+                  style: F.head.copyWith(
+                    color: p.ink,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: S.x2, vertical: 2),
+                decoration: BoxDecoration(
+                  color: p.wash(C.blue, strength: 0.2),
+                  borderRadius: R.rPill,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 8,
+                      height: 8,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.5,
+                        color: p.on(C.blue),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      step == 2
+                          ? 'CALCULATING'
+                          : (step == 1 ? 'TRANSFERRING' : 'CONNECTING'),
+                      style: F.over.copyWith(
+                        color: p.on(C.blue),
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: S.x2),
+          ClipRRect(
+            borderRadius: R.rSm,
+            child: LinearProgressIndicator(
+              value: step == 1
+                  ? (percent == null ? null : percent / 100)
+                  : (step == 2
+                      ? (data.deriveProgress.fraction > 0
+                          ? data.deriveProgress.fraction
+                          : null)
+                      : null),
+              minHeight: 4,
+              backgroundColor: p.on(C.blue).withValues(alpha: 0.15),
+              color: p.on(C.blue),
+            ),
+          ),
+          const SizedBox(height: S.x2),
+          if (step == 1) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    percent != null
+                        ? '${syncedThroughLabel(data.lastRecordAt, todayId, l)} · $percent%'
+                        : 'Transferring data from WHOOP band…',
+                    style: F.cap.copyWith(
+                      color: p.ink,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (remainingSec != null)
+                  Text(
+                    '~$remainingSec s remaining',
+                    style: F.cap.copyWith(
+                      color: p.on(C.blue),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              formattedRecords != null
+                  ? '$formattedRecords records transferred · Direct to phone'
+                  : 'Saving raw sleep data directly into phone SQLite database…',
+              style: F.over.copyWith(color: p.ink3),
+            ),
+          ] else if (step == 2) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    data.deriveProgress.stageDescription ??
+                        'Calculating sleep stages (Deep/REM) & HRV…',
+                    style: F.cap.copyWith(
+                      color: p.ink,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (remainingSec != null)
+                  Text(
+                    '~$remainingSec s remaining',
+                    style: F.cap.copyWith(
+                      color: p.on(C.blue),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Row(
+              children: [
+                Icon(LucideIcons.shieldCheck, size: 10, color: p.on(C.green)),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    '100% private: processed locally on your phone CPU',
+                    style: F.over.copyWith(color: p.ink3),
+                  ),
+                ),
+              ],
+            ),
+          ] else ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    data.connection == 'disconnected'
+                        ? 'Reconnecting to WHOOP… Keeping link active'
+                        : 'Searching in Bluetooth range…',
+                    style: F.cap.copyWith(color: p.ink2),
+                  ),
+                ),
+                if (data.connection == 'disconnected' && onSync != null)
+                  Pressable(
+                    onTap: onSync,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: S.x2,
+                        vertical: 2,
+                      ),
+                      child: Text(
+                        'Reconnect',
+                        style: F.cap.copyWith(
+                          color: p.on(C.blue),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+          if (data.isPendingWakeConfirm) ...[
+            const SizedBox(height: S.x2),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: S.x3, vertical: 4),
+              decoration: BoxDecoration(
+                color: p.wash(C.green, strength: 0.15),
+                borderRadius: R.rPill,
+                border: Border.all(
+                  color: p.on(C.green).withValues(alpha: 0.3),
+                  width: 0.8,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(LucideIcons.checkCheck, size: 12, color: p.on(C.green)),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      'Wake recorded · Finalizing sleep as soon as sync completes',
+                      style: F.over.copyWith(
+                        color: p.on(C.green),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -2617,6 +2964,25 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
     AppLocalizations? l,
     HomeData d,
   ) {
+    bool isPending = false;
+    try {
+      isPending = c.select<AppState, bool>(
+        (a) => a.isPendingWakeConfirm(d.dayId ?? todayLabel()),
+      );
+    } catch (_) {}
+
+    if (isPending) {
+      return const ActionCard(
+        'Wake recorded! Finalizing sleep…',
+        'Overnight data is syncing from your band. Your recovery score will finalize automatically.',
+        'Finalizing…',
+        LucideIcons.checkCheck,
+        C.green,
+        busy: true,
+        onTap: null,
+      );
+    }
+
     final sleepMin = d.sleepMin.value?.round();
     final sleepStr = sleepMin != null
         ? '${sleepMin ~/ 60}h ${(sleepMin % 60).toString().padLeft(2, '0')}m'
@@ -2681,12 +3047,10 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
     final syncing = syncingNowOf(c);
     final deriving = derivingOf(c);
     if (syncing || deriving) {
-      return StatusCard(
-        syncing
-            ? (l?.homeSyncingTitle ?? 'Syncing with your band')
-            : (l?.homeAnalyzingTitle ?? 'Analyzing sleep & recovery'),
-        'Your daily metrics will appear once processing completes.',
-        icon: LucideIcons.hourglass,
+      return const StatusCard(
+        'Morning Briefing in Progress',
+        'Your Recovery Score, resting HR, and sleep metrics will appear as soon as morning sync completes.',
+        icon: LucideIcons.sunrise,
       );
     }
     if (_syncTapped) {
@@ -2893,7 +3257,7 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
       _WhoopStatusBar(
         todayId: d.dayId,
         onSync: syncOf(c) == null ? null : () => _tapSync(syncOf(c)!),
-        quietDerive: true,
+        quietDerive: !bare,
       ),
 
       if (bare) ...[

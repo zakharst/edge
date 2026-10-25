@@ -46,7 +46,23 @@ class IosBgTask {
   /// competing headless connection — but it should still pull the flash backlog
   /// over the EXISTING live link. AppState installs its floored catch-up pull
   /// here (see AppState.foregroundCatchUp); null until an AppState exists.
-  static Future<void> Function()? foregroundPull;
+  /// Returns true if a live sync completed, false if not connected/usable.
+  static Future<bool> Function()? foregroundPull;
+
+  /// Schedule a targeted morning background app refresh before the user's expected wake time.
+  static Future<void> scheduleTargetedMorningWake(DateTime targetDate) async {
+    if (!Platform.isIOS) return;
+    try {
+      await _ch.invokeMethod('scheduleTargeted', {
+        'earliestSeconds': targetDate.millisecondsSinceEpoch / 1000.0,
+      });
+      debugPrint(
+        '[ios-bgtask] scheduled targeted morning wake at ${targetDate.toIso8601String()}',
+      );
+    } catch (e) {
+      debugPrint('[ios-bgtask] targeted schedule failed: $e');
+    }
+  }
 
   /// Register the method call handler. Call once at startup from main().
   /// No-op on Android.
@@ -68,21 +84,19 @@ class IosBgTask {
     final ran = await HeadlessSyncGate.tryRun<bool>(
         syncOnly ? 'bg_refresh' : 'bg_task', () async {
       try {
-        // Skip headless BLE if the foreground session already owns the band.
-        if (!IosBleRestore.foregroundActive) {
-          debugPrint('[ios-bgtask] running headless sync (syncOnly=$syncOnly)');
-          await runHeadlessSync();
-        } else {
-          // The foreground app owns the band: no headless BLE (it would fight
-          // flutter_blue_plus for the peripheral) — but still use this OS-granted
-          // budget to pull the flash backlog over the app's own live connection.
-          debugPrint(
-              '[ios-bgtask] foreground owns the band — catch-up over live link');
+        var pulledLive = false;
+        if (IosBleRestore.foregroundActive && foregroundPull != null) {
           try {
-            await foregroundPull?.call();
+            debugPrint('[ios-bgtask] attempting foreground catch-up');
+            pulledLive = (await foregroundPull?.call()) ?? false;
           } catch (e) {
             debugPrint('[ios-bgtask] foreground pull failed (ignored): $e');
           }
+        }
+        if (!pulledLive) {
+          debugPrint('[ios-bgtask] running headless sync (syncOnly=$syncOnly)');
+          IosBleRestore.foregroundActive = false;
+          await runHeadlessSync();
         }
         if (!syncOnly) {
           // Heavy derive pass (full sleep staging + 24h spectra, stale days).

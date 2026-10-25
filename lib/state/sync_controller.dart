@@ -957,26 +957,34 @@ class SyncController {
   /// app is backgrounded is invisible to every independent OS wake path —
   /// which is the bug this guards against ("strap disconnects and never
   /// tries to reconnect").
-  Future<void> foregroundCatchUp() async {
-    if (!engine.isConnected) return;
+  Future<bool> foregroundCatchUp() async {
+    if (!engine.isConnected) {
+      _releaseForegroundLease();
+      IosBleRestore.foregroundActive = false;
+      return false;
+    }
     if (!await _linkUsableAfterResume('Foreground catch-up')) {
       await engine.disconnect();
-      return;
+      _releaseForegroundLease();
+      IosBleRestore.foregroundActive = false;
+      return false;
     }
-    if (_syncBurst != null) return; // a burst is already pulling the same flash
+    if (_syncBurst != null) return true; // a burst is already pulling the same flash
     try {
       // The engine applies the 90 s foreground floor and (if allowed) re-arms
       // the drain + sends SEND_HISTORICAL_DATA itself — so join the offload
       // WITHOUT re-kicking (kickFirst: false).
-      if (!await engine.requestForegroundSync()) return;
+      if (!await engine.requestForegroundSync()) return false;
       final report = await _kickSyncBurst(kickFirst: false);
       if (report.records > 0) {
         _scheduler.markStoredData();
         _notify();
       }
       _log('Foreground catch-up: ${report.records} records pulled.');
+      return true;
     } catch (e) {
       _log('Foreground catch-up sync failed: $e');
+      return false;
     }
   }
 
@@ -1215,6 +1223,9 @@ class SyncController {
       _log('Connection dropped — reconnecting…');
       _stopBackfillTimer();
       if (background) {
+        // While backgrounded, release the foreground lease so headless sync wakes can run.
+        _releaseForegroundLease();
+        IosBleRestore.foregroundActive = false;
         // Backgrounded: arm the OS-durable restore path FIRST and wait for it to
         // confirm-armed before spending any Dart cycles on the in-process retry —
         // the restore central's no-timeout pending connect is the only piece of

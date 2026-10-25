@@ -289,7 +289,7 @@ class AppState extends ChangeNotifier {
     background: () => _background,
     disposed: () => _disposed,
     log: _log,
-    notify: notifyListeners,
+    notify: _onDeriveProgressOrComplete,
     refreshPhoneStepsToday: _refreshPhoneStepsToday,
     maybeNotifyRecoveryReady: _maybeNotifyRecoveryReady,
     runHealthExport: _runHealthExport,
@@ -2411,24 +2411,106 @@ class AppState extends ChangeNotifier {
     await _reanalyzeForOverride(date);
   }
 
-  /// Confirm the HR-led fallback's proposal for [date] (Approach 2): accept the
-  /// window it already computed, promoting 'auto_fallback' → 'confirmed' so the
-  /// prompt stops showing. Reads the current window from the derived day.
-  /// False when there is no window to confirm, so the caller can say so
-  /// instead of looking like a dead button.
+  DateTime? _pendingWakeConfirmTime;
+  String? _pendingWakeConfirmDay;
+
+  DateTime? get pendingWakeConfirmTime => _pendingWakeConfirmTime;
+  String? get pendingWakeConfirmDay => _pendingWakeConfirmDay;
+
+  bool isPendingWakeConfirm(String day) =>
+      _pendingWakeConfirmDay == day && _pendingWakeConfirmTime != null;
+
+  void clearPendingWakeConfirm() {
+    _pendingWakeConfirmTime = null;
+    _pendingWakeConfirmDay = null;
+    notifyListeners();
+  }
+
+  void _onDeriveProgressOrComplete() {
+    notifyListeners();
+    if (_pendingWakeConfirmDay != null) {
+      unawaited(_checkPendingWakeConfirm());
+    }
+  }
+
+  Future<void> _checkPendingWakeConfirm() async {
+    final day = _pendingWakeConfirmDay;
+    final time = _pendingWakeConfirmTime;
+    if (day == null || time == null || repo == null) return;
+    try {
+      final sleep = await repo!.getDaySleep(day);
+      final onset = (sleep['onset_ts'] as num?)?.toInt();
+      final wake = (sleep['wake_ts'] as num?)?.toInt();
+      if (onset != null) {
+        final offset = wake ?? (time.millisecondsSinceEpoch ~/ 1000);
+        if (offset > onset) {
+          _pendingWakeConfirmDay = null;
+          _pendingWakeConfirmTime = null;
+          await LocalDb.putSleepOverride(
+            dayId: day,
+            onsetTs: onset,
+            offsetTs: offset,
+            source: 'confirmed',
+          );
+          await _reanalyzeForOverride(day);
+          notifyListeners();
+        }
+      }
+    } catch (e) {
+      _log('[confirmWake] auto-confirm failed: $e');
+    }
+  }
+
+  /// Confirm the sleep window for [date]. If the sleep window has already been
+  /// computed with valid onset and wake times, confirms it immediately.
+  /// If the morning sync/drain is still in-flight or wake hasn't settled yet,
+  /// queues the confirmation with the current timestamp so that as soon as the
+  /// drain and sleep segmentation finish, the recovery score finalizes automatically
+  /// without displaying an error to the user.
   Future<bool> confirmSleep(String date) async {
     if (repo == null) return false;
     final sleep = await repo!.getDaySleep(date);
     final onset = (sleep['onset_ts'] as num?)?.toInt();
     final offset = (sleep['wake_ts'] as num?)?.toInt();
-    if (onset == null || offset == null || offset <= onset) return false;
-    await LocalDb.putSleepOverride(
-      dayId: date,
-      onsetTs: onset,
-      offsetTs: offset,
-      source: 'confirmed',
-    );
-    await _reanalyzeForOverride(date);
+    if (onset != null && offset != null && offset > onset) {
+      _pendingWakeConfirmTime = null;
+      _pendingWakeConfirmDay = null;
+      await LocalDb.putSleepOverride(
+        dayId: date,
+        onsetTs: onset,
+        offsetTs: offset,
+        source: 'confirmed',
+      );
+      await _reanalyzeForOverride(date);
+      notifyListeners();
+      return true;
+    }
+
+    final now = DateTime.now();
+    _pendingWakeConfirmTime = now;
+    _pendingWakeConfirmDay = date;
+    notifyListeners();
+
+    // If an onset is already stored, close the window using now
+    final nowSec = now.millisecondsSinceEpoch ~/ 1000;
+    if (onset != null && nowSec > onset) {
+      await LocalDb.putSleepOverride(
+        dayId: date,
+        onsetTs: onset,
+        offsetTs: nowSec,
+        source: 'confirmed',
+      );
+      _pendingWakeConfirmTime = null;
+      _pendingWakeConfirmDay = null;
+      await _reanalyzeForOverride(date);
+      notifyListeners();
+      return true;
+    }
+
+    // Trigger sync if not currently syncing
+    if (engine.isConnected && !syncingNow) {
+      unawaited(syncNow());
+    }
     return true;
   }
 
@@ -4872,7 +4954,7 @@ class AppState extends ChangeNotifier {
   Future<void> openSession({bool foreground = true}) =>
       _sync.openSession(foreground: foreground);
   Future<void> forceResync() => _sync.forceResync();
-  Future<void> foregroundCatchUp() => _sync.foregroundCatchUp();
+  Future<bool> foregroundCatchUp() => _sync.foregroundCatchUp();
   Future<void> syncNow() => _sync.syncNow();
   Future<SyncReport> syncForShortcut(ShortcutSyncTask task) =>
       _sync.syncForShortcut(task);
@@ -4923,6 +5005,12 @@ class AppState extends ChangeNotifier {
         scheduledWindowMinutes: armed?.minutes ?? 0,
       );
       final target = plan.targetWake;
+      if (Platform.isIOS && target != null) {
+        final preWake = target.subtract(const Duration(minutes: 45));
+        if (preWake.isAfter(DateTime.now())) {
+          unawaited(IosBgTask.scheduleTargetedMorningWake(preWake));
+        }
+      }
       final iosBackgrounded = _background && Platform.isIOS;
       final req = BandPromptPolicy.plan(
         smartWake: plan.shouldEnable && target != null

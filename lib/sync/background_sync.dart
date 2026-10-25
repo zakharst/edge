@@ -12,7 +12,9 @@
 // store (lib/data/db.dart), the system of record. A missed run is harmless;
 // the next reconnect catches up from the non-destructive cursor.
 
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:openstrap_protocol/openstrap_protocol.dart' as proto;
@@ -41,6 +43,7 @@ import '../notify/notification_event.dart';
 import '../state/alarm_schedule.dart';
 import 'band_ownership.dart';
 import 'high_freq_wake_window.dart';
+import 'ios_bg_task.dart';
 import 'reset_gate.dart';
 import 'paired_device.dart';
 import 'sync_policy.dart';
@@ -232,6 +235,12 @@ Future<void> prepareHeadlessLink(BleEngine engine, PairedDevice paired) async {
 
     reason: plan.source,
   );
+  if (Platform.isIOS && plan.targetWake != null) {
+    final preWake = plan.targetWake!.subtract(const Duration(minutes: 45));
+    if (preWake.isAfter(DateTime.now())) {
+      unawaited(IosBgTask.scheduleTargetedMorningWake(preWake));
+    }
+  }
   debugPrint(
     '[bgsync] HighFreq wake window: source=${plan.source} '
     'samples=${plan.sampleCount} enabled=${plan.shouldEnable} '

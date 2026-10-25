@@ -1905,19 +1905,20 @@ String prettyDay(String? dayId, [AppLocalizations? l]) {
 /// is one long enough to measure; do not nudge the cut-offs by feel.
 ({String label, Color color, int tier}) readinessBand(num? v,
     [AppLocalizations? l]) {
+  final isUk = LocaleController.displayLanguageCode == 'uk';
   if (v == null) {
-    return (label: l?.homeReadinessNotScored ?? 'Not scored', color: C.n400, tier: -1);
+    return (label: l?.homeReadinessNotScored ?? (isUk ? 'Не розраховано' : 'Not scored'), color: C.n400, tier: -1);
   }
   if (v >= kReadinessGoodFrom) {
-    return (label: l?.homeReadinessGoodToGo ?? 'Good to go', color: C.green, tier: 3);
+    return (label: l?.homeReadinessGoodToGo ?? (isUk ? 'Готовий до навантажень' : 'Good to go'), color: C.green, tier: 3);
   }
   if (v >= kReadinessEasyBelow) {
-    return (label: l?.homeReadinessSteady ?? 'Steady', color: C.green, tier: 2);
+    return (label: l?.homeReadinessSteady ?? (isUk ? 'Стабільно' : 'Steady'), color: C.green, tier: 2);
   }
   if (v >= kReadinessRestBelow) {
-    return (label: l?.homeReadinessTakeItEasy ?? 'Take it easy', color: C.orange, tier: 1);
+    return (label: l?.homeReadinessTakeItEasy ?? (isUk ? 'Помірний темп' : 'Take it easy'), color: C.orange, tier: 1);
   }
-  return (label: l?.homeReadinessRestToday ?? 'Rest today', color: C.red, tier: 0);
+  return (label: l?.homeReadinessRestToday ?? (isUk ? 'Потрібен відпочинок' : 'Rest today'), color: C.red, tier: 0);
 }
 
 /// Glass-box driver keys are the pipeline's own short names.
@@ -1932,12 +1933,13 @@ const driverLabels = {
 /// glass-box emits whatever inputs the composite used, so a new one used to
 /// surface on Home as `resp_rate_slope`.
 String driverLabel(Object? key, [AppLocalizations? l]) {
+  final isUk = LocaleController.displayLanguageCode == 'uk';
   final k = key?.toString() ?? '';
   final known = switch (k) {
-    'hrv' => l?.homeDriverHrv ?? driverLabels['hrv'],
-    'rhr' => l?.homeDriverRhr ?? driverLabels['rhr'],
-    'resp' => l?.homeDriverResp ?? driverLabels['resp'],
-    'temp' => l?.homeDriverTemp ?? driverLabels['temp'],
+    'hrv' => l?.homeDriverHrv ?? (isUk ? 'HRV' : driverLabels['hrv']),
+    'rhr' => l?.homeDriverRhr ?? (isUk ? 'Пульс спокою' : driverLabels['rhr']),
+    'resp' => l?.homeDriverResp ?? (isUk ? 'Частота дихання' : driverLabels['resp']),
+    'temp' => l?.homeDriverTemp ?? (isUk ? 'Температура шкіри' : driverLabels['temp']),
     _ => null,
   };
   if (known != null) return known;
@@ -1995,34 +1997,43 @@ class RingTrio extends StatelessWidget {
     final readinessVal = d.readiness.value?.round();
     final isCalibrating = d.readiness.value == null && d.readiness.note != null;
 
+    final isUk = LocaleController.displayLanguageCode == 'uk';
     final ({String title, String subtitle, Color color, IconData icon})? heroVerdict;
     if (readinessVal != null) {
       if (readinessVal >= 67) {
         heroVerdict = (
-          title: 'OPTIMAL RECOVERY',
-          subtitle: 'Autonomic balance restored · Primed for high strain',
+          title: isUk ? 'ВІДМІННЕ ВІДНОВЛЕННЯ' : 'OPTIMAL RECOVERY',
+          subtitle: isUk
+              ? 'Вегетативний баланс у нормі · Готовність до навантажень'
+              : 'Autonomic balance restored · Primed for high strain',
           color: C.green,
           icon: LucideIcons.sparkles,
         );
       } else if (readinessVal >= 34) {
         heroVerdict = (
-          title: 'STEADY RECOVERY',
-          subtitle: 'Maintaining normal baseline · Moderate strain advised',
+          title: isUk ? 'СТАБІЛЬНЕ ВІДНОВЛЕННЯ' : 'STEADY RECOVERY',
+          subtitle: isUk
+              ? 'Показники в межах норми · Рекомендовано помірне навантаження'
+              : 'Maintaining normal baseline · Moderate strain advised',
           color: C.yellow,
           icon: LucideIcons.activity,
         );
       } else {
         heroVerdict = (
-          title: 'REST RECOMMENDED',
-          subtitle: 'Elevated physiological strain · Focus on rest & sleep',
+          title: isUk ? 'ПОТРІБЕН ВІДПОЧИНОК' : 'REST RECOMMENDED',
+          subtitle: isUk
+              ? 'Підвищене фізіологічне напруження · Зробіть фокус на сні та спокої'
+              : 'Elevated physiological strain · Focus on rest & sleep',
           color: C.red,
           icon: LucideIcons.batteryLow,
         );
       }
     } else if (isCalibrating) {
       heroVerdict = (
-        title: 'ESTABLISHING BASELINE',
-        subtitle: 'Wear your WHOOP band tonight to calibrate your normal range',
+        title: isUk ? 'КАЛІБРУВАННЯ БАЗИ' : 'ESTABLISHING BASELINE',
+        subtitle: isUk
+            ? 'Одягніть браслет WHOOP на ніч, щоб відкалібрувати вашу норму'
+            : 'Wear your WHOOP band tonight to calibrate your normal range',
         color: C.blue,
         icon: LucideIcons.circleDashed,
       );
@@ -2258,55 +2269,48 @@ class _RingState {
 }
 
 _RingState _ringOf(HomeRingKind k, HomeData d, AppLocalizations? l) {
+  final isUk = LocaleController.displayLanguageCode == 'uk';
   switch (k) {
     case HomeRingKind.recovery:
       final v = d.readiness.value;
       final band = readinessBand(v, l);
       if (d.recoveryState == 'night_in_progress') {
-        return _RingState(k, l?.homeRingRecovery ?? 'Recovery',
+        return _RingState(k, l?.homeRingRecovery ?? (isUk ? 'Відновлення' : 'Recovery'),
             LucideIcons.heartPulse, C.green,
-            value: l?.homeRecoverySleeping ?? 'Sleeping…',
+            value: l?.homeRecoverySleeping ?? (isUk ? 'Сон триває…' : 'Sleeping…'),
             why: l?.homeRecoveryAfterWake ??
-                'Recovery is scored after you wake.');
+                (isUk
+                    ? 'Відновлення розраховується після пробудження.'
+                    : 'Recovery is scored after you wake.'));
       }
       if (d.recoveryState == 'provisional' && v != null) {
-        return _RingState(k, l?.homeRingRecovery ?? 'Recovery',
+        return _RingState(k, l?.homeRingRecovery ?? (isUk ? 'Відновлення' : 'Recovery'),
             LucideIcons.heartPulse, band.color,
-            value: '${v.round()}',
-            sub: l?.homeRecoveryFinishingUp ?? 'Finishing up',
+            value: '${v.round()}%',
+            sub: l?.homeRecoveryFinishingUp ?? (isUk ? 'Завершення' : 'Finishing up'),
             frac: v / 100,
             provisional: true);
       }
       return v == null
-          ? _gap(k, l?.homeRingRecovery ?? 'Recovery', LucideIcons.heartPulse,
-              C.green, d.readiness, l?.homeReadinessNotScored ?? 'Not scored', l,
-              // The same shortfall sentence the Readiness detail screen's
-              // banner shows, off the SAME stored diagnostic — _gap's own
-              // whyFromNote(m.note) doesn't recognise the need_inputs:
-              // convention this composite uses (only need_baseline:), so
-              // without this it fell through to the generic "nothing
-              // recorded says why" even with a real, known reason on hand.
-              // metricName: 'recovery' — this ring is labelled "Recovery",
-              // not "Readiness", and the sentence should say what the ring
-              // itself says. The second translator covers the z-cap absence
-              // shape readinessInputShortfallNote alone doesn't (PR #510).
+          ? _gap(k, l?.homeRingRecovery ?? (isUk ? 'Відновлення' : 'Recovery'), LucideIcons.heartPulse,
+              C.green, d.readiness, l?.homeReadinessNotScored ?? (isUk ? 'Не розраховано' : 'Not scored'), l,
               fallbackWhy: readinessInputShortfallNote(d.absentDiag,
                       metricName: 'recovery') ??
                   readinessUnstableBaselineNote(
                       d.absentDiag?['note']?.toString(),
                       metricName: 'recovery') ??
                   '')
-          : _RingState(k, l?.homeRingRecovery ?? 'Recovery',
+          : _RingState(k, l?.homeRingRecovery ?? (isUk ? 'Відновлення' : 'Recovery'),
               LucideIcons.heartPulse, band.color,
-              value: '${v.round()}', sub: band.label, frac: v / 100);
+              value: '${v.round()}%', sub: band.label, frac: v / 100);
     case HomeRingKind.strain:
       final v = d.strain.value;
       // 0–21 is the scale's own ceiling, not a target invented here.
       return v == null
-          ? _gap(k, l?.homeRingStrain ?? 'Strain', LucideIcons.zap, C.purple,
-              d.strain, l?.homeRingNoStrain ?? 'No strain', l, unit: 'days')
-          : _RingState(k, l?.homeRingStrain ?? 'Strain', LucideIcons.zap, C.purple,
-              value: v.toStringAsFixed(1), sub: l?.homeStrainOf21 ?? 'of 21', frac: v / 21);
+          ? _gap(k, l?.homeRingStrain ?? (isUk ? 'Навантаження' : 'Strain'), LucideIcons.zap, C.purple,
+              d.strain, l?.homeRingNoStrain ?? (isUk ? 'Без навантаження' : 'No strain'), l, unit: 'days')
+          : _RingState(k, l?.homeRingStrain ?? (isUk ? 'Навантаження' : 'Strain'), LucideIcons.zap, C.purple,
+              value: v.toStringAsFixed(1), sub: l?.homeStrainOf21 ?? (isUk ? 'з 21' : 'of 21'), frac: v / 21);
     case HomeRingKind.sleep:
       final v = d.sleepMin.value;
       final qual = d.sleepQuality.value?.round();
@@ -2318,18 +2322,18 @@ _RingState _ringOf(HomeRingKind k, HomeData d, AppLocalizations? l) {
           // Honest Sleep Quality Score (0..100) based on AASM 4-pillar architecture:
           return _RingState(
             k,
-            'Sleep Quality',
+            isUk ? 'Якість сну' : 'Sleep Quality',
             LucideIcons.moon,
             C.blue,
             value: '$qual%',
-            sub: '${hm(v)} · ${eff != null ? "$eff% eff" : "time"}',
+            sub: '${hm(v)} · ${eff != null ? (isUk ? "$eff% ефект." : "$eff% eff") : (isUk ? "тривалість" : "time")}',
             frac: (qual / 100.0).clamp(0.0, 1.0),
           );
         }
         if (pct != null) {
           return _RingState(
             k,
-            l?.homeRingSleep ?? 'Sleep',
+            l?.homeRingSleep ?? (isUk ? 'Сон' : 'Sleep'),
             LucideIcons.moon,
             C.blue,
             value: '$pct%',
@@ -3478,7 +3482,14 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
         const SizedBox(height: S.x3),
         BodyBatteryCard(d: d),
 
-        // ── Level 1C: Sleep Architecture Breakdown ──
+        // ── Level 1C: Longevity & Real-Time Biometrics ──
+        const SizedBox(height: S.x3),
+        NextGenMvpCard(
+          repo: repoOf(c),
+          dayId: d.dayId,
+        ),
+
+        // ── Level 1D: Sleep Architecture Breakdown ──
         if (!d.sleepMin.isEmpty) ...[
           const SizedBox(height: S.x3),
           SleepArchitectureCard(d: d),
@@ -3499,15 +3510,6 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
             l?.homeBreakdownTitle ?? 'Breakdown of your day',
             l?.homeBreakdownSubtitle ?? 'Hour by hour',
             () => go(c, DayTimelineScreen(day: _day))),
-
-        const SizedBox(height: S.x4),
-        Section(
-          isUk ? 'Довголіття та біомаркери' : 'Longevity & Biomarkers',
-          NextGenMvpCard(
-            repo: repoOf(c),
-            dayId: d.dayId,
-          ),
-        ),
 
         const SizedBox(height: S.x3),
         const DetectedActivitiesCard(),

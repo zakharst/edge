@@ -101,10 +101,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
       return const SizedBox.shrink();
     }
     if (_loading && _data == null) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: S.x3),
-        child: Center(child: CircularProgressIndicator()),
-      );
+      return const SizedBox.shrink();
     }
     if (_failed && _data == null) {
       return Container(
@@ -168,7 +165,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
           color: p.card,
           borderRadius: R.rLg,
           border: Border.all(
-            color: p.dark ? C.red.withValues(alpha: 0.35) : C.red.withValues(alpha: 0.2),
+            color: p.dark ? C.purple.withValues(alpha: 0.35) : C.purple.withValues(alpha: 0.2),
             width: 1.2,
           ),
           boxShadow: p.el(1),
@@ -182,10 +179,10 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                 Container(
                   padding: const EdgeInsets.all(S.x1),
                   decoration: BoxDecoration(
-                    color: C.red.withValues(alpha: 0.12),
+                    color: C.purple.withValues(alpha: 0.12),
                     borderRadius: R.rSm,
                   ),
-                  child: const Icon(LucideIcons.sparkles, size: 14, color: C.red),
+                  child: const Icon(LucideIcons.sparkles, size: 14, color: C.purple),
                 ),
                 const SizedBox(width: S.x2),
                 Expanded(
@@ -727,76 +724,81 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
           ? 'Трекер повторень. Натисніть для перегляду кінематики 100 Гц.'
           : 'Strength rep counter. Tap to view strength trainer and rep detection.',
       child: Container(
-        height: 154,
-        padding: const EdgeInsets.all(S.x3),
+        padding: const EdgeInsets.symmetric(horizontal: S.x4, vertical: S.x3),
         decoration: BoxDecoration(
           color: p.card,
           borderRadius: R.rLg,
           border: Border.all(color: p.line),
           boxShadow: p.el(1),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            // Top Row (fixed height 28 for cross-card baseline alignment)
-            SizedBox(
-              height: 28,
-              child: Row(
+            Container(
+              padding: const EdgeInsets.all(S.x2),
+              decoration: BoxDecoration(
+                color: C.green.withValues(alpha: 0.12),
+                borderRadius: R.rSm,
+              ),
+              child: const Icon(LucideIcons.dumbbell, size: 18, color: C.green),
+            ),
+            const SizedBox(width: S.x3),
+            Expanded(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      color: C.green.withValues(alpha: 0.12),
-                      borderRadius: R.rSm,
-                    ),
-                    child: const Icon(LucideIcons.dumbbell, size: 14, color: C.green),
+                  Row(
+                    children: [
+                      Text(
+                        isUk ? 'СИЛОВІ ПОВТОРЕННЯ' : 'REP COUNTER',
+                        style: F.over.copyWith(
+                          color: p.ink3,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(width: S.x2),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: C.green.withValues(alpha: 0.12),
+                          borderRadius: R.rPill,
+                        ),
+                        child: Text(
+                          data.isToday
+                              ? (isUk ? '100 Гц Акселерометр' : '100 Hz Live IMU')
+                              : (isUk ? 'RAM Кінематика' : 'RAM Kinematics'),
+                          style: F.over.copyWith(color: C.green, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: S.x1),
-                  Expanded(
-                    child: Text(
-                      isUk ? 'ПОВТОРЕННЯ' : 'REP COUNTER',
-                      style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                  const SizedBox(height: 2),
+                  Text(
+                    data.isToday
+                        ? (isUk ? 'Автоматичний підрахунок повторень' : 'Live workout tracking')
+                        : (isUk ? 'Режим сесії' : 'Active session mode'),
+                    style: F.cap.copyWith(color: p.ink2),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: S.x2),
-
-            // Middle: Abstaining Dash & Live IMU
-            Text(
-              '—',
-              style: F.n34.copyWith(color: p.ink),
-            ),
-            const SizedBox(height: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: S.x1, vertical: 2),
-              decoration: BoxDecoration(
-                color: C.green.withValues(alpha: 0.12),
-                borderRadius: R.rPill,
-              ),
-              child: Text(
-                data.isToday
-                    ? (isUk ? '100 Гц Акселерометр' : '100 Hz Live IMU')
-                    : (isUk ? 'RAM Кінематика' : 'RAM Kinematics'),
-                style: F.over.copyWith(color: C.green, fontWeight: FontWeight.bold),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            const Spacer(),
-
-            // Bottom Subtitle
-            Text(
-              data.isToday
-                  ? (isUk ? 'Під час тренування' : 'Live workout tracking')
-                  : (isUk ? 'Режим сесії' : 'Active session mode'),
-              style: F.cap.copyWith(color: p.ink3),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            const SizedBox(width: S.x2),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '—',
+                  style: F.head.copyWith(color: p.ink, fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  isUk ? 'Старт →' : 'Start →',
+                  style: F.over.copyWith(color: C.green, fontWeight: FontWeight.bold),
+                ),
+              ],
             ),
           ],
         ),
@@ -845,10 +847,10 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                   Container(
                     padding: const EdgeInsets.all(S.x2),
                     decoration: BoxDecoration(
-                      color: C.red.withValues(alpha: 0.12),
+                      color: C.purple.withValues(alpha: 0.12),
                       borderRadius: R.rMd,
                     ),
-                    child: const Icon(LucideIcons.sparkles, color: C.red, size: 22),
+                    child: const Icon(LucideIcons.sparkles, color: C.purple, size: 22),
                   ),
                   const SizedBox(width: S.x3),
                   Expanded(

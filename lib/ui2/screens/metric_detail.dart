@@ -21,6 +21,7 @@ import '../../data/db.dart' show LocalDb;
 import '../../data/local_repository.dart';
 import '../../l10n/app_localizations.dart';
 import '../../state/app_state.dart';
+import '../../state/locale_controller.dart';
 import '../ui2.dart';
 import 'advanced.dart';
 import 'day_steps.dart';
@@ -1993,8 +1994,12 @@ String? pickDay(List<String> days, String? want, [String? prefer]) {
 
 /// 'Today' when it is, otherwise the day itself. Never "N days ago" — a
 /// control you steer with needs the name of the place, not the distance to it.
-String dayNavLabel(String? day, [AppLocalizations? l]) =>
-    (_dayBehind(day) ?? 1) <= 0 ? l?.healthToday ?? 'Today' : prettyDay(day, l);
+String dayNavLabel(String? day, [AppLocalizations? l]) {
+  final isUk = LocaleController.displayLanguageCode == 'uk';
+  return (_dayBehind(day) ?? 1) <= 0
+      ? (l?.healthToday ?? (isUk ? 'Сьогодні' : 'Today'))
+      : prettyDay(day, l);
+}
 
 int? _dayBehind(String? dayId) {
   final d = dayId == null ? null : DateTime.tryParse(dayId);

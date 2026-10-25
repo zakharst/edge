@@ -84,6 +84,8 @@ import 'day_timeline.dart' show DayTimelineScreen;
 import 'metric_detail.dart';
 import 'readiness_detail.dart';
 import 'sleep_detail.dart';
+import 'body_battery_card.dart';
+import 'sleep_architecture_card.dart';
 
 // ═══════════════════ shared plumbing ═══════════════════
 
@@ -496,7 +498,6 @@ class _WhoopStatusBar extends StatelessWidget {
     try {
       app = Provider.of<AppState>(c, listen: false);
       data = c.select<AppState, _StatusBarData>((a) {
-        final now = DateTime.now();
         final isToday = todayId == null || todayId == todayLabel();
         final isPendingWake = a.isPendingWakeConfirm(todayId ?? todayLabel());
         final isDeriving = a.deriving || a.deriveProgress.isComputing;
@@ -2309,21 +2310,34 @@ _RingState _ringOf(HomeRingKind k, HomeData d, AppLocalizations? l) {
               value: v.toStringAsFixed(1), sub: l?.homeStrainOf21 ?? 'of 21', frac: v / 21);
     case HomeRingKind.sleep:
       final v = d.sleepMin.value;
+      final qual = d.sleepQuality.value?.round();
+      final eff = d.sleepEff.value?.round();
       final pct = d.sleepPerfPct.value?.round();
       final ref = d.sleepNeedMin.value;
-      if (v != null && pct != null) {
-        // Sleep performance: last night's total sleep over the 7 h adult
-        // minimum (AASM/SRS). Above 100 % when the night ran longer; the ring
-        // itself only fills to full. No composite: the old 0-100 score had
-        // invented weights and a deep + REM term from a stager that cannot
-        // tell them apart.
-        return _RingState(k, l?.homeRingSleep ?? 'Sleep', LucideIcons.moon,
+      if (v != null) {
+        if (qual != null) {
+          // Honest Sleep Quality Score (0..100) based on AASM 4-pillar architecture:
+          return _RingState(
+            k,
+            'Sleep Quality',
+            LucideIcons.moon,
             C.blue,
-            value: '$pct%',
-            sub: ref == null
-                ? hm(v)
-                : '${hm(v)} · ${l?.homeOfSpan(hm(ref)) ?? 'of ${hm(ref)}'}',
-            frac: (pct / 100).clamp(0.0, 1.0));
+            value: '$qual%',
+            sub: '${hm(v)} · ${eff != null ? "$eff% eff" : "time"}',
+            frac: (qual / 100.0).clamp(0.0, 1.0),
+          );
+        }
+        if (pct != null) {
+          return _RingState(
+            k,
+            l?.homeRingSleep ?? 'Sleep',
+            LucideIcons.moon,
+            C.blue,
+            value: hm(v),
+            sub: ref != null ? '$pct% · of ${hm(ref)}' : '$pct% of 7h target',
+            frac: (pct / 100.0).clamp(0.0, 1.0),
+          );
+        }
       }
       return v == null
           ? _gap(k, l?.homeRingSleep ?? 'Sleep', LucideIcons.moon, C.blue,
@@ -2549,6 +2563,7 @@ class HomeData {
   final Metric readiness;
   final List<Map<String, dynamic>> drivers;
   final Metric sleepMin, rhr, steps, calories, caloriesTotal;
+  final Metric sleepQuality, sleepEff, restorativeMin, wasoMin;
 
   /// The day's 0–21 strain, read from the same `getToday` bundle the Workout
   /// tab reads. Nothing on this screen computes it.
@@ -2613,6 +2628,10 @@ class HomeData {
     this.readiness = Metric.empty,
     this.drivers = const [],
     this.sleepMin = Metric.empty,
+    this.sleepQuality = Metric.empty,
+    this.sleepEff = Metric.empty,
+    this.restorativeMin = Metric.empty,
+    this.wasoMin = Metric.empty,
     this.rhr = Metric.empty,
     this.steps = Metric.empty,
     this.calories = Metric.empty,
@@ -2642,6 +2661,10 @@ class HomeData {
         readiness: readiness,
         drivers: drivers,
         sleepMin: sleepMin,
+        sleepQuality: sleepQuality,
+        sleepEff: sleepEff,
+        restorativeMin: restorativeMin,
+        wasoMin: wasoMin,
         rhr: rhr,
         steps: steps,
         calories: calories,
@@ -2700,6 +2723,10 @@ class HomeData {
       calories: metricOf(strain['calories']),
       caloriesTotal: metricOf(strain['calories_total']),
       sleepMin: metricOf(sleep['duration_min']),
+      sleepQuality: metricOf(sleep['sleep_quality']),
+      sleepEff: metricOf(sleep['efficiency']),
+      restorativeMin: metricOf(sleep['restorative_min']),
+      wasoMin: metricOf(sleep['awake_min'] ?? sleep['waso_min']),
       sleepPerfPct: sleepPerfOf(crossDay),
       sleepNeedMin: sleepNeedOf(crossDay),
       stepGoal: (profile['step_goal'] as num?)?.toInt() ?? kDefaultStepGoal,
@@ -2788,6 +2815,10 @@ class HomeData {
       ],
       strain: metricOf(d('strain')),
       sleepMin: sleepMetric,
+      sleepQuality: metricOf(s('sleep_quality')),
+      sleepEff: metricOf(s('efficiency')),
+      restorativeMin: metricOf(s('restorative_min')),
+      wasoMin: metricOf(s('waso_min')),
       rhr: rhrMetric,
       steps: metricOf(d('steps')),
       calories: metricOf(d('calories')),
@@ -3383,6 +3414,16 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
 
         // ── the rollup was withheld, not absent ──
         if (stale != null) ...[const SizedBox(height: S.x3), stale],
+
+        // ── Level 1B: Live Body Battery ──
+        const SizedBox(height: S.x3),
+        BodyBatteryCard(d: d),
+
+        // ── Level 1C: Sleep Architecture Breakdown ──
+        if (!d.sleepMin.isEmpty) ...[
+          const SizedBox(height: S.x3),
+          SleepArchitectureCard(d: d),
+        ],
 
         // ── Level 2: Today's Vitals (Supporting Metrics) ──
         const SizedBox(height: S.x2),

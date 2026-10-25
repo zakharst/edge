@@ -186,7 +186,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                 const SizedBox(width: S.x2),
                 Expanded(
                   child: Text(
-                    'BIOLOGICAL AGE · EXPERIMENTAL',
+                    'CARDIOVASCULAR AGE · PPG-AGE',
                     style: F.over.copyWith(
                       color: p.ink3,
                       fontWeight: FontWeight.bold,
@@ -361,7 +361,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                 Expanded(
                   child: Text(
                     result != null
-                        ? 'Longevity breakdown & reverse-aging roadmap'
+                        ? 'Чесна розшифровка 4 кардіо-стовпів (PpgAge)'
                         : 'Tap to view calibration checklist',
                     style: F.cap.copyWith(color: p.ink3),
                   ),
@@ -779,11 +779,11 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Biological Longevity',
+                          'Cardiovascular Fitness Age',
                           style: F.t1.copyWith(color: p.ink),
                         ),
                         Text(
-                          'Sex-stratified cellular & cardiovascular age',
+                          'Sex-stratified PpgAge model (Nature 2025)',
                           style: F.cap.copyWith(color: p.ink3),
                         ),
                       ],
@@ -795,7 +795,31 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                   ),
                 ],
               ),
-              const SizedBox(height: S.x4),
+              const SizedBox(height: S.x3),
+
+              // Scientific Honesty Box
+              Container(
+                padding: const EdgeInsets.all(S.x3),
+                decoration: BoxDecoration(
+                  color: p.wash(C.blue, strength: 0.12),
+                  borderRadius: R.rMd,
+                  border: Border.all(color: p.on(C.blue).withValues(alpha: 0.25)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(LucideIcons.shieldCheck, size: 16, color: p.on(C.blue)),
+                    const SizedBox(width: S.x2),
+                    Expanded(
+                      child: Text(
+                        '100% чесність: це фізіологічний вік серцево-судинної системи, а не ДНК-тест. Розраховується за моделлю PpgAge (Nature 2025) на базі 14-денного пульсу спокою, HRV, VO₂ Max та ритму сну.',
+                        style: F.cap.copyWith(color: p.ink, height: 1.3),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: S.x3),
 
               if (result != null) ...[
                 // Hero Comparison Card

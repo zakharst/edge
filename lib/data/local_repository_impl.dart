@@ -746,6 +746,25 @@ class LocalRepositoryImpl extends LocalRepository {
     final tst = (acct?['tst_sec'] as num?);
     final eff = (acct?['efficiency_pct'] as num?);
     if (tst == null) return const {};
+
+    final deep = (acct?['deep_sec'] as num?);
+    final rem = (acct?['rem_sec'] as num?);
+    final waso = (acct?['waso_sec'] as num?);
+    final inBed = (acct?['in_bed_sec'] as num?);
+    final awakenings = (acct?['awakenings'] as num?);
+
+    final restorativeSec = (deep != null && rem != null)
+        ? (deep + rem)
+        : (deep ?? rem);
+
+    final quality = ana.calculateTrueSleepQuality(
+      sleepSec: tst.toDouble(),
+      efficiencyPct: eff?.toDouble(),
+      deepSec: deep?.toDouble(),
+      remSec: rem?.toDouble(),
+      wasoSec: waso?.toDouble(),
+    );
+
     return {
       'duration_min': _scalarMetric(
         (tst / 60).round(),
@@ -761,7 +780,22 @@ class LocalRepositoryImpl extends LocalRepository {
       // the phone's own screens refuse to show one.
       if (needMin != null)
         'need_min': _scalarMetric(needMin, 'ESTIMATE', unit: 'min'),
-      'efficiency': _scalarMetric(eff, 'ESTIMATE', unit: '%'),
+      'efficiency': _scalarMetric(eff?.round(), 'ESTIMATE', unit: '%'),
+      'sleep_quality': _scalarMetric(quality.round(), 'ESTIMATE', unit: '%'),
+      if (restorativeSec != null)
+        'restorative_min':
+            _scalarMetric((restorativeSec / 60).round(), 'ESTIMATE', unit: 'min'),
+      if (deep != null)
+        'deep_min': _scalarMetric((deep / 60).round(), 'ESTIMATE', unit: 'min'),
+      if (rem != null)
+        'rem_min': _scalarMetric((rem / 60).round(), 'ESTIMATE', unit: 'min'),
+      if (waso != null)
+        'waso_min': _scalarMetric((waso / 60).round(), 'ESTIMATE', unit: 'min'),
+      if (inBed != null)
+        'in_bed_min':
+            _scalarMetric((inBed / 60).round(), 'ESTIMATE', unit: 'min'),
+      if (awakenings != null)
+        'awakenings': _scalarMetric(awakenings.toInt(), 'ESTIMATE'),
     };
   }
 
@@ -1087,6 +1121,16 @@ class LocalRepositoryImpl extends LocalRepository {
       'in_bed_min': spt == null ? null : (spt / 60).round(),
       'awake_min': waso == null ? null : (waso / 60).round(),
       'efficiency': effPct == null ? null : effPct / 100.0, // screen wants 0..1
+      'sleep_quality': ana.calculateTrueSleepQuality(
+        sleepSec: tst.toDouble(),
+        efficiencyPct: effPct?.toDouble(),
+        deepSec: (acct?['deep_sec'] as num?)?.toDouble(),
+        remSec: (acct?['rem_sec'] as num?)?.toDouble(),
+        wasoSec: waso?.toDouble(),
+      ).round(),
+      'restorative_min': (min('deep_sec') != null && min('rem_sec') != null)
+          ? min('deep_sec')! + min('rem_sec')!
+          : min('deep_sec') ?? min('rem_sec'),
       'onset_ts': sec('onset_ms'),
       'wake_ts': sec('offset_ms'),
       // 4-class stage minutes: Awake / Light / Deep / REM. Light+Deep is the

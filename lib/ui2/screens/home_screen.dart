@@ -3144,10 +3144,27 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
     return (word: l?.homeGreetingEvening ?? 'Good evening', icon: LucideIcons.moon, color: C.indigo);
   }
 
+  String _daypartFocusText(int h, bool isUk) {
+    if (h < 12) {
+      return isUk
+          ? 'Ранковий фокус: сон та готовність до навантажень'
+          : 'Morning focus: sleep recovery & daily readiness';
+    }
+    if (h < 18) {
+      return isUk
+          ? 'Денний фокус: активний рух та витрата енергії'
+          : 'Afternoon focus: active strain & energy pacing';
+    }
+    return isUk
+        ? 'Вечірній фокус: відпочинок та підготовка до сну'
+        : 'Evening focus: winding down & sleep recharge';
+  }
+
   @override
   Widget build(BuildContext c) {
     final p = P.of(c);
     final l = AppLocalizations.of(c);
+    final isUk = LocaleController.displayLanguageCode == 'uk';
     final d = _d;
     final g = _greeting(widget.hour ?? DateTime.now().hour, l);
 
@@ -3291,6 +3308,13 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
                       const SizedBox(width: S.x2),
                       Icon(g.icon, size: 18, color: p.on(g.color)),
                     ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    _daypartFocusText(widget.hour ?? DateTime.now().hour, isUk),
+                    style: F.cap.copyWith(color: p.ink3),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
@@ -3478,7 +3502,7 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
 
         const SizedBox(height: S.x4),
         Section(
-          'Longevity & Biomarkers',
+          isUk ? 'Довголіття та біомаркери' : 'Longevity & Biomarkers',
           NextGenMvpCard(
             repo: repoOf(c),
             dayId: d.dayId,

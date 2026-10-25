@@ -11,6 +11,7 @@ import '../revision.dart';
 import '../screens/journal_compose.dart';
 import '../screens/wellness_screen.dart';
 import '../screens/workout_screen.dart';
+import 'biometric_explainer_sheet.dart';
 import '../theme.dart';
 
 /// Next-Generation Bento Grid and interactive longevity sheets.
@@ -282,58 +283,6 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
               ),
               const SizedBox(height: S.x3),
 
-              // ── VISUAL MATH LEDGER: 28.0 - 1.5 - 1.0 - 0.8 + 0.5 = 25.2 ──
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: S.x3, vertical: S.x2),
-                decoration: BoxDecoration(
-                  color: p.card2,
-                  borderRadius: R.rMd,
-                  border: Border.all(color: p.line),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _BioEquationNode(
-                      value: result.chronologicalAge.toStringAsFixed(0),
-                      label: isUk ? 'Паспорт' : 'Calendar',
-                      color: p.ink,
-                    ),
-                    Text(result.rhrModifier <= 0 ? '-' : '+', style: F.head.copyWith(color: p.ink3)),
-                    _BioEquationNode(
-                      value: result.rhrModifier.abs().toStringAsFixed(1),
-                      label: isUk ? 'Пульс' : 'RHR',
-                      color: result.rhrModifier <= 0 ? C.green : C.orange,
-                    ),
-                    Text(result.hrvModifier <= 0 ? '-' : '+', style: F.head.copyWith(color: p.ink3)),
-                    _BioEquationNode(
-                      value: result.hrvModifier.abs().toStringAsFixed(1),
-                      label: 'HRV',
-                      color: result.hrvModifier <= 0 ? C.green : C.purple,
-                    ),
-                    Text(result.vo2Modifier <= 0 ? '-' : '+', style: F.head.copyWith(color: p.ink3)),
-                    _BioEquationNode(
-                      value: result.vo2Modifier.abs().toStringAsFixed(1),
-                      label: 'VO₂',
-                      color: result.vo2Modifier <= 0 ? C.green : C.blue,
-                    ),
-                    Text(result.lifestyleModifier <= 0 ? '-' : '+', style: F.head.copyWith(color: p.ink3)),
-                    _BioEquationNode(
-                      value: result.lifestyleModifier.abs().toStringAsFixed(1),
-                      label: isUk ? 'Сон' : 'Sleep',
-                      color: result.lifestyleModifier <= 0 ? C.green : C.orange,
-                    ),
-                    Text('=', style: F.head.copyWith(color: p.ink3)),
-                    _BioEquationNode(
-                      value: result.biologicalAge.toStringAsFixed(1),
-                      label: isUk ? 'Біовік' : 'Bio Age',
-                      color: isYounger ? C.green : C.orange,
-                      highlight: true,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: S.x3),
-
               // 4 Mini Biomarker Chips
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: S.x2, vertical: S.x2),
@@ -499,7 +448,15 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
     };
 
     return Pressable(
-      onTap: () => _showStressDetailSheet(context, data),
+      onTap: () => BiometricExplainerSheet.show(
+        context,
+        topic: BiometricTopic.stress,
+        data: score,
+        detailsLabel: isUk ? 'Відкрити монітор стресу' : 'Open stress monitor',
+        onOpenDetails: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const WellnessScreen()),
+        ),
+      ),
       semanticLabel: isUk
           ? 'Рівень стресу $localizedLevel${isScored ? ", бал ${score.toStringAsFixed(0)}" : ""}. Натисніть для деталей.'
           : 'Real-time stress level $displayLevel${isScored ? ", score ${score.toStringAsFixed(0)}" : ""}. Tap to open details.',
@@ -629,7 +586,22 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
     final delta = (row?['delta_pct'] as num?)?.toDouble();
 
     return Pressable(
-      onTap: () => _showJournalDetailSheet(context, data, onReload: _reload),
+      onTap: () => BiometricExplainerSheet.show(
+        context,
+        topic: BiometricTopic.journalHabits,
+        data: data.dayLoggedHabits.isNotEmpty
+            ? data.dayLoggedHabits.join(', ')
+            : (row != null ? '${row['tag']}' : null),
+        detailsLabel: isUk ? 'Записати звички за сьогодні' : 'Log Today’s Journal',
+        onOpenDetails: () async {
+          await Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => JournalCompose(date: data.dayId),
+            ),
+          );
+          _reload();
+        },
+      ),
       semanticLabel: isUk
           ? 'Вплив звичок із щоденника. Натисніть для перегляду кореляцій.'
           : 'Journal insights ${data.dayLoggedHabits.isNotEmpty ? data.dayLoggedHabits.join(", ") : (row != null ? row["tag"].toString() : "awaiting logs")}. Tap to open journal details.',
@@ -742,7 +714,15 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
     final isUk = LocaleController.displayLanguageCode == 'uk';
 
     return Pressable(
-      onTap: () => _showRepCounterDetailSheet(context),
+      onTap: () => BiometricExplainerSheet.show(
+        context,
+        topic: BiometricTopic.repCounter,
+        data: 100,
+        detailsLabel: isUk ? 'Почати силове тренування' : 'Start strength workout',
+        onOpenDetails: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const WorkoutScreen()),
+        ),
+      ),
       semanticLabel: isUk
           ? 'Трекер повторень. Натисніть для перегляду кінематики 100 Гц.'
           : 'Strength rep counter. Tap to view strength trainer and rep detection.',
@@ -1372,568 +1352,6 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
     );
   }
 
-  static void _showStressDetailSheet(BuildContext context, _NextGenData data) {
-    final p = P.of(context);
-    final isUk = LocaleController.displayLanguageCode == 'uk';
-    final score = data.stressScore;
-    final rawLevel = data.stressLevel ?? 'Balanced';
-    final isScored = score != null;
-
-    final String localizedLevel;
-    switch (rawLevel) {
-      case 'Low':
-        localizedLevel = isUk ? 'Спокій' : 'Low';
-        break;
-      case 'Elevated':
-        localizedLevel = isUk ? 'Напруга' : 'Elevated';
-        break;
-      case 'High':
-        localizedLevel = isUk ? 'Стрес' : 'High';
-        break;
-      case 'Balanced':
-      default:
-        localizedLevel = isUk ? 'Баланс' : 'Balanced';
-        break;
-    }
-
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      sheetAnimationStyle: sheetMotion(context),
-      backgroundColor: p.card,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(R.xl)),
-      ),
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(S.x4, 0, S.x4, S.x6),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(S.x2),
-                    decoration: BoxDecoration(
-                      color: C.orange.withValues(alpha: 0.12),
-                      borderRadius: R.rMd,
-                    ),
-                    child: const Icon(LucideIcons.zap, color: C.orange, size: 22),
-                  ),
-                  const SizedBox(width: S.x3),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          isUk ? 'Рівень стресу та напруги' : 'Real-Time & Daily Stress',
-                          style: F.t1.copyWith(color: p.ink),
-                        ),
-                        Text(
-                          isUk
-                              ? 'Вегетативний тонус та індекс напруги Баєвського'
-                              : 'Autonomic nervous tone & Baevsky SI',
-                          style: F.cap.copyWith(color: p.ink3),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(LucideIcons.x, color: p.ink3),
-                    onPressed: () => Navigator.of(sheetContext).pop(),
-                  ),
-                ],
-              ),
-              const SizedBox(height: S.x4),
-
-              // Hero Score Card
-              Container(
-                padding: const EdgeInsets.all(S.x4),
-                decoration: BoxDecoration(
-                  color: p.card2,
-                  borderRadius: R.rLg,
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              isScored ? score.toStringAsFixed(0) : '—',
-                              style: F.n48.copyWith(color: p.ink),
-                            ),
-                            Text(isUk ? 'Індекс стресу (0–100)' : 'Stress Score (0–100)', style: F.over.copyWith(color: p.ink3)),
-                          ],
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: S.x3, vertical: S.x2),
-                          decoration: BoxDecoration(
-                            color: C.blue.withValues(alpha: 0.15),
-                            borderRadius: R.rPill,
-                            border: Border.all(color: C.blue.withValues(alpha: 0.4)),
-                          ),
-                          child: Text(
-                            localizedLevel,
-                            style: F.head.copyWith(color: C.blue, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: S.x4),
-                    // Spectrum meter
-                    Row(
-                      children: [
-                        _spectrumZone(p, isUk ? 'Спокій' : 'Rest', C.teal, rawLevel == 'Low'),
-                        const SizedBox(width: 4),
-                        _spectrumZone(p, isUk ? 'Баланс' : 'Balanced', C.blue, rawLevel == 'Balanced'),
-                        const SizedBox(width: 4),
-                        _spectrumZone(p, isUk ? 'Напруга' : 'Elevated', C.orange, rawLevel == 'Elevated'),
-                        const SizedBox(width: 4),
-                        _spectrumZone(p, isUk ? 'Стрес' : 'High', C.red, rawLevel == 'High'),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: S.x4),
-
-              // Educational tiles
-              Container(
-                padding: const EdgeInsets.all(S.x3),
-                decoration: BoxDecoration(
-                  color: p.bg,
-                  borderRadius: R.rMd,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(LucideIcons.activity, size: 16, color: C.orange),
-                        const SizedBox(width: S.x2),
-                        Text(
-                          isUk
-                              ? 'Індекс напруги Баєвського (SI): ${data.stressSi?.toStringAsFixed(1) ?? "Калібрування"}'
-                              : 'Baevsky Stress Index (SI): ${data.stressSi?.toStringAsFixed(1) ?? "Calibrating"}',
-                          style: F.head.copyWith(color: p.ink, fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: S.x2),
-                    Text(
-                      isUk
-                          ? 'Стрес визначається на основі варіабельності серцевого ритму (інтервалів RR) під час спокою. Гістограма послідовних ударів серця демонструє баланс між симпатичною (стрес) та парасимпатичною (відновлення) нервовою системою.'
-                          : 'Stress is derived from heart rate variability (RR intervals) during rest. Consecutive beat-to-beat intervals form an amplitude histogram showing sympathetic vs. parasympathetic tone.',
-                      style: F.cap.copyWith(color: p.ink2, height: 1.4),
-                    ),
-                    const SizedBox(height: S.x2),
-                    Text(
-                      isUk
-                          ? 'Чому потрібен спокій?\nАктивний рух (ходьба, тренування) створює оптичні артефакти на датчику. Розрахунок активується автоматично, щойно ви спокійно сидите, відпочиваєте або спите.'
-                          : 'Why does it need rest?\nActive motion (walking, working out) introduces motion artifacts into optical sensors. Calculations activate as soon as you sit quietly, rest, or sleep.',
-                      style: F.cap.copyWith(color: p.ink3, height: 1.35),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: S.x6),
-
-              // Action button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: C.orange,
-                    foregroundColor: p.inkOnFill,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: const RoundedRectangleBorder(borderRadius: R.rMd),
-                  ),
-                  onPressed: () {
-                    Navigator.of(sheetContext).pop();
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(builder: (_) => const WellnessScreen()),
-                    );
-                  },
-                  child: Text(
-                    isUk ? 'Відкрити панель стресу' : 'Open Mind & Stress Dashboard',
-                    style: F.head.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  static Widget _spectrumZone(P p, String name, Color color, bool isActive) {
-    return Expanded(
-      child: Column(
-        children: [
-          Container(
-            height: 6,
-            decoration: BoxDecoration(
-              color: isActive ? color : color.withValues(alpha: 0.25),
-              borderRadius: R.rPill,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            name,
-            style: F.over.copyWith(
-              color: isActive ? color : p.ink3,
-              fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static void _showJournalDetailSheet(
-    BuildContext context,
-    _NextGenData data, {
-    VoidCallback? onReload,
-  }) {
-    final p = P.of(context);
-    final isUk = LocaleController.displayLanguageCode == 'uk';
-    final row = data.journalInsight;
-    final delta = (row?['delta_pct'] as num?)?.toDouble();
-
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      sheetAnimationStyle: sheetMotion(context),
-      backgroundColor: p.card,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(R.xl)),
-      ),
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(S.x4, 0, S.x4, S.x6),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(S.x2),
-                    decoration: BoxDecoration(
-                      color: C.purple.withValues(alpha: 0.12),
-                      borderRadius: R.rMd,
-                    ),
-                    child: const Icon(LucideIcons.notebook, color: C.purple, size: 22),
-                  ),
-                  const SizedBox(width: S.x3),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          isUk ? 'Вплив звичок на організм' : 'Journal Habit Insights',
-                          style: F.t1.copyWith(color: p.ink),
-                        ),
-                        Text(
-                          isUk
-                              ? 'Об’єктивна кореляція з ранковим відновленням'
-                              : 'Objective correlation with morning recovery',
-                          style: F.cap.copyWith(color: p.ink3),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(LucideIcons.x, color: p.ink3),
-                    onPressed: () => Navigator.of(sheetContext).pop(),
-                  ),
-                ],
-              ),
-              const SizedBox(height: S.x4),
-
-              if (row != null && delta != null) ...[
-                // Hero Impact Card
-                Container(
-                  padding: const EdgeInsets.all(S.x4),
-                  decoration: BoxDecoration(
-                    color: p.card2,
-                    borderRadius: R.rLg,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${row['tag']}',
-                            style: F.t2.copyWith(color: p.ink, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            isUk
-                                ? '${row['n_with']} днів з цією звичкою · ${row['n_without']} без неї'
-                                : '${row['n_with']} logged days with · ${row['n_without']} without',
-                            style: F.over.copyWith(color: p.ink3),
-                          ),
-                        ],
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: S.x3, vertical: S.x2),
-                        decoration: BoxDecoration(
-                          color: (delta >= 0 ? C.green : C.red).withValues(alpha: 0.15),
-                          borderRadius: R.rPill,
-                          border: Border.all(
-                            color: (delta >= 0 ? C.green : C.red).withValues(alpha: 0.4),
-                          ),
-                        ),
-                        child: Text(
-                          '${row['outcome_label'] ?? 'HRV'}: ${delta >= 0 ? '+' : ''}${delta.toStringAsFixed(1)}%',
-                          style: F.head.copyWith(
-                            color: delta >= 0 ? C.green : C.red,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: S.x4),
-
-                Container(
-                  padding: const EdgeInsets.all(S.x3),
-                  decoration: BoxDecoration(
-                    color: p.bg,
-                    borderRadius: R.rMd,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        isUk
-                            ? 'Двовибірковий t-тест Велча'
-                            : 'Welch’s Two-Sample Statistical Correlation',
-                        style: F.head.copyWith(color: p.ink, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: S.x2),
-                      Text(
-                        isUk
-                            ? 'Аналітичний модуль порівнює ранковий HRV та пульс спокою після днів із цією звичкою та без неї за допомогою t-критерію Велча. Це дозволяє відсіяти випадковий шум і виявити реальний причинно-наслідковий вплив.'
-                            : 'The analytics engine computes Welch’s t-test comparing morning biomarkers on nights following this habit versus nights without it. This isolates true causal behavioral signals from noise.',
-                        style: F.cap.copyWith(color: p.ink2, height: 1.4),
-                      ),
-                    ],
-                  ),
-                ),
-              ] else ...[
-                Container(
-                  padding: const EdgeInsets.all(S.x4),
-                  decoration: BoxDecoration(
-                    color: p.card2,
-                    borderRadius: R.rLg,
-                  ),
-                  child: Text(
-                    isUk
-                        ? 'Запишіть принаймні 5 днів зі звичкою та 5 днів без неї, щоб система виявила підтверджені статистичні зв’язки з вашим відновленням.'
-                        : 'Log at least 5 days with a habit and 5 days without it to surface verified statistical correlations with your morning recovery and HRV.',
-                    style: F.body.copyWith(color: p.ink2, height: 1.4),
-                  ),
-                ),
-              ],
-              const SizedBox(height: S.x6),
-
-              // Action button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: C.purple,
-                    foregroundColor: p.inkOnFill,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: const RoundedRectangleBorder(borderRadius: R.rMd),
-                  ),
-                  onPressed: () async {
-                    Navigator.of(sheetContext).pop();
-                    await Navigator.of(context).push(
-                      MaterialPageRoute<void>(builder: (_) => JournalCompose(date: data.dayId)),
-                    );
-                    onReload?.call();
-                  },
-                  child: Text(
-                    isUk ? 'Записати звички за сьогодні' : 'Log Today’s Journal',
-                    style: F.head.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  static void _showRepCounterDetailSheet(BuildContext context) {
-    final p = P.of(context);
-    final isUk = LocaleController.displayLanguageCode == 'uk';
-
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      sheetAnimationStyle: sheetMotion(context),
-      backgroundColor: p.card,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(R.xl)),
-      ),
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(S.x4, 0, S.x4, S.x6),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(S.x2),
-                    decoration: BoxDecoration(
-                      color: C.green.withValues(alpha: 0.12),
-                      borderRadius: R.rMd,
-                    ),
-                    child: const Icon(LucideIcons.dumbbell, color: C.green, size: 22),
-                  ),
-                  const SizedBox(width: S.x3),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          isUk ? 'Трекер силових повторень' : 'Strength Rep Counter',
-                          style: F.t1.copyWith(color: p.ink),
-                        ),
-                        Text(
-                          isUk
-                              ? 'Високочастотна кінематика 100 Гц'
-                              : 'High-rate 100 Hz IMU kinematics',
-                          style: F.cap.copyWith(color: p.ink3),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(LucideIcons.x, color: p.ink3),
-                    onPressed: () => Navigator.of(sheetContext).pop(),
-                  ),
-                ],
-              ),
-              const SizedBox(height: S.x4),
-
-              // Hero Card
-              Container(
-                padding: const EdgeInsets.all(S.x4),
-                decoration: BoxDecoration(
-                  color: p.card2,
-                  borderRadius: R.rLg,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          isUk ? 'Лише в оперативній пам’яті (RAM)' : 'Live RAM Only',
-                          style: F.t1.copyWith(color: p.ink, fontWeight: FontWeight.bold),
-                        ),
-                        Text(
-                          isUk
-                              ? '100 Гц акселерометр та гіроскоп'
-                              : '100 Hz Accelerometer & Gyroscope',
-                          style: F.over.copyWith(color: p.ink3),
-                        ),
-                      ],
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: S.x3, vertical: S.x2),
-                      decoration: BoxDecoration(
-                        color: C.green.withValues(alpha: 0.15),
-                        borderRadius: R.rPill,
-                        border: Border.all(color: C.green.withValues(alpha: 0.4)),
-                      ),
-                      child: Text(
-                        '100 Hz',
-                        style: F.head.copyWith(color: C.green, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: S.x4),
-
-              Container(
-                padding: const EdgeInsets.all(S.x3),
-                decoration: BoxDecoration(
-                  color: p.bg,
-                  borderRadius: R.rMd,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      isUk ? 'Чому історія порожня?' : 'Why is history blank?',
-                      style: F.head.copyWith(color: p.ink, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: S.x2),
-                    Text(
-                      isUk
-                          ? 'Потік сенсорних кадрів на частоті 100 Гц генерує гігабайти даних на годину і не записується у постійну пам’ять телефону. Детекція повторень працює з нульовою затримкою безпосередньо в оперативній пам’яті під час активного тренування.'
-                          : 'High-rate 100 Hz IMU sensor frames produce gigabytes per hour and are never permanently stored in device flash storage. Rep detection operates with zero latency directly in live RAM during an active workout session.',
-                      style: F.cap.copyWith(color: p.ink2, height: 1.4),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: S.x6),
-
-              // Action button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: C.green,
-                    foregroundColor: p.inkOnFill,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: const RoundedRectangleBorder(borderRadius: R.rMd),
-                  ),
-                  onPressed: () {
-                    Navigator.of(sheetContext).pop();
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(builder: (_) => const WorkoutScreen()),
-                    );
-                  },
-                  child: Text(
-                    isUk ? 'Почати тренування' : 'Start Workout',
-                    style: F.head.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   // ── BIOMARKER INSIGHT BILINGUAL HELPERS ──────────────────────────────────
 
   static String _getHeartInsight(ana.BiologicalAgeResult result, double? rhr, bool isUk) {
@@ -2313,45 +1731,6 @@ class _NextGenData {
 
   static double _mean(List<double> values) =>
       values.reduce((a, b) => a + b) / values.length;
-}
-
-class _BioEquationNode extends StatelessWidget {
-  final String value;
-  final String label;
-  final Color color;
-  final bool highlight;
-
-  const _BioEquationNode({
-    required this.value,
-    required this.label,
-    required this.color,
-    this.highlight = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final p = P.of(context);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          value,
-          style: F.n17.copyWith(
-            color: p.on(color),
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: F.over.copyWith(
-            color: highlight ? p.on(color) : p.ink3,
-            fontWeight: highlight ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
-      ],
-    );
-  }
 }
 
 class _BioLedgerEquationRow extends StatelessWidget {

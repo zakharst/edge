@@ -152,43 +152,36 @@ class BodyBatteryCard extends StatelessWidget {
             ),
             const SizedBox(height: S.x3),
 
-            // ── VISUAL MATH LEDGER: 46% - 12% - 14% = 20% ──
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: S.x3, vertical: S.x2),
-              decoration: BoxDecoration(
-                color: p.card2,
-                borderRadius: R.rMd,
-                border: Border.all(color: p.line),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _EquationNode(
-                    value: '+${battery.morningCharge}%',
+            // ── COMPACT 3-PILLAR DRAIN CHIPS ──
+            Row(
+              children: [
+                Expanded(
+                  child: _BatteryMiniChip(
                     label: isUk ? 'Сон' : 'Sleep',
+                    value: '+${battery.morningCharge}%',
+                    icon: LucideIcons.sunrise,
                     color: C.green,
                   ),
-                  Text('-', style: F.head.copyWith(color: p.ink3)),
-                  _EquationNode(
-                    value: '${battery.strainDrain}%',
+                ),
+                const SizedBox(width: S.x2),
+                Expanded(
+                  child: _BatteryMiniChip(
                     label: isUk ? 'Рух' : 'Active',
+                    value: '-${battery.strainDrain}%',
+                    icon: LucideIcons.zap,
                     color: C.purple,
                   ),
-                  Text('-', style: F.head.copyWith(color: p.ink3)),
-                  _EquationNode(
-                    value: '${battery.timeDrain}%',
-                    label: isUk ? 'Час дня' : 'Daytime',
+                ),
+                const SizedBox(width: S.x2),
+                Expanded(
+                  child: _BatteryMiniChip(
+                    label: isUk ? 'Час дня' : 'Awake',
+                    value: '-${battery.timeDrain}%',
+                    icon: LucideIcons.clock,
                     color: C.orange,
                   ),
-                  Text('=', style: F.head.copyWith(color: p.ink3)),
-                  _EquationNode(
-                    value: '$current%',
-                    label: isUk ? 'Зараз' : 'Remaining',
-                    color: color,
-                    highlight: true,
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
             const SizedBox(height: S.x3),
 
@@ -221,40 +214,58 @@ class BodyBatteryCard extends StatelessWidget {
   }
 }
 
-class _EquationNode extends StatelessWidget {
-  final String value;
+class _BatteryMiniChip extends StatelessWidget {
   final String label;
+  final String value;
+  final IconData icon;
   final Color color;
-  final bool highlight;
 
-  const _EquationNode({
-    required this.value,
+  const _BatteryMiniChip({
     required this.label,
+    required this.value,
+    required this.icon,
     required this.color,
-    this.highlight = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final p = P.of(context);
-    return Column(
-      children: [
-        Text(
-          value,
-          style: F.n17.copyWith(
-            color: p.on(color),
-            fontWeight: FontWeight.bold,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: S.x2, vertical: S.x2),
+      decoration: BoxDecoration(
+        color: p.card2,
+        borderRadius: R.rMd,
+        border: Border.all(color: p.line),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: F.over.copyWith(color: p.ink3),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  value,
+                  style: F.cap.copyWith(
+                    color: p.ink,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  maxLines: 1,
+                ),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: F.over.copyWith(
-            color: highlight ? p.on(color) : p.ink3,
-            fontWeight: highlight ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

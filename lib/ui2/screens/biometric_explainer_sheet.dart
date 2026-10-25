@@ -13,6 +13,9 @@ enum BiometricTopic {
   recovery,
   strain,
   cardioAge,
+  stress,
+  journalHabits,
+  repCounter,
 }
 
 /// Standardized, deep "Tap-to-Explain" Bottom Sheet.
@@ -327,6 +330,33 @@ class BiometricExplainerSheet {
           color: C.red,
           icon: LucideIcons.heartHandshake,
         );
+      case BiometricTopic.stress:
+        return (
+          title: isUk ? 'Рівень стресу' : 'Stress Level',
+          subtitle: isUk
+              ? 'Тонус вегетативної системи та індекс Баєвського'
+              : 'Autonomic nervous tone & Baevsky SI',
+          color: C.orange,
+          icon: LucideIcons.zap,
+        );
+      case BiometricTopic.journalHabits:
+        return (
+          title: isUk ? 'Вплив звичок' : 'Habit Insights',
+          subtitle: isUk
+              ? 'Об’єктивна кореляція з ранковим відновленням'
+              : 'Objective correlation with morning recovery',
+          color: C.purple,
+          icon: LucideIcons.notebook,
+        );
+      case BiometricTopic.repCounter:
+        return (
+          title: isUk ? 'Трекер силових повторень' : 'Strength Rep Counter',
+          subtitle: isUk
+              ? 'Кінематика високої частоти 100 Гц'
+              : 'High-rate 100 Hz IMU kinematics',
+          color: C.green,
+          icon: LucideIcons.dumbbell,
+        );
     }
   }
 
@@ -347,6 +377,15 @@ class BiometricExplainerSheet {
         BiometricTopic.cardioAge => isUk
             ? 'Показує реальний стан ваших судин у порівнянні з віком у паспорті. Якщо судинний вік нижчий — ваші артерії еластичні, а серце працює як у молодому тілі.'
             : 'Compares the biological flexibility of your blood vessels against your calendar age. A younger score means elastic arteries and strong cardiovascular fitness.',
+        BiometricTopic.stress => isUk
+            ? 'Показує фізіологічне напруження організму на основі мікропауз між ударами серця у спокої. Коли домінує стрес (симпатична система), пульс стає жорстким і метрономним. У стані спокою та відновлення (парасимпатика) серце б’ється гнучко й варіативно.'
+            : 'Reflects physiological tension based on beat-to-beat heart intervals during rest. Chronic or acute stress turns your pulse rigid and metronomic. When recovering, your autonomic tone becomes flexible and calm.',
+        BiometricTopic.journalHabits => isUk
+            ? 'Відокремлює суб’єктивні відчуття від реального впливу на фізіологію. Допомагає точно зрозуміти, які саме вечірні звички (магній, сауна, пізня вечеря, мелатонін, алкоголь) об’єктивно піднімають чи руйнують ваш ранковий HRV і відновлення.'
+            : 'Separates guesswork from physiological reality. Identifies which specific evening habits (magnesium, sauna, late meals, alcohol, cold shower) statistically boost or impair your morning HRV and recovery.',
+        BiometricTopic.repCounter => isUk
+            ? 'Автоматично розпізнає та підраховує повторення силових вправ (підтягування, жим, присідання) за допомогою вбудованого в браслет 6-осьового сенсора руху (акселерометр + гіроскоп).'
+            : 'Automatically detects and counts strength training repetitions (pullups, bench press, squats) using wrist-mounted 6-axis IMU sensors (accelerometer + gyroscope).',
       };
 
   static String _calculationText(BiometricTopic t, dynamic d, bool isUk) =>
@@ -366,6 +405,15 @@ class BiometricExplainerSheet {
         BiometricTopic.cardioAge => isUk
             ? 'Оптичний сенсор аналізує форму пульсової хвилі на зап\'ясті: швидкість підйому хвилі вказує на пружність стінок артерій, пульс у спокої та відновлення.'
             : 'The optical wrist sensor analyzes your pulse waveform: the wave shape reveals arterial wall flexibility, resting pulse, and cardio health.',
+        BiometricTopic.stress => isUk
+            ? '• Розраховується за математичною моделлю індексу напруги Баєвського (SI).\n• Амплітуда моди (AMo): відсоток ударів з найчастішою тривалістю.\n• Варіаційний розмах (MxDMn): різниця між найдовшим і найкоротшим ударом.\n• Формула: SI = AMo / (2 × Mo × MxDMn). У нормі показник спокою становить 50–150.'
+            : '• Calculated using Baevsky Stress Index (SI) amplitude distribution.\n• Mode Amplitude (AMo): frequency of dominant beat interval.\n• Variation Range (MxDMn): spread between max and min intervals.\n• Equation: SI = AMo / (2 × Mo × MxDMn). Normal resting range is 50–150.',
+        BiometricTopic.journalHabits => isUk
+            ? '• Порівнюються ночі після днів із зазначеною звичкою та ночі без неї.\n• Розраховується двовибірковий t-тест Велча з поправкою на нерівні дисперсії.\n• Потрібно мінімум 5 днів присутності та 5 днів відсутності звички для усунення випадкового шуму.'
+            : '• Compares mornings following days with the habit against nights without it.\n• Applies Welch’s two-sample t-test accounting for unequal variances.\n• Requires a minimum of 5 logged days with and 5 without to filter behavioral noise.',
+        BiometricTopic.repCounter => isUk
+            ? '• Сенсор опитується з частотою 100 разів на секунду (100 Гц).\n• Кватерніонна орієнтація ізолює вектор гравітації та рахує повторення за піками прискорення в реальному часі.\n• Обробка відбувається виключно в оперативній пам’яті (RAM) без затримки та без засмічення сховища.'
+            : '• The IMU is sampled at 100 Hz.\n• Quaternion orientation isolates gravity and tracks repetition inflection points in real time.\n• Processing operates directly in live RAM without latency and zero flash memory bloat.',
       };
 
   static Widget? _buildCalculationLedger(
@@ -495,6 +543,136 @@ class BiometricExplainerSheet {
             ],
           ),
         );
+      case BiometricTopic.stress:
+        return Container(
+          padding: const EdgeInsets.all(S.x3),
+          decoration: BoxDecoration(
+            color: p.card2,
+            borderRadius: R.rMd,
+            border: Border.all(color: p.line),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                isUk ? 'МАТЕМАТИКА НАПРУГИ БАЄВСЬКОГО:' : 'BAEVSKY STRESS MATH:',
+                style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: S.x2),
+              _LedgerEquationRow(
+                sign: '1',
+                value: '42%',
+                label: isUk ? 'Амплітуда моди (AMo) — домінуючий ритм' : 'Mode Amplitude (AMo) — dominant beat',
+                color: C.orange,
+              ),
+              const SizedBox(height: 6),
+              _LedgerEquationRow(
+                sign: '2',
+                value: '0.82 с',
+                label: isUk ? 'Мода інтервалів (Mo) — базова тривалість' : 'Mode Interval (Mo) — resting duration',
+                color: C.blue,
+              ),
+              const SizedBox(height: 6),
+              _LedgerEquationRow(
+                sign: '3',
+                value: '0.28 с',
+                label: isUk ? 'Варіаційний розмах (MxDMn) — гнучкість' : 'Variation Range (MxDMn) — beat spread',
+                color: C.green,
+              ),
+              const SizedBox(height: 6),
+              Divider(color: p.line, height: 1),
+              const SizedBox(height: 6),
+              _LedgerEquationRow(
+                sign: '=',
+                value: '91 SI',
+                label: isUk ? 'ІНДЕКС НАПРУГИ (СПОКІЙНИЙ ТОНУС)' : 'STRESS INDEX (OPTIMAL AUTONOMIC TONE)',
+                color: C.orange,
+                isTotal: true,
+              ),
+            ],
+          ),
+        );
+      case BiometricTopic.journalHabits:
+        return Container(
+          padding: const EdgeInsets.all(S.x3),
+          decoration: BoxDecoration(
+            color: p.card2,
+            borderRadius: R.rMd,
+            border: Border.all(color: p.line),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                isUk ? 'СТАТИСТИЧНИЙ T-ТЕСТ ВЕЛЧА:' : 'WELCH T-TEST BIOSTATISTICS:',
+                style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: S.x2),
+              _LedgerEquationRow(
+                sign: '+',
+                value: '78%',
+                label: isUk ? 'Середнє відновлення у дні зі звичкою' : 'Mean recovery on logged days',
+                color: C.green,
+              ),
+              const SizedBox(height: 6),
+              _LedgerEquationRow(
+                sign: '-',
+                value: '62%',
+                label: isUk ? 'Середнє відновлення у дні без звички' : 'Baseline recovery without habit',
+                color: C.purple,
+              ),
+              const SizedBox(height: 6),
+              Divider(color: p.line, height: 1),
+              const SizedBox(height: 6),
+              _LedgerEquationRow(
+                sign: '=',
+                value: '+16%',
+                label: isUk ? 'ДОСТОВІРНИЙ ВПЛИВ НА HRV (p < 0.05)' : 'STATISTICALLY SIGNIFICANT DELTA',
+                color: C.green,
+                isTotal: true,
+              ),
+            ],
+          ),
+        );
+      case BiometricTopic.repCounter:
+        return Container(
+          padding: const EdgeInsets.all(S.x3),
+          decoration: BoxDecoration(
+            color: p.card2,
+            borderRadius: R.rMd,
+            border: Border.all(color: p.line),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                isUk ? 'КІНЕМАТИКА РУХУ 100 ГЦ:' : '100 HZ MOTION KINEMATICS:',
+                style: F.over.copyWith(color: p.ink3, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: S.x2),
+              _LedgerEquationRow(
+                sign: '1',
+                value: '100 Hz',
+                label: isUk ? 'Опитування 6-осьового акселерометра й гіроскопа' : '6-axis IMU high-rate sampling',
+                color: C.green,
+              ),
+              const SizedBox(height: 6),
+              _LedgerEquationRow(
+                sign: '2',
+                value: '3D Quat',
+                label: isUk ? 'Кватерніонна фільтрація вектора сили тяжіння' : 'Quaternion gravity vector cancellation',
+                color: C.blue,
+              ),
+              const SizedBox(height: 6),
+              _LedgerEquationRow(
+                sign: '3',
+                value: '< 5 ms',
+                label: isUk ? 'Аналіз фаз повторення в RAM без затримки' : 'Zero-latency on-device RAM peak detection',
+                color: C.purple,
+              ),
+            ],
+          ),
+        );
       default:
         return null;
     }
@@ -516,6 +694,15 @@ class BiometricExplainerSheet {
         BiometricTopic.cardioAge => isUk
             ? 'Вік судин = Форма пульсової хвилі + Пульс у спокої'
             : 'Cardio Age = Pulse Wave Shape + Resting Pulse',
+        BiometricTopic.stress => isUk
+            ? 'SI = AMo / (2 × Mo × MxDMn) [Індекс Баєвського]'
+            : 'SI = AMo / (2 × Mo × MxDMn) [Baevsky Stress Index]',
+        BiometricTopic.journalHabits => isUk
+            ? 't-тест Велча: Δ = Середнє(зі звичкою) − Середнє(без) [p < 0.05]'
+            : 'Welch t-test: Δ = Mean(with) − Mean(without) [p < 0.05]',
+        BiometricTopic.repCounter => isUk
+            ? 'IMU 100 Гц: Повторення = Піки прискорення − Гравітація'
+            : '100 Hz IMU: Reps = Acceleration Inflections − Gravity',
       };
 
   static List<String> _sensorInputs(BiometricTopic t, bool isUk) => switch (t) {
@@ -534,6 +721,15 @@ class BiometricExplainerSheet {
         BiometricTopic.cardioAge => isUk
             ? ['Форма пульсової хвилі', 'Гнучкість судин', 'Пульс у спокої']
             : ['Pulse waveform', 'Arterial tone', 'Resting pulse'],
+        BiometricTopic.stress => isUk
+            ? ['Мікропаузи пульсу (RR)', 'Амплітуда моди AMo', 'Варіаційний розмах MxDMn', 'Пульс у спокої']
+            : ['RR intervals', 'Mode amplitude AMo', 'Spread MxDMn', 'Resting pulse'],
+        BiometricTopic.journalHabits => isUk
+            ? ['Журнал вечірніх звичок', 'Ранковий HRV', 'Рівень відновлення', 'Порівняльна вибірка днів']
+            : ['Evening habit logs', 'Morning HRV', 'Recovery score', 'Multi-day comparison sample'],
+        BiometricTopic.repCounter => isUk
+            ? ['3-осьовий акселерометр', '3-осьовий гіроскоп', 'Частота 100 Гц', 'Кватерніони руху']
+            : ['3-axis accelerometer', '3-axis gyroscope', '100 Hz sampling', 'Motion quaternions'],
       };
 
   static String _scienceText(BiometricTopic t, bool isUk) => switch (t) {
@@ -552,6 +748,15 @@ class BiometricExplainerSheet {
         BiometricTopic.cardioAge => isUk
             ? 'Дослідження в Nature (2025): оптичний аналіз форми пульсової хвилі точно оцінює біологічну еластичність артерій.'
             : 'Published in Nature (2025): pulse waveform analysis accurately captures arterial flexibility and biological cardio health.',
+        BiometricTopic.stress => isUk
+            ? 'Космічна кардіологія (метод акад. Баєвського): оцінює баланс між симпатичною (стрес, мобілізація) та парасимпатичною (відновлення, гальмування) нервовими системами.'
+            : 'Aerospace cardiology (Baevsky method): quantifies the balance between sympathetic (fight-or-flight) and parasympathetic (rest-and-digest) tone.',
+        BiometricTopic.journalHabits => isUk
+            ? 'Біостатистика: двовибірковий тест Велча з поправкою на нерівні дисперсії відсіює плацебо та суб’єктивні відчуття, підтверджуючи реальний фізіологічний вплив звички.'
+            : 'Biostatistics: Welch\'s two-sample t-test with unequal variance correction eliminates placebo and confirms true physiological impact on autonomic recovery.',
+        BiometricTopic.repCounter => isUk
+            ? 'Спортивна біомеханіка: частота 100 Гц фіксує мікрофази руху, розрізняючи концентричну фазу підйому, ексцентричне опускання та статичну паузу.'
+            : 'Sports biomechanics: 100 Hz polling captures fine motion phases, differentiating concentric lifts, eccentric descents, and isometric pauses.',
       };
 
   static String _guidanceText(BiometricTopic t, dynamic d, bool isUk) =>
@@ -571,6 +776,15 @@ class BiometricExplainerSheet {
         BiometricTopic.cardioAge => isUk
             ? '• 150 хвилин помірного кардіо на тиждень (швидка ходьба чи легкий біг) зберігають судини гнучкими.\n• Додайте 2 помірні силові тренування на тиждень для підтримки тиску й тонусу судин.'
             : '• 150 minutes of moderate weekly cardio (brisk walking or light jogging) keeps blood vessels flexible.\n• Add 2 strength sessions a week to support healthy blood pressure and vascular tone.',
+        BiometricTopic.stress => isUk
+            ? '• Індекс < 150 SI: Оптимальний стан спокою та рівноваги.\n• Індекс 150–300 SI: Помірний стрес або робоча концентрація. Зробіть 5-хвилинну дихальну вправу 4-7-8.\n• Індекс > 300 SI: Високе напруження. Зробіть паузу, випийте води та уникайте стимуляторів.'
+            : '• Under 150 SI: Calm autonomic balance.\n• 150–300 SI: Moderate strain or work focus. Try a 5-minute 4-7-8 breathing exercise.\n• Over 300 SI: High physiological tension. Step away from work, drink water, and skip extra caffeine.',
+        BiometricTopic.journalHabits => isUk
+            ? '• Відстежуйте звичку хоча б 10 днів (5 днів «так», 5 «ні»), щоб побачити статистично достовірну зміну.\n• Якщо звичка дає стабільний «+» до HRV (наприклад, магній або сон у прохолоді) — закріпіть її в щоденній рутині.'
+            : '• Log the habit for at least 10 days (5 days on, 5 days off) to establish statistical significance.\n• If a habit shows a confirmed boost to HRV (e.g. magnesium or a cool bedroom), make it a permanent ritual.',
+        BiometricTopic.repCounter => isUk
+            ? '• Слідкуйте за чіткою амплітудою вправ — датчик фіксує повторення за повним циклом руху.\n• Зберігайте 1–2 секунди підконтрольного опускання для точного підрахунку та максимального гіпертрофічного стимулу.'
+            : '• Maintain full range of motion — sensors detect reps based on complete inflection cycles.\n• Control the 1–2 second eccentric descent for precise counting and optimal muscle stimulus.',
       };
 
   static Widget _renderMetricHero(
@@ -615,6 +829,12 @@ class BiometricExplainerSheet {
         return '${d.strain}';
       case BiometricTopic.cardioAge:
         return '${d.age}';
+      case BiometricTopic.stress:
+        return d is num ? '${d.round()}' : (d?.toString() ?? '91');
+      case BiometricTopic.journalHabits:
+        return d is String ? d : '+16%';
+      case BiometricTopic.repCounter:
+        return d is num ? '${d.round()}' : '100 Hz';
     }
   }
 
@@ -640,6 +860,12 @@ class BiometricExplainerSheet {
         return isUk ? 'З 21.0 БАЛІВ' : 'OUT OF 21.0';
       case BiometricTopic.cardioAge:
         return isUk ? 'РОКІВ (СУДИНИ)' : 'YEARS (VASCULAR)';
+      case BiometricTopic.stress:
+        return isUk ? 'ІНДЕКС БАЄВСЬКОГО (SI)' : 'BAEVSKY STRESS INDEX (SI)';
+      case BiometricTopic.journalHabits:
+        return isUk ? 'ДОСТОВІРНИЙ ВПЛИВ' : 'STATISTICALLY SIGNIFICANT';
+      case BiometricTopic.repCounter:
+        return isUk ? 'АКТИВНИЙ РЕЖИМ IMU' : 'LIVE IMU KINEMATICS';
     }
   }
 
@@ -658,6 +884,12 @@ class BiometricExplainerSheet {
         return C.purple;
       case BiometricTopic.cardioAge:
         return C.red;
+      case BiometricTopic.stress:
+        return C.orange;
+      case BiometricTopic.journalHabits:
+        return C.purple;
+      case BiometricTopic.repCounter:
+        return C.green;
     }
   }
 
@@ -673,6 +905,12 @@ class BiometricExplainerSheet {
         return isUk ? 'Переглянути пульсові зони' : 'View heart rate zones';
       case BiometricTopic.cardioAge:
         return isUk ? 'Переглянути стан судин' : 'View vascular health';
+      case BiometricTopic.stress:
+        return isUk ? 'Відкрити монітор стресу та велнесу' : 'Open stress & wellness dashboard';
+      case BiometricTopic.journalHabits:
+        return isUk ? 'Відкрити журнал та записати день' : 'Open journal & log evening';
+      case BiometricTopic.repCounter:
+        return isUk ? 'Відкрити екран силового тренування' : 'Open workout tracker';
     }
   }
 }

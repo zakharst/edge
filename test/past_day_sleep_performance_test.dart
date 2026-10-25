@@ -55,9 +55,9 @@ void main() {
 
     final full = await _perfOn('2026-10-12');
     final short = await _perfOn('2026-10-13');
-    // Saturday the 10th and Sunday the 11th are the free nights: 8 h each, so
-    // the reference is 8 h and the 13th's 5 h is 62.5 % of it.
-    expect(full, closeTo(100.0, 1e-6));
-    expect(short, closeTo(62.5, 1e-6));
+    // The reference is the 7 h adult minimum (420 min). Night 12's 8 h (480 min)
+    // is 800 / 7 ≈ 114.29 %, and the 13th's 5 h (300 min) is 500 / 7 ≈ 71.43 %.
+    expect(full, closeTo(800 / 7, 1e-6));
+    expect(short, closeTo(500 / 7, 1e-6));
   });
 }

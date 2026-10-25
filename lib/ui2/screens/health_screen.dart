@@ -64,7 +64,8 @@ class HealthData {
   /// Derived days INSIDE THE LAST 30 CALENDAR DAYS — see [load].
   final int daysWithData;
 
-  /// Last night's sleep reference, minutes (`sleep_coach.reference_last_night`).
+  /// The sleep reference, minutes (`sleep_coach.need`): the AASM/SRS 7 h
+  /// adult minimum.
   final Metric need;
 
   /// Non-null when the cross-day rollup was withheld — see [staleInsightsCard].
@@ -160,10 +161,8 @@ class HealthData {
       charts[k] = pointsOf(await repo.getChart(k));
     }
 
-    // LAST night's sleep reference (yesterday's naps), the one the newest
-    // night is compared with. Tonight's (`need`) already subtracts today's nap.
     final coach = cd['sleep_coach'];
-    final needEnv = coach is Map ? coach['reference_last_night'] : null;
+    final needEnv = coach is Map ? coach['need'] : null;
     final needSec = envValue(needEnv)?['need_sec'] as num?;
 
     // The last 30 CALENDAR days, not the newest 30 rows. `availableDays()` is
@@ -1075,13 +1074,13 @@ class _HealthScreenState extends State<HealthScreen> with RevisionReload {
       if (d.need.value == null)
         trend('sleep', l?.healthTimeAsleep ?? 'Time asleep', '', C.blue)
       else
-        // `need` here is `crossday.sleep_coach.reference_last_night`: max(7 h,
-        // p75 of free nights) minus yesterday's naps. A reference, not a
-        // measured need, and never `sleep.need_min` (a hardcoded 480).
+        // `need` here is `crossday.sleep_coach.need`: the AASM/SRS 7 h adult
+        // minimum, not a measured need, and never `sleep.need_min` (a
+        // hardcoded 480).
         trend('sleep', l?.healthTimeAsleep ?? 'Time asleep', '', C.blue,
             against: d.need.value!.toDouble(),
-            againstLabel: l?.healthVsReference(hm(d.need.value)) ??
-                'vs your ${hm(d.need.value)} reference'),
+            againstLabel: l?.healthVsAdultMinimum(hm(d.need.value)) ??
+                'vs the ${hm(d.need.value)} adult minimum'),
 
       // Body clock (natural bedtime, weekend shift, consistency) moved to
       // the Sleep tab, beside the night it is about.

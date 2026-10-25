@@ -184,15 +184,12 @@ class SleepData {
 
   final Map<String, dynamic> night;
   final Map<String, dynamic> timeline;
-  /// Tonight's sleep REFERENCE (`sleep_coach.need`, kept under its old key):
-  /// max(7 h, p75 of free nights) minus today's naps. Not a measured need.
+  /// The sleep reference (`sleep_coach.need`, kept under its old key): the
+  /// AASM/SRS recommended minimum for adults, 7 h per night. Not a measured
+  /// need.
   final Metric need;
 
-  /// True when [need] is the 7 h population floor because no free (weekend)
-  /// night exists yet (`basis: population_floor`).
-  final bool needPopulation;
-
-  /// Minutes the last 7 nights fell below their own references
+  /// Minutes the last 7 nights fell below the 7 h reference
   /// (`sleep_coach.shortfall`); absent under 3 nights.
   final Metric shortfall;
 
@@ -226,7 +223,6 @@ class SleepData {
     this.night = const {},
     this.timeline = const {},
     this.need = Metric.empty,
-    this.needPopulation = false,
     this.shortfall = Metric.empty,
     this.regularity = Metric.empty,
     this.bedtime = Metric.empty,
@@ -369,7 +365,6 @@ class SleepData {
       night: night,
       timeline: timeline,
       need: envMetric(needEnv, needSec == null ? null : needSec / 60, unit: 'min'),
-      needPopulation: envValue(needEnv)?['basis'] == 'population_floor',
       shortfall:
           envMetric(shortEnv, shortH == null ? null : shortH * 60, unit: 'min'),
       // A regularity index over fewer than 3 nights compares one or two pairs
@@ -2149,13 +2144,11 @@ class _SleepDetailState extends State<SleepDetail> with RevisionReload {
           const SizedBox.shrink();
     }
 
-    final floor = d.needPopulation
-        ? ' (${l?.sleepDetailPopulationFloor ?? 'the 7 h population floor (AASM/SRS) until a weekend night is recorded'})'
-        : '';
     final reason = [
       if (need != null)
-        '${l?.sleepDetailYourReferenceIs(hm(need)) ?? 'Your reference is ${hm(need)}'}$floor',
-      if (short != null && short >= 1)
+        l?.sleepDetailAdultMinimumIs(hm(need)) ??
+            'The recommended minimum for adults is ${hm(need)} per night (AASM/SRS)',
+      if (short != null)
         l?.sleepDetailShortOver7(hm(short)) ??
             '${hm(short)} short over the last 7 nights',
     ].join(', ');

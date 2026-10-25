@@ -120,9 +120,8 @@ void main() {
       expect(written['sleep_need_min'], -1);
     });
 
-    // Tonight's reference (with today's nap) and last night's differ; the
-    // ring is LAST night's sleep, so its denominator is last night's own
-    // reference, the same one the Home ring divides by.
+    // The sleep reference is the adult minimum, the same one the Home ring
+    // divides by.
     Future<void> putCoach() => LocalDb.putBaseline(
           'crossday',
           jsonEncode({
@@ -130,12 +129,10 @@ void main() {
             'built_for_day': todayLabel(),
             'sleep_coach': {
               'need': {
-                'value': {'need_sec': 462 * 60, 'basis': 'free_nights'},
-                'confidence': 0.7,
-                'tier': 'ESTIMATE',
-              },
-              'reference_last_night': {
-                'value': {'need_sec': 450 * 60, 'basis': 'free_nights'},
+                'value': {
+                  'need_sec': 450 * 60,
+                  'basis': 'aasm_srs_adult_minimum'
+                },
                 'confidence': 0.7,
                 'tier': 'ESTIMATE',
               },
@@ -143,15 +140,14 @@ void main() {
           }),
         );
 
-    test('the widget ring divides by last night\'s own sleep reference',
-        () async {
+    test('the widget ring divides by the sleep reference', () async {
       await putCoach();
       await WidgetService.push(TodayData.fromJson(await repo.getToday()));
       expect(written['sleep_need_min'], 450);
     });
 
-    test('the day sleep read carries a shortfall against last night\'s '
-        'reference, never a debt', () async {
+    test('the day sleep read carries a shortfall against the reference, never a debt',
+        () async {
       await putCoach();
       final night = await repo.getDaySleep(todayLabel());
       expect(night['need_min'], 450);

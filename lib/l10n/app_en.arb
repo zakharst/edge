@@ -6506,9 +6506,9 @@
   "@healthTimeAsleep": {
     "description": "Trends tab sleep trend card label"
   },
-  "healthVsReference": "vs your {ref} reference",
-  "@healthVsReference": {
-    "description": "Trend card comparison label against last night's sleep reference: max(7 h, p75 of free nights) minus naps; not a measured need",
+  "healthVsAdultMinimum": "vs the {ref} adult minimum",
+  "@healthVsAdultMinimum": {
+    "description": "Trend card comparison label against the AASM/SRS recommended minimum for adults (7 h per night); a population recommendation, not a measured need",
     "placeholders": {
       "ref": {
         "type": "String"
@@ -7288,7 +7288,7 @@
   },
   "homeOfSpan": "of {duration}",
   "@homeOfSpan": {
-    "description": "Sleep ring subtitle: duration measured against a computed sleep-need target.",
+    "description": "Sleep ring subtitle: duration measured against the AASM/SRS 7 h adult minimum.",
     "placeholders": {
       "duration": {
         "type": "String",
@@ -7591,9 +7591,9 @@
   "@homeTonight": {
     "description": "Plan row category label: Tonight."
   },
-  "homeNeed": "Need",
-  "@homeNeed": {
-    "description": "Plan row meta text when no bedtime has been computed yet."
+  "homeAdultMinimum": "Adult minimum",
+  "@homeAdultMinimum": {
+    "description": "Plan row meta text when no bedtime has been computed yet: the sleep figure is the AASM/SRS recommended minimum for adults (7 h per night), not a personal need"
   },
   "homeBedTime": "Bed {time}",
   "@homeBedTime": {
@@ -7743,31 +7743,6 @@
       }
     }
   },
-  "wellnessTurnInBy": "Turn in by {time}",
-  "@wellnessTurnInBy": {
-    "description": "Sleep recommendation headline naming a target bedtime",
-    "placeholders": {
-      "time": {
-        "type": "String"
-      }
-    }
-  },
-  "wellnessShortfallBody": "The last 7 nights came up {short} short of their reference, and tonight's is {ref}.",
-  "@wellnessShortfallBody": {
-    "description": "Sleep recommendation body: the measured 7-night sleep shortfall and tonight's sleep reference",
-    "placeholders": {
-      "short": {
-        "type": "String"
-      },
-      "ref": {
-        "type": "String"
-      }
-    }
-  },
-  "wellnessSeeWhatLastNightCost": "See what last night cost you",
-  "@wellnessSeeWhatLastNightCost": {
-    "description": "Sleep recommendation call-to-action text"
-  },
   "wellnessWhatChargedAndDrained": "What charged and drained you",
   "@wellnessWhatChargedAndDrained": {
     "description": "Section title for readiness drivers"
@@ -7780,9 +7755,9 @@
   "@wellnessNoDriversBody": {
     "description": "Status card body explaining readiness drivers need more nights of data"
   },
-  "wellnessSleepReferenceTonight": "Sleep reference tonight",
-  "@wellnessSleepReferenceTonight": {
-    "description": "Section title for tonight's sleep reference: max(7 h, p75 of free nights) minus naps; not a measured need"
+  "wellnessRecommendedSleep": "Recommended sleep",
+  "@wellnessRecommendedSleep": {
+    "description": "Section title: the AASM/SRS recommended sleep minimum for adults and the measured shortfall against it"
   },
   "wellnessNoSleepReferenceTitle": "No sleep reference yet",
   "@wellnessNoSleepReferenceTitle": {
@@ -7792,21 +7767,17 @@
   "@wellnessNoSleepReferenceBody": {
     "description": "Status card fallback body when there is no reason recorded for a missing sleep reference"
   },
-  "wellnessTonightsReference": "Tonight's reference",
-  "@wellnessTonightsReference": {
-    "description": "Metric row label for tonight's sleep reference duration"
+  "wellnessAdultMinimum": "Adult minimum per night",
+  "@wellnessAdultMinimum": {
+    "description": "Metric row label: the AASM/SRS recommended minimum sleep for adults, 7 h per night"
   },
-  "wellnessPopulationReference": "This is the 7 h population reference (AASM/SRS) until a weekend night is recorded.",
-  "@wellnessPopulationReference": {
-    "description": "Caption under the sleep reference when no free (weekend) night exists yet and the 7 h consensus floor is used"
+  "wellnessAdultMinimumCaption": "The recommended minimum for adults (AASM/SRS consensus), not your measured need.",
+  "@wellnessAdultMinimumCaption": {
+    "description": "Caption under the 7 h adult minimum: names its source (AASM/SRS consensus, Watson et al. 2015) and that it is a population recommendation, not a personal measurement"
   },
   "wellnessShortfall7": "Short over 7 nights",
   "@wellnessShortfall7": {
-    "description": "Metric row label: total hours the last 7 nights fell below their own sleep reference"
-  },
-  "wellnessCreditedFromNaps": "Credited from naps",
-  "@wellnessCreditedFromNaps": {
-    "description": "Metric row label for minutes credited from naps"
+    "description": "Metric row label: total hours the last 7 nights fell below the 7 h adult minimum"
   },
   "wellnessTargetBedtime": "Target bedtime",
   "@wellnessTargetBedtime": {
@@ -8823,22 +8794,18 @@
   "@sleepDetailSleepReferenceNotEstablished": {
     "description": "Status card title when there is no sleep reference or bedtime"
   },
-  "sleepDetailYourReferenceIs": "Your reference is {ref}",
-  "@sleepDetailYourReferenceIs": {
-    "description": "Tonight's sleep reference: max(7 h, p75 of free nights) minus naps; not a measured need",
+  "sleepDetailAdultMinimumIs": "The recommended minimum for adults is {ref} per night (AASM/SRS)",
+  "@sleepDetailAdultMinimumIs": {
+    "description": "Sleep reference sentence: the AASM/SRS consensus minimum for adults (Watson et al. 2015); not a measured personal need",
     "placeholders": {
       "ref": {
         "type": "String"
       }
     }
   },
-  "sleepDetailPopulationFloor": "the 7 h population floor (AASM/SRS) until a weekend night is recorded",
-  "@sleepDetailPopulationFloor": {
-    "description": "In parentheses after the reference when no free night exists yet"
-  },
   "sleepDetailShortOver7": "{short} short over the last 7 nights",
   "@sleepDetailShortOver7": {
-    "description": "Measured 7-night sleep shortfall against each night's reference",
+    "description": "Measured 7-night sleep shortfall against the 7 h adult minimum",
     "placeholders": {
       "short": {
         "type": "String"

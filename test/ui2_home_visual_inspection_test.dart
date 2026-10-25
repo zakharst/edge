@@ -23,10 +23,9 @@ void main() {
       strain: Metric(value: 12.4, confidence: 0.9, tier: MetricTier.high),
       strainTarget: {'value': 13.0, 'low': 11.5, 'high': 14.5},
       sleepMin: Metric(value: 462.0, confidence: 0.95, tier: MetricTier.high), // 7h 42m
-      sleepNeedMin: Metric(value: 480.0, confidence: 0.9, tier: MetricTier.high), // 8h
-      // Last night's 7h 42m over last night's own 8h reference.
-      sleepPerfPct: Metric(value: 96.25, confidence: 0.9, tier: MetricTier.high),
-      sleepRefLastNightMin: Metric(value: 480.0, confidence: 0.9, tier: MetricTier.high),
+      sleepNeedMin: Metric(value: 420.0, confidence: 1.0, tier: MetricTier.estimate), // 7h
+      // Last night's 7h 42m over the 7 h adult minimum: 462 / 420 = 110 %.
+      sleepPerfPct: Metric(value: 110.0, confidence: 0.7, tier: MetricTier.estimate),
       rhr: Metric(value: 52.0, confidence: 0.95, tier: MetricTier.high),
       steps: Metric(value: 8420.0, confidence: 0.9, tier: MetricTier.high, inputsUsed: ['band_step_counter']),
       stepGoal: 10000,
@@ -68,8 +67,8 @@ void main() {
     expect(find.text('RECOVERY'), findsOneWidget);
     expect(find.text('STRAIN'), findsOneWidget);
     expect(find.text('SLEEP'), findsOneWidget);
-    expect(find.text('96%'), findsOneWidget);
-    expect(find.textContaining('7h 42m · of 8h'), findsOneWidget);
+    expect(find.text('110%'), findsOneWidget);
+    expect(find.textContaining('7h 42m · of 7h'), findsOneWidget);
 
     // Verify Level 2 Vitals (At a glance)
     expect(find.text('At a glance'), findsOneWidget);

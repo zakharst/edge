@@ -199,18 +199,16 @@ void main() {
     expect(tags['tst_min'], 'device');
     expect(tags['midsleep_sec'], 'device');
     expect(tags['rhr'], 'ours');
-    // Sleep need and regularity on the device's epochs: four nights on the
-    // same clock regularise to 100, and with no debt and no nap the need is
-    // the habitual night, the stored one within a quarter hour.
+    // Sleep regularity and reference on the device's epochs: four nights on
+    // the same clock regularise to 100, and the reference is the 7 h adult minimum.
     final xm = await crossDayAsOf(_dayId);
     expect(((xm['regularity'] as Map)['value'] as Map)['sri'], 100);
     expect(((xm['sleep_debt'] as Map)['value'] as Map)['debt_hours'], 0);
     expect(
         ((((xm['sleep_coach'] as Map)['need'] as Map)['value'] as Map)[
                     'need_sec'] as num) /
-                60 -
-            ((full['scalars'] as Map)['tst_min'] as num),
-        inInclusiveRange(-15, 15));
+                60,
+        420);
   }, timeout: const Timeout(Duration(minutes: 3)));
 
   test('a night the watch split in two serves both halves\' minutes',

@@ -567,7 +567,7 @@ class LocalRepositoryImpl extends LocalRepository {
       'daily': daily,
       'sleep': sleepBundle == null
           ? const {}
-          : _sleepSummary(sleepBundle, needMin: _sleepRefLastNightMin(cd)),
+          : _sleepSummary(sleepBundle, needMin: _sleepReferenceMin(cd)),
       if (sleepBundle != null && rhrEnv != null)
         'nocturnal': _nocturnal(
           sleepBundle,
@@ -729,15 +729,13 @@ class LocalRepositoryImpl extends LocalRepository {
     return total == null ? null : (total / 60).round();
   }
 
-  /// LAST night's sleep reference, in minutes, or null.
+  /// The sleep reference, in minutes, or null.
   ///
-  /// `sleep_coach.reference_last_night` is max(7 h AASM/SRS floor, p75 of the
-  /// user's free nights) minus the nap before that night, the same
-  /// denominator the Home ring's sleep performance divides by. It is absent
-  /// until the rollup's last row is today. Tonight's `need` (with today's nap)
-  /// is a different night and is not used for last night's sleep.
-  int? _sleepRefLastNightMin(Map<String, dynamic>? crossDay) {
-    final sec = _sub(crossDay, 'sleep_coach.reference_last_night.value')?[
+  /// `sleep_coach.need` is the AASM/SRS recommended minimum for adults, 7 h
+  /// per night, the same denominator the Home ring's sleep performance
+  /// divides by. The same for every night, so a past night reads it too.
+  int? _sleepReferenceMin(Map<String, dynamic>? crossDay) {
+    final sec = _sub(crossDay, 'sleep_coach.need.value')?[
         'need_sec'] as num?;
     return sec == null ? null : (sec / 60).round();
   }
@@ -755,7 +753,7 @@ class LocalRepositoryImpl extends LocalRepository {
         'ESTIMATE',
         unit: 'min',
       ),
-      // Last night's sleep reference (see [_sleepRefLastNightMin]). Absent means
+      // The sleep reference (see [_sleepReferenceMin]). Absent means
       // the key is not written at all, so `TodayData.sleepNeed` is empty and
       // `WidgetService.push` writes the -1 sentinel every native reader gates
       // its sleep ring on (`needMin > 0` in OpenStrapWidget.swift,
@@ -1061,11 +1059,9 @@ class LocalRepositoryImpl extends LocalRepository {
       return v == null ? null : (v / 60).round();
     }
 
-    // Today's rollup carries only today's night reference; a past night gets
-    // none rather than today's.
-    final needMin = date == _todayLocalLabel()
-        ? _sleepRefLastNightMin(await _crossDay())
-        : null;
+    // The 7 h reference is the same for every night, so a past night is
+    // measured against it too.
+    final needMin = _sleepReferenceMin(await _crossDay());
     final sleepConf = _sub(b, 'sleep.accounting')?['confidence'] as num?;
     // Sleep periods (main + naps) for the periods screen. The main period is
     // enriched HERE with the hypnogram + stage minutes: derivation builds the

@@ -39,7 +39,6 @@ import 'home_screen.dart' show envValue, metricOf, weekdayShortName;
 import 'journal_compose.dart';
 import 'start_card.dart';
 import 'metric_detail.dart' show detailScaffold;
-import 'sleep_detail.dart';
 
 class WellnessScreen extends StatefulWidget {
   /// Only the sleep plan (need, debt, bedtime, what charged and drained you),
@@ -467,37 +466,15 @@ class _WellnessScreenState extends State<WellnessScreen> with RevisionReload {
     final needSec = _nested(coachMap, 'need', 'need_sec');
     final bedMin = _nested(coachMap, 'bedtime', 'bedtime_min_of_day');
     final wakeMin = _nested(coachMap, 'wake', 'wake_min_of_day');
-    final napMin = _reading(coachMap?['nap_credit_min']);
-    // The measured deficit: Σ max(0, reference − TST) over the last 7 nights.
-    // `sleep_debt.debt_hours` (p75 minus median) is not shown as a debt.
+    // The measured deficit: Σ max(0, 7 h − TST) over the last 7 nights.
+    // `sleep_debt.debt_hours` (p75 minus median) is not shown as a debt. No
+    // advice card hangs off it: there is no sourced threshold at which a
+    // shortfall becomes worth acting on, so the number speaks for itself.
     final shortH = _nested(coachMap, 'shortfall', 'shortfall_hours');
-    final needVal = coachMap?['need'] is Map ? (coachMap!['need'] as Map)['value'] : null;
-    final populationRef =
-        needVal is Map && needVal['basis'] == 'population_floor';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // The one recommendation on this screen, and only when all three of
-        // its inputs are real: a measured shortfall worth acting on, a
-        // reference, and a target bedtime to name. No shortfall, no card: the
-        // widget does not get an invented reason so that it can appear.
-        if (shortH != null && shortH >= .75 && needSec != null && bedMin != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: S.x5),
-            child: Recommendation(
-              l?.wellnessTurnInBy(formatMinuteOfDay(bedMin.round())) ??
-                  'Turn in by ${formatMinuteOfDay(bedMin.round())}',
-              l?.wellnessShortfallBody(_hm(shortH * 60), _hm(needSec / 60)) ??
-                  'The last 7 nights came up ${_hm(shortH * 60)} short of '
-                      'their reference, and tonight\'s is ${_hm(needSec / 60)}.',
-              l?.wellnessSeeWhatLastNightCost ?? 'See what last night cost you',
-              color: C.indigo,
-              onTap: () => Navigator.of(c).push(
-                MaterialPageRoute<void>(builder: (_) => const SleepDetail()),
-              ),
-            ),
-          ),
         Section(
           l?.wellnessWhatChargedAndDrained ?? 'What charged and drained you',
           // Two words and a full stop, before: "hrv", "rhr". No reading, no
@@ -516,7 +493,7 @@ class _WellnessScreenState extends State<WellnessScreen> with RevisionReload {
               : DriverBreakdown(_drivers),
         ),
         Section(
-          l?.wellnessSleepReferenceTonight ?? 'Sleep reference tonight',
+          l?.wellnessRecommendedSleep ?? 'Recommended sleep',
           needSec == null
               // The coach's own reason for the absent reference: it names the
               // input that is actually missing.
@@ -534,20 +511,18 @@ class _WellnessScreenState extends State<WellnessScreen> with RevisionReload {
                       MetricRow(
                         LucideIcons.bedDouble,
                         C.blue,
-                        l?.wellnessTonightsReference ?? 'Tonight\'s reference',
+                        l?.wellnessAdultMinimum ?? 'Adult minimum per night',
                         _hm(needSec / 60),
                       ),
-                      if (populationRef)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: S.x2),
-                          child: Text(
-                            l?.wellnessPopulationReference ??
-                                'This is the 7 h population reference '
-                                    '(AASM/SRS) until a weekend night is '
-                                    'recorded.',
-                            style: F.cap.copyWith(color: P.of(c).ink3),
-                          ),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: S.x2),
+                        child: Text(
+                          l?.wellnessAdultMinimumCaption ??
+                              'The recommended minimum for adults (AASM/SRS '
+                                  'consensus), not your measured need.',
+                          style: F.cap.copyWith(color: P.of(c).ink3),
                         ),
+                      ),
                       // Null here means "we do not know" (under 3 nights),
                       // which is why it is a missing row rather than "0m".
                       if (shortH != null)
@@ -556,14 +531,6 @@ class _WellnessScreenState extends State<WellnessScreen> with RevisionReload {
                           C.orange,
                           l?.wellnessShortfall7 ?? 'Short over 7 nights',
                           _hm(shortH * 60),
-                        ),
-                      if (napMin != null)
-                        MetricRow(
-                          LucideIcons.sun,
-                          C.yellow,
-                          l?.wellnessCreditedFromNaps ?? 'Credited from naps',
-                          '${napMin.round()}',
-                          unit: 'min',
                         ),
                       if (bedMin != null)
                         MetricRow(

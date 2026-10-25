@@ -243,7 +243,7 @@ void main() {
         await _openRecovery(t, dark: dark, scale: scale, repo: _Repo());
 
         expect(find.text('What charged and drained you'), findsOneWidget);
-        expect(find.text('Sleep reference tonight'), findsOneWidget);
+        expect(find.text('Recommended sleep'), findsOneWidget);
         expect(find.byType(DriverBreakdown), findsOneWidget);
         _expectCardPainted(t);
       }, timeout: const Timeout(Duration(seconds: 60)));
@@ -297,37 +297,28 @@ void main() {
         // Every one of those is now ABSENT, which is a state this screen
         // already renders honestly — so the section is still here and still
         // says why, rather than the page being gone.
-        expect(find.text('Sleep reference tonight'), findsOneWidget);
+        expect(find.text('Recommended sleep'), findsOneWidget);
         expect(find.text('No sleep reference yet'), findsOneWidget);
         _expectCardPainted(t);
       }, timeout: const Timeout(Duration(seconds: 60)));
     }
   }
 
-  // A REFERENCE, NOT A NEED. Tonight's number is max(7 h, p75 of free nights)
-  // minus naps; strain no longer adds to it, and the only deficit shown is the
-  // measured shortfall of the last 7 nights against their own references.
-  testWidgets('the sleep section shows a reference and a 7-night shortfall',
+  // A REFERENCE, NOT A NEED. The sleep section shows the AASM/SRS adult minimum
+  // (7 h) and the measured shortfall of the last 7 nights.
+  testWidgets('the sleep section shows the adult minimum and a 7-night shortfall',
       (t) async {
     await _openRecovery(t, dark: false, scale: 1.0, repo: _Repo());
 
-    expect(find.text("Tonight's reference"), findsOneWidget);
+    expect(find.text('Adult minimum per night'), findsOneWidget);
     expect(find.text('Short over 7 nights'), findsOneWidget);
-    expect(find.text('1h 24m'), findsWidgets,
-        reason: 'the shortfall, 1.4 h, both on its row and in the advice');
+    expect(find.text('1h 24m'), findsOneWidget,
+        reason: 'the shortfall, 1.4 h, on its row');
     expect(find.text('Added for strain'), findsNothing);
     expect(find.text('Sleep debt'), findsNothing);
     expect(find.text('9h 54m'), findsNothing,
         reason: 'the p75-minus-median pseudo-debt is not a deficit');
-    expect(find.textContaining('population reference'), findsNothing);
-  }, timeout: const Timeout(Duration(seconds: 60)));
-
-  testWidgets('a reference with no free nights says it is the population one',
-      (t) async {
-    await _openRecovery(t,
-        dark: false, scale: 1.0, repo: _Repo(basis: 'population_floor'));
-
-    expect(find.textContaining('population reference'), findsOneWidget);
+    expect(find.textContaining('recommended minimum for adults'), findsOneWidget);
   }, timeout: const Timeout(Duration(seconds: 60)));
 }
 

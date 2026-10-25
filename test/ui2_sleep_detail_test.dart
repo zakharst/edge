@@ -420,7 +420,7 @@ void main() {
         },
         'sleep_coach': {
           'need': {
-            'value': {'need_sec': 25200.0, 'basis': 'population_floor'}
+            'value': {'need_sec': 25200.0, 'basis': 'aasm_srs_adult_minimum'}
           },
           'shortfall': {
             'value': {'shortfall_hours': 1.5, 'nights': 5}
@@ -432,7 +432,6 @@ void main() {
         },
       }));
       expect(d.need.value, 420);
-      expect(d.needPopulation, isTrue);
       expect(d.shortfall.value, 90);
       expect(d.regularity.value, closeTo(81.2, 1e-9));
     });
@@ -499,7 +498,7 @@ void main() {
         day: '2026-05-20',
         night: _night(),
         need: const Metric(
-            value: 462, unit: 'min', confidence: .7, tier: MetricTier.estimate),
+            value: 420, unit: 'min', confidence: 1, tier: MetricTier.estimate),
         shortfall: const Metric(
             value: 22, unit: 'min', confidence: .7, tier: MetricTier.estimate),
         bedtime:
@@ -507,14 +506,17 @@ void main() {
       ),
     );
     expect(find.text('lights out'), findsOneWidget);
-    expect(find.textContaining('Your reference is 7h 42m'), findsOneWidget);
+    expect(
+        find.textContaining(
+            'The recommended minimum for adults is 7h 00m per night (AASM/SRS)'),
+        findsOneWidget);
     expect(find.textContaining('22m short over the last 7 nights'),
         findsOneWidget);
     expect(find.textContaining('need'), findsNothing);
-    expect(find.textContaining('population floor'), findsNothing);
+    expect(find.textContaining('Your reference'), findsNothing);
   });
 
-  testWidgets('a reference with no free nights says it is the 7 h floor',
+  testWidgets('a zero shortfall is shown, not hidden behind a threshold',
       (t) async {
     await _pump(
       t,
@@ -522,11 +524,13 @@ void main() {
         day: '2026-05-20',
         night: _night(),
         need: const Metric(
-            value: 420, unit: 'min', confidence: .3, tier: MetricTier.estimate),
-        needPopulation: true,
+            value: 420, unit: 'min', confidence: 1, tier: MetricTier.estimate),
+        shortfall: const Metric(
+            value: 0, unit: 'min', confidence: .7, tier: MetricTier.estimate),
       ),
     );
-    expect(find.textContaining('population floor'), findsOneWidget);
+    expect(find.textContaining('0m short over the last 7 nights'),
+        findsOneWidget);
   });
 
   group('correctedSleepWindow', () {

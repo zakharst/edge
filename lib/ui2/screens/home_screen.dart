@@ -31,6 +31,7 @@ import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter_blue_plus/flutter_blue_plus.dart' show FlutterBluePlus;
 import 'package:geolocator/geolocator.dart' show Geolocator;
+import 'biometric_explainer_sheet.dart';
 import 'next_gen_mvp.dart';
 
 import 'package:flutter/material.dart';
@@ -803,48 +804,10 @@ class _WhoopStatusBar extends StatelessWidget {
     }
 
     // ── 1B. ON-DEVICE DERIVATION (CRUNCHING) STATE ─────────────────────
-    if (isDeriving && quietDerive && data.deriveProgress.totalDays <= 1) {
-      final fracInt = (data.deriveProgress.fraction * 100).round();
-      return Padding(
-        padding: const EdgeInsets.only(bottom: S.x3),
-        child: Row(
-          children: [
-            Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: p.on(C.blue),
-              ),
-            ),
-            const SizedBox(width: S.x2),
-            Text(
-              l?.homeUpdatingQuietly ?? 'Updating in the background',
-              style: F.cap.copyWith(color: p.ink3),
-            ),
-            if (fracInt > 0) ...[
-              Text(
-                ' · $fracInt%',
-                style: F.cap.copyWith(
-                  color: p.on(C.blue),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-            if (data.deriveProgress.stageDescription != null) ...[
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  '· ${data.deriveProgress.stageDescription}',
-                  style: F.cap.copyWith(color: p.ink3),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ],
-        ),
-      );
+    // If the screen already has scores (quietDerive == true), run background
+    // derivation 100% silently with zero visual distraction or spinner.
+    if (isDeriving && quietDerive) {
+      return const SizedBox.shrink();
     }
     if (isDeriving) {
       final progress = data.deriveProgress;
@@ -1157,7 +1120,6 @@ class _WhoopStatusBar extends StatelessWidget {
                         style: F.over.copyWith(
                           color: i == currentStep ? p.inkOnFill : p.on(C.blue),
                           fontWeight: FontWeight.bold,
-                          fontSize: 9,
                           height: 1,
                         ),
                       ),
@@ -1169,7 +1131,6 @@ class _WhoopStatusBar extends StatelessWidget {
                   color: i <= currentStep ? p.ink : p.ink3,
                   fontWeight:
                       i == currentStep ? FontWeight.bold : FontWeight.normal,
-                  fontSize: 10,
                 ),
               ),
             ],
@@ -2333,8 +2294,8 @@ _RingState _ringOf(HomeRingKind k, HomeData d, AppLocalizations? l) {
             l?.homeRingSleep ?? 'Sleep',
             LucideIcons.moon,
             C.blue,
-            value: hm(v),
-            sub: ref != null ? '$pct% · of ${hm(ref)}' : '$pct% of 7h target',
+            value: '$pct%',
+            sub: ref != null ? '${hm(v)} · of ${hm(ref)}' : '${hm(v)} · of 7h',
             frac: (pct / 100.0).clamp(0.0, 1.0),
           );
         }
@@ -3363,17 +3324,56 @@ class _HomeScreenState extends State<HomeScreen> with RevisionReload {
         if (RingTrio.has(d)) ...[
           RingTrio(
             d: d,
-            onOpen: (k) => go(
-                c,
-                switch (k) {
-                  HomeRingKind.recovery => const ReadinessDetail(),
-                  HomeRingKind.strain => const DayStrainDetail(),
-                  // The night the ring was drawn from, not last night. Today
-                  // stays null even after the switcher steps back onto it:
-                  // today's ring is the held-over night, and only the default
-                  // pick resolves to that one.
-                  HomeRingKind.sleep => SleepDetail(day: isToday ? null : _day),
-                }),
+            onOpen: (k) {
+              switch (k) {
+                case HomeRingKind.recovery:
+                  BiometricExplainerSheet.show(
+                    c,
+                    topic: BiometricTopic.recovery,
+                    data: (
+                      readiness: d.readiness.value?.round() ?? 0,
+                    ),
+                    onOpenDetails: () => go(c, const ReadinessDetail()),
+                    detailsLabel: 'Переглянути графіки відновлення',
+                  );
+                  break;
+                case HomeRingKind.strain:
+                  BiometricExplainerSheet.show(
+                    c,
+                    topic: BiometricTopic.strain,
+                    data: (
+                      strain: d.strain.value != null
+                          ? d.strain.value!.toStringAsFixed(1)
+                          : '0.0',
+                    ),
+                    onOpenDetails: () => go(c, const DayStrainDetail()),
+                    detailsLabel: 'Переглянути пульсові зони',
+                  );
+                  break;
+                case HomeRingKind.sleep:
+                  final sleepM = d.sleepMin.value ?? 0.0;
+                  final quality = d.sleepQuality.value?.round() ?? 68;
+                  final eff = d.sleepEff.value?.round() ?? 88;
+                  final restorative = d.restorativeMin.value?.round() ??
+                      (sleepM * 0.35).round();
+                  final waso = d.wasoMin.value?.round() ?? 24;
+                  BiometricExplainerSheet.show(
+                    c,
+                    topic: BiometricTopic.sleepQuality,
+                    data: (
+                      quality: quality,
+                      sleepM: sleepM,
+                      eff: eff,
+                      restorative: restorative,
+                      waso: waso,
+                    ),
+                    onOpenDetails: () =>
+                        go(c, SleepDetail(day: isToday ? null : _day)),
+                    detailsLabel: 'Переглянути повну стадіограму сну',
+                  );
+                  break;
+              }
+            },
           ),
           if (isToday && d.recoveryState == 'provisional') ...[
             const SizedBox(height: S.x3),

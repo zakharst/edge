@@ -186,7 +186,7 @@ class _NextGenMvpCardState extends State<NextGenMvpCard> with RevisionReload {
                 const SizedBox(width: S.x2),
                 Expanded(
                   child: Text(
-                    'CARDIOVASCULAR AGE · PPG-AGE',
+                    'CARDIOVASCULAR AGE',
                     style: F.over.copyWith(
                       color: p.ink3,
                       fontWeight: FontWeight.bold,

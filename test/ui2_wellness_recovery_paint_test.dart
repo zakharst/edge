@@ -52,10 +52,10 @@ const _day = '2026-08-16';
 /// built on `contribution` instead of `weighted_contribution` passes its own
 /// fiction and reports every driver as "neither".
 class _Repo extends LocalRepository {
-  _Repo({this.insights, this.stress, this.basis = 'free_nights'});
+  _Repo({this.insights, this.stress});
 
   /// The reference's `basis`: `free_nights` or `population_floor`.
-  final String basis;
+  final String basis = 'free_nights';
 
   /// Overrides the healthy fixture, for the hostile-leaf case.
   final Map<String, dynamic>? insights;

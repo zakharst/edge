@@ -14,7 +14,9 @@ class BodyBatteryState {
   final int strainDrain; // drain from physical cardio load
   final int timeDrain; // baseline metabolic drain from waking hours
   final String status;
+  final String statusUa;
   final String verdict;
+  final String verdictUa;
   final Color tierColor;
   final IconData icon;
 
@@ -25,7 +27,9 @@ class BodyBatteryState {
     required this.strainDrain,
     required this.timeDrain,
     required this.status,
+    required this.statusUa,
     required this.verdict,
+    required this.verdictUa,
     required this.tierColor,
     required this.icon,
   });
@@ -77,32 +81,46 @@ class BodyBatteryCalculator {
 
     // 5. Categorization & Actionable Guidance
     final String status;
+    final String statusUa;
     final String verdict;
+    final String verdictUa;
     final Color tierColor;
     final IconData icon;
 
     if (current >= 75) {
-      status = 'HIGH ENERGY · ОПТИМАЛЬНИЙ РЕЗЕРВ';
+      status = 'HIGH ENERGY';
+      statusUa = 'ОПТИМАЛЬНИЙ РЕЗЕРВ';
       verdict =
           'Autonomic reserves fully charged. Ideal window for peak cardiovascular strain and high cognitive focus.';
+      verdictUa =
+          'Вегетативні ресурси повністю заряджені. Оптимальний час для пікових навантажень та високої концентрації.';
       tierColor = C.green;
       icon = LucideIcons.batteryCharging;
     } else if (current >= 45) {
-      status = 'STEADY ENERGY · ПОМІРНИЙ РЕЗЕРВ';
+      status = 'STEADY ENERGY';
+      statusUa = 'ПОМІРНИЙ РЕЗЕРВ';
       verdict =
           'Balanced energy reserves. Sufficient for productive daily activity and Zone 2 aerobic training.';
+      verdictUa =
+          'Збалансований рівень енергії. Достатній для продуктивної активності та легкого кардіо в Зоні 2.';
       tierColor = C.yellow;
       icon = LucideIcons.batteryMedium;
     } else if (current >= 20) {
-      status = 'LOW ENERGY · НИЗЬКИЙ РЕЗЕРВ';
+      status = 'LOW ENERGY';
+      statusUa = 'НИЗЬКИЙ РЕЗЕРВ';
       verdict =
           'Physiological fatigue accumulating. Avoid exhausting workouts; focus on recovery and an early bedtime.';
+      verdictUa =
+          'Накопичується фізіологічна втома. Уникайте виснажливих тренувань, сфокусуйтеся на ранньому сні.';
       tierColor = C.orange;
       icon = LucideIcons.batteryLow;
     } else {
-      status = 'DEPLETED · ВИСНАЖЕННЯ';
+      status = 'DEPLETED';
+      statusUa = 'ВИСНАЖЕННЯ';
       verdict =
           'Energy reserves critically depleted. The autonomic nervous system demands rest and restorative sleep.';
+      verdictUa =
+          'Резерви енергії критично вичерпані. Нервова система вимагає негайного відпочинку та сну.';
       tierColor = C.red;
       icon = LucideIcons.batteryWarning;
     }
@@ -114,7 +132,9 @@ class BodyBatteryCalculator {
       strainDrain: strainDrain,
       timeDrain: timeDrain,
       status: status,
+      statusUa: statusUa,
       verdict: verdict,
+      verdictUa: verdictUa,
       tierColor: tierColor,
       icon: icon,
     );

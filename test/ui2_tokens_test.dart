@@ -314,6 +314,6 @@ const _notComponents = {
   // at a real phone width against injected rows.
   'WorkoutSuggestionScreen', 'LogWorkout',
   'DetectedActivitiesScreen', 'NapProposalEditor', // Full review/editor routes.
-  // Edge MOD Next-Gen card reads repository and day results directly.
-  'NextGenMvpCard',
+  // Edge MOD Next-Gen cards read repository and day results directly.
+  'NextGenMvpCard', 'BodyBatteryCard', 'SleepArchitectureCard',
 };
